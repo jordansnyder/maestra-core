@@ -5,6 +5,8 @@ Maestra (codename) is an immersive experience infrastructure platform. It allows
 
 
 # Components
+- Secure cloud synchronization - enable multi-location, multi-device collaboration and cross-platform play
+- iOS & Android SDKs
 - Elegant and intuitive browser-based UI
 - Obsessive logging and debugging capabilities
 - No-code Experience Design Tool

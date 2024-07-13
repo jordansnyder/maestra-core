@@ -3,6 +3,9 @@
 # Description
 Maestra (codename) is an immersive experience infrastructure platform. It allows you to connect any device to a central bus, publish and subscribe to events, connect devices in a P2P network for efficient transfer of data, and integrate with any show control system. A vibrant plugin ecosystem allows for the development of custom, high-performance modules in Python, Rust or C++, so you can build any immersive experience you can dream up.
 
+"We build tools for creatives."
+"Maestra gives you permission to create what you're dreaming."
+
 
 # Components
 - Secure cloud synchronization - enable multi-location, multi-device collaboration and cross-platform play

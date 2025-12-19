@@ -172,14 +172,16 @@ nano .env
 
 ```bash
 # Start all services
-docker-compose up -d
+docker compose up -d
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 
 # Check service health
-docker-compose ps
+docker compose ps
 ```
+
+> **Note:** The Makefile auto-detects whether you have `docker compose` (V1) or `docker compose` (V2) installed.
 
 ### 3. Verify Services
 
@@ -234,7 +236,7 @@ password_file /mosquitto/config/passwd
 Generate password file:
 
 ```bash
-docker-compose exec mosquitto mosquitto_passwd -c /mosquitto/config/passwd username
+docker compose exec mosquitto mosquitto_passwd -c /mosquitto/config/passwd username
 ```
 
 #### Node-RED
@@ -351,36 +353,36 @@ client.loop_start()
 
 ```bash
 # Start only message bus
-docker-compose up -d nats mosquitto redis
+docker compose up -d nats mosquitto redis
 
 # Start database
-docker-compose up -d postgres
+docker compose up -d postgres
 
 # Start with logs
-docker-compose up nodered
+docker compose up nodered
 ```
 
 ### Rebuilding Services
 
 ```bash
 # Rebuild specific service
-docker-compose build fleet-manager
+docker compose build fleet-manager
 
 # Rebuild and restart
-docker-compose up -d --build fleet-manager
+docker compose up -d --build fleet-manager
 ```
 
 ### Accessing Service Shells
 
 ```bash
 # Access PostgreSQL
-docker-compose exec postgres psql -U maestra -d maestra
+docker compose exec postgres psql -U maestra -d maestra
 
 # Access Redis CLI
-docker-compose exec redis redis-cli
+docker compose exec redis redis-cli
 
 # Access Node-RED container
-docker-compose exec nodered /bin/bash
+docker compose exec nodered /bin/bash
 ```
 
 ### Development Workflow
@@ -390,10 +392,10 @@ docker-compose exec nodered /bin/bash
 vim services/fleet-manager/main.py
 
 # Rebuild and restart
-docker-compose up -d --build fleet-manager
+docker compose up -d --build fleet-manager
 
 # View logs
-docker-compose logs -f fleet-manager
+docker compose logs -f fleet-manager
 ```
 
 ---
@@ -431,7 +433,7 @@ certificatesResolvers:
 
 ### Resource Limits
 
-Edit `docker-compose.yml` to add resource constraints:
+Edit `docker compose.yml` to add resource constraints:
 
 ```yaml
 services:
@@ -447,7 +449,7 @@ services:
 
 ```bash
 # Backup PostgreSQL
-docker-compose exec postgres pg_dump -U maestra maestra > backup.sql
+docker compose exec postgres pg_dump -U maestra maestra > backup.sql
 
 # Backup volumes
 docker run --rm -v maestra-core_postgres-data:/data -v $(pwd):/backup \
@@ -462,13 +464,13 @@ docker run --rm -v maestra-core_postgres-data:/data -v $(pwd):/backup \
 
 ```bash
 # Check logs
-docker-compose logs <service-name>
+docker compose logs <service-name>
 
 # Check service status
-docker-compose ps
+docker compose ps
 
 # Restart service
-docker-compose restart <service-name>
+docker compose restart <service-name>
 ```
 
 ### Port Conflicts
@@ -477,7 +479,7 @@ docker-compose restart <service-name>
 # Check what's using a port
 sudo lsof -i :8080
 
-# Change port in docker-compose.yml
+# Change port in docker compose.yml
 ports:
   - "8081:8080"  # Map to different host port
 ```
@@ -486,17 +488,17 @@ ports:
 
 ```bash
 # Verify PostgreSQL is running
-docker-compose exec postgres pg_isready -U maestra
+docker compose exec postgres pg_isready -U maestra
 
 # Check connection from fleet-manager
-docker-compose exec fleet-manager ping postgres
+docker compose exec fleet-manager ping postgres
 ```
 
 ### MQTT Connection Issues
 
 ```bash
 # Test MQTT connectivity
-docker-compose exec mosquitto mosquitto_sub -t '#' -v
+docker compose exec mosquitto mosquitto_sub -t '#' -v
 
 # From external client
 mosquitto_pub -h localhost -t test -m "hello"
@@ -506,16 +508,16 @@ mosquitto_pub -h localhost -t test -m "hello"
 
 ```bash
 # Stop and remove all containers
-docker-compose down
+docker compose down
 
 # Remove volumes (⚠️ DELETES ALL DATA)
-docker-compose down -v
+docker compose down -v
 
 # Remove images
-docker-compose down --rmi all
+docker compose down --rmi all
 
 # Start fresh
-docker-compose up -d
+docker compose up -d
 ```
 
 ### Performance Issues
@@ -525,10 +527,10 @@ docker-compose up -d
 docker stats
 
 # Check service health
-docker-compose exec <service> top
+docker compose exec <service> top
 
 # View container logs for errors
-docker-compose logs --tail=100 <service>
+docker compose logs --tail=100 <service>
 ```
 
 ---

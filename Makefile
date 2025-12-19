@@ -6,6 +6,9 @@
 # Default target
 .DEFAULT_GOAL := help
 
+# Docker Compose command (supports both V1 and V2)
+DOCKER_COMPOSE := $(shell if command -v docker-compose > /dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi)
+
 help: ## Show this help message
 	@echo "Maestra Infrastructure Commands:"
 	@echo ""
@@ -20,29 +23,29 @@ init: ## Initialize environment (copy .env.example to .env)
 	fi
 
 up: ## Start all services
-	docker-compose up -d
+	$(DOCKER_COMPOSE) up -d
 	@echo "✅ All services started. Run 'make logs' to view logs."
 
 down: ## Stop all services
-	docker-compose down
+	$(DOCKER_COMPOSE) down
 	@echo "✅ All services stopped."
 
 restart: ## Restart all services
-	docker-compose restart
+	$(DOCKER_COMPOSE) restart
 	@echo "✅ All services restarted."
 
 logs: ## View logs from all services (Ctrl+C to exit)
-	docker-compose logs -f
+	$(DOCKER_COMPOSE) logs -f
 
 logs-service: ## View logs from a specific service (usage: make logs-service SERVICE=fleet-manager)
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "❌ Please specify SERVICE. Example: make logs-service SERVICE=fleet-manager"; \
 		exit 1; \
 	fi
-	docker-compose logs -f $(SERVICE)
+	$(DOCKER_COMPOSE) logs -f $(SERVICE)
 
 ps: ## Show status of all services
-	docker-compose ps
+	$(DOCKER_COMPOSE) ps
 
 health: ## Check health of all services
 	@echo "Checking service health..."
@@ -56,17 +59,17 @@ health: ## Check health of all services
 	@curl -s http://localhost:3000 > /dev/null && echo "✅ Grafana (port 3000) is healthy" || echo "❌ Grafana not responding"
 
 build: ## Rebuild all custom services
-	docker-compose build
+	$(DOCKER_COMPOSE) build
 
 build-service: ## Rebuild a specific service (usage: make build-service SERVICE=fleet-manager)
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "❌ Please specify SERVICE. Example: make build-service SERVICE=fleet-manager"; \
 		exit 1; \
 	fi
-	docker-compose build $(SERVICE)
+	$(DOCKER_COMPOSE) build $(SERVICE)
 
 clean: ## Stop and remove all containers, networks (keeps volumes)
-	docker-compose down
+	$(DOCKER_COMPOSE) down
 	@echo "✅ Containers and networks removed. Volumes preserved."
 
 clean-all: ## Stop and remove everything including volumes (⚠️  DELETES ALL DATA)
@@ -74,36 +77,36 @@ clean-all: ## Stop and remove everything including volumes (⚠️  DELETES ALL 
 	@read -p "Are you sure? [y/N] " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		docker-compose down -v; \
+		$(DOCKER_COMPOSE) down -v; \
 		echo "✅ Everything removed including volumes."; \
 	else \
 		echo "❌ Cancelled."; \
 	fi
 
 dev-bus: ## Start only message bus services (NATS, Mosquitto, Redis)
-	docker-compose up -d nats mosquitto redis
+	$(DOCKER_COMPOSE) up -d nats mosquitto redis
 	@echo "✅ Message bus services started."
 
 dev-db: ## Start only database services
-	docker-compose up -d postgres
+	$(DOCKER_COMPOSE) up -d postgres
 	@echo "✅ Database started."
 
 dev-core: ## Start core services (bus, db, fleet-manager, nodered)
-	docker-compose up -d nats mosquitto redis postgres fleet-manager nodered
+	$(DOCKER_COMPOSE) up -d nats mosquitto redis postgres fleet-manager nodered
 	@echo "✅ Core services started."
 
 shell-postgres: ## Open PostgreSQL shell
-	docker-compose exec postgres psql -U maestra -d maestra
+	$(DOCKER_COMPOSE) exec postgres psql -U maestra -d maestra
 
 shell-redis: ## Open Redis CLI
-	docker-compose exec redis redis-cli
+	$(DOCKER_COMPOSE) exec redis redis-cli
 
 shell-fleet: ## Open Fleet Manager shell
-	docker-compose exec fleet-manager /bin/bash
+	$(DOCKER_COMPOSE) exec fleet-manager /bin/bash
 
 backup-db: ## Backup PostgreSQL database
 	@mkdir -p backups
-	docker-compose exec postgres pg_dump -U maestra maestra > backups/backup-$$(date +%Y%m%d-%H%M%S).sql
+	$(DOCKER_COMPOSE) exec postgres pg_dump -U maestra maestra > backups/backup-$$(date +%Y%m%d-%H%M%S).sql
 	@echo "✅ Database backed up to backups/ directory"
 
 restore-db: ## Restore PostgreSQL database (usage: make restore-db FILE=backups/backup.sql)
@@ -115,22 +118,22 @@ restore-db: ## Restore PostgreSQL database (usage: make restore-db FILE=backups/
 		echo "❌ File $(FILE) not found"; \
 		exit 1; \
 	fi
-	cat $(FILE) | docker-compose exec -T postgres psql -U maestra -d maestra
+	cat $(FILE) | $(DOCKER_COMPOSE) exec -T postgres psql -U maestra -d maestra
 	@echo "✅ Database restored from $(FILE)"
 
 test-mqtt: ## Test MQTT connection (publishes test message)
-	docker-compose exec mosquitto mosquitto_pub -t "maestra/test" -m "Hello from Maestra"
+	$(DOCKER_COMPOSE) exec mosquitto mosquitto_pub -t "maestra/test" -m "Hello from Maestra"
 	@echo "✅ Test message published to MQTT topic: maestra/test"
 
 watch: ## Watch service logs in real-time (requires watch command)
-	watch -n 2 'docker-compose ps'
+	watch -n 2 '$(DOCKER_COMPOSE) ps'
 
 stats: ## Show container resource usage
-	docker stats $$(docker-compose ps -q)
+	docker stats $$($(DOCKER_COMPOSE) ps -q)
 
 update: ## Pull latest images and restart
-	docker-compose pull
-	docker-compose up -d
+	$(DOCKER_COMPOSE) pull
+	$(DOCKER_COMPOSE) up -d
 	@echo "✅ Services updated and restarted."
 
 # Development shortcuts

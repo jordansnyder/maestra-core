@@ -1,0 +1,323 @@
+version: '3.8'
+
+services:
+  # =============================================================================
+  # MESSAGE BUS & COMMUNICATION LAYER
+  # =============================================================================
+
+  # NATS - Primary message bus for service-to-service communication
+  nats:
+    image: nats:2.10-alpine
+    container_name: maestra-nats
+    ports:
+      - "4222:4222"  # Client connections
+      - "8222:8222"  # HTTP monitoring
+      - "6222:6222"  # Cluster routing
+    command:
+      - "--http_port=8222"
+      - "--js"  # Enable JetStream for persistence
+    volumes:
+      - nats-data:/data
+    networks:
+      - maestra-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Mosquitto - MQTT broker for IoT devices
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: maestra-mosquitto
+    ports:
+      - "1883:1883"  # MQTT
+      - "9001:9001"  # WebSocket
+    volumes:
+      - ./config/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-logs:/mosquitto/log
+    networks:
+      - maestra-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/#' -C 1 -i healthcheck -W 3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis - Caching, pub/sub, and real-time data
+  redis:
+    image: redis:7-alpine
+    container_name: maestra-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - maestra-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # =============================================================================
+  # DATABASE LAYER
+  # =============================================================================
+
+  # PostgreSQL with TimescaleDB for device data and time-series metrics
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: maestra-postgres
+    environment:
+      POSTGRES_DB: maestra
+      POSTGRES_USER: maestra
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-maestra_dev_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./config/postgres/init:/docker-entrypoint-initdb.d
+    networks:
+      - maestra-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maestra"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =============================================================================
+  # VISUAL PROGRAMMING & LOGIC ENGINE
+  # =============================================================================
+
+  # Node-RED - Visual programming and automation
+  nodered:
+    image: nodered/node-red:latest
+    container_name: maestra-nodered
+    environment:
+      - TZ=UTC
+    ports:
+      - "1880:1880"
+    volumes:
+      - nodered-data:/data
+      - ./flows:/data/flows
+      - ./config/nodered/settings.js:/data/settings.js
+    networks:
+      - maestra-network
+    depends_on:
+      - mosquitto
+      - nats
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:1880/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # =============================================================================
+  # DEVICE & FLEET MANAGEMENT
+  # =============================================================================
+
+  # Fleet Management API - Device registration, configuration, and monitoring
+  fleet-manager:
+    build:
+      context: ./services/fleet-manager
+      dockerfile: Dockerfile
+    container_name: maestra-fleet-manager
+    environment:
+      - DATABASE_URL=postgresql://maestra:${POSTGRES_PASSWORD:-maestra_dev_password}@postgres:5432/maestra
+      - REDIS_URL=redis://redis:6379
+      - NATS_URL=nats://nats:4222
+      - MQTT_BROKER=mosquitto:1883
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./services/fleet-manager:/app
+    networks:
+      - maestra-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # =============================================================================
+  # WEB DASHBOARD & CONTROL PANEL
+  # =============================================================================
+
+  # Next.js Dashboard - Main web interface for control and configuration
+  dashboard:
+    build:
+      context: ./services/dashboard
+      dockerfile: Dockerfile
+    container_name: maestra-dashboard
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+      - NEXT_PUBLIC_NODERED_URL=http://localhost:1880
+      - NEXT_PUBLIC_GRAFANA_URL=http://localhost:3000
+      - NEXT_PUBLIC_MQTT_WS_URL=ws://localhost:9001
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./services/dashboard:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - maestra-network
+    depends_on:
+      - fleet-manager
+    restart: unless-stopped
+
+  # Grafana - Monitoring and visualization dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: maestra-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=redis-datasource
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - maestra-network
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  # =============================================================================
+  # INFRASTRUCTURE & MANAGEMENT
+  # =============================================================================
+
+  # Traefik - Reverse proxy and load balancer
+  traefik:
+    image: traefik:v2.11
+    container_name: maestra-traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8081:8080"  # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/traefik:/etc/traefik
+    networks:
+      - maestra-network
+    restart: unless-stopped
+
+  # Portainer - Docker container management UI
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: maestra-portainer
+    ports:
+      - "9443:9443"
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer-data:/data
+    networks:
+      - maestra-network
+    restart: unless-stopped
+
+  # =============================================================================
+  # DOCUMENTATION & SDK SERVICES
+  # =============================================================================
+
+  # MkDocs - SDK documentation server
+  docs:
+    image: squidfunk/mkdocs-material:latest
+    container_name: maestra-docs
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./docs:/docs
+    command: serve --dev-addr=0.0.0.0:8000
+    networks:
+      - maestra-network
+    restart: unless-stopped
+
+  # =============================================================================
+  # GATEWAY SERVICES FOR SDK INTEGRATION
+  # =============================================================================
+
+  # OSC Gateway - Bridge for TouchDesigner, Max/MSP, etc.
+  osc-gateway:
+    build:
+      context: ./services/osc-gateway
+      dockerfile: Dockerfile
+    container_name: maestra-osc-gateway
+    environment:
+      - NATS_URL=nats://nats:4222
+      - REDIS_URL=redis://redis:6379
+      - OSC_IN_PORT=9000
+      - OSC_OUT_PORT=9001
+    ports:
+      - "57120:57120/udp"  # OSC input
+      - "57121:57121/udp"  # OSC output
+    networks:
+      - maestra-network
+    depends_on:
+      - nats
+      - redis
+    restart: unless-stopped
+
+  # WebSocket Gateway - For browser-based SDKs
+  websocket-gateway:
+    build:
+      context: ./services/websocket-gateway
+      dockerfile: Dockerfile
+    container_name: maestra-websocket-gateway
+    environment:
+      - NATS_URL=nats://nats:4222
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "8765:8765"
+    networks:
+      - maestra-network
+    depends_on:
+      - nats
+      - redis
+    restart: unless-stopped
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  maestra-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  nats-data:
+  mosquitto-data:
+  mosquitto-logs:
+  redis-data:
+  postgres-data:
+  nodered-data:
+  grafana-data:
+  portainer-data:

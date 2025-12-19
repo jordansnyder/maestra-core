@@ -1,0 +1,11 @@
+# Maestra WebSocket Gateway - Python Dependencies
+
+# WebSocket
+websockets==12.0
+
+# Message Bus
+nats-py==2.6.0
+redis==5.0.1
+
+# Utilities
+python-dotenv==1.0.0

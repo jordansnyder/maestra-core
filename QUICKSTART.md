@@ -24,9 +24,9 @@ make init
 
 ```bash
 # Start all services
-docker-compose up -d
+docker compose up -d
 
-# Or use Makefile
+# Or use Makefile (recommended - auto-detects Docker version)
 make up
 ```
 
@@ -84,9 +84,9 @@ client.publish("maestra/devices/test", "Hello Maestra!")
 
 ```bash
 # Subscribe to all messages
-docker-compose exec mosquitto mosquitto_sub -t '#' -v
+docker compose exec mosquitto mosquitto_sub -t '#' -v
 
-# Publish test message
+# Or publish test message (recommended)
 make test-mqtt
 ```
 
@@ -207,6 +207,8 @@ Edit `docker-compose.yml` and change the host port:
 ports:
   - "8081:8080"  # Changed from 8080:8080
 ```
+
+Or use the Makefile commands which handle this automatically.
 
 ### Clear Everything
 

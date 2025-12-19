@@ -1,0 +1,46 @@
+# Grafana Datasource Provisioning for Maestra
+# Automatically configures data sources on startup
+
+apiVersion: 1
+
+datasources:
+  # PostgreSQL/TimescaleDB - Device data and metrics
+  - name: Maestra PostgreSQL
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    database: maestra
+    user: maestra
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD}
+    jsonData:
+      sslmode: 'disable'
+      postgresVersion: 1600
+      timescaledb: true
+    isDefault: true
+    editable: true
+
+  # Redis - Real-time data and caching
+  - name: Maestra Redis
+    type: redis-datasource
+    access: proxy
+    url: redis://redis:6379
+    jsonData:
+      client: 'standalone'
+      poolSize: 5
+      timeout: 10
+      pingInterval: 0
+      pipelineWindow: 0
+    editable: true
+
+  # NATS - Message bus metrics (if monitoring plugin available)
+  # - name: Maestra NATS
+  #   type: prometheus
+  #   access: proxy
+  #   url: http://nats:8222/metrics
+  #   editable: true
+
+deleteDatasources:
+  # Remove any previously auto-configured datasources that aren't needed
+  - name: TestData DB
+    orgId: 1

@@ -1,0 +1,553 @@
+# Maestra Docker Infrastructure
+
+Complete Docker Compose setup for the Maestra immersive experience platform.
+
+## 📋 Table of Contents
+
+- [Architecture Overview](#architecture-overview)
+- [Services](#services)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [SDK Integration](#sdk-integration)
+- [Development](#development)
+- [Production Deployment](#production-deployment)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## 🏗️ Architecture Overview
+
+The Maestra infrastructure consists of several layers:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     CLIENT LAYER                            │
+│  TouchDesigner │ Max/MSP │ Unreal │ Arduino │ Web │ Mobile  │
+└─────────────────────────────────────────────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    GATEWAY LAYER                            │
+│    OSC Gateway  │  WebSocket Gateway  │  MQTT (Mosquitto)  │
+└─────────────────────────────────────────────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  MESSAGE BUS LAYER                          │
+│         NATS (Pub/Sub) │ Redis (Cache/State)               │
+└─────────────────────────────────────────────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   SERVICE LAYER                             │
+│  Fleet Manager │ Node-RED Logic │ Dashboard │ Grafana       │
+└─────────────────────────────────────────────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   PERSISTENCE LAYER                         │
+│             PostgreSQL (TimescaleDB)                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🚀 Services
+
+### Message Bus & Communication
+
+#### **NATS** (Port 4222, 8222)
+- Primary message bus for service-to-service communication
+- JetStream enabled for message persistence
+- Monitoring UI: http://localhost:8222
+
+#### **Mosquitto** (Port 1883, 9001)
+- MQTT broker for IoT devices (Arduino, ESP32, Raspberry Pi)
+- WebSocket support on port 9001 for browser clients
+- Optimized for device telemetry and control
+
+#### **Redis** (Port 6379)
+- Caching layer
+- Real-time data storage
+- Pub/sub for fast messaging
+- Session storage
+
+### Database
+
+#### **PostgreSQL with TimescaleDB** (Port 5432)
+- Device registry and fleet management
+- Time-series metrics and telemetry
+- Event logging
+- User authentication
+- Continuous aggregates for analytics
+
+### Visual Programming & Logic
+
+#### **Node-RED** (Port 1880)
+- Visual flow-based programming
+- Pre-configured for NATS, MQTT, Redis
+- Custom Maestra nodes and settings
+- Flow storage and versioning
+- Editor: http://localhost:1880
+
+### Web Dashboards
+
+#### **Maestra Dashboard** (Port 3001)
+- Next.js-based control panel
+- Real-time device monitoring
+- Configuration management
+- Experience deployment
+- URL: http://localhost:3001
+
+#### **Grafana** (Port 3000)
+- Real-time monitoring and analytics
+- Pre-configured dashboards
+- PostgreSQL and Redis datasources
+- Login: admin / admin (change in production)
+- URL: http://localhost:3000
+
+### Infrastructure Management
+
+#### **Traefik** (Port 80, 443, 8081)
+- Reverse proxy and load balancer
+- Automatic service discovery
+- Dashboard: http://localhost:8081
+
+#### **Portainer** (Port 9000, 9443)
+- Docker container management UI
+- Volume and network management
+- Container logs and stats
+- URL: https://localhost:9443
+
+### Gateway Services
+
+#### **OSC Gateway** (Port 57120/UDP, 57121/UDP)
+- Bridges OSC to NATS/MQTT
+- For TouchDesigner, Max/MSP, SuperCollider
+- Bi-directional message routing
+
+#### **WebSocket Gateway** (Port 8765)
+- Browser-based SDK support
+- Real-time web application connectivity
+- NATS message bridge
+
+### Fleet Management
+
+#### **Fleet Manager API** (Port 8080)
+- Device registration and management
+- Configuration deployment
+- Metrics collection
+- REST API: http://localhost:8080
+- API Docs: http://localhost:8080/docs
+
+### Documentation
+
+#### **MkDocs** (Port 8000)
+- SDK documentation
+- API references
+- Integration guides
+- URL: http://localhost:8000
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Docker 20.10+
+- Docker Compose 2.0+
+- 8GB+ RAM recommended
+- Ports 80, 443, 1883, 3000, 3001, 4222, 5432, 8080 available
+
+### 1. Clone and Setup
+
+```bash
+git clone <repository-url>
+cd maestra-core
+
+# Copy environment configuration
+cp .env.example .env
+
+# Edit .env and update passwords for production
+nano .env
+```
+
+### 2. Start Infrastructure
+
+```bash
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Check service health
+docker-compose ps
+```
+
+### 3. Verify Services
+
+```bash
+# Check all services are healthy
+curl http://localhost:8080/health  # Fleet Manager
+curl http://localhost:8222         # NATS monitoring
+curl http://localhost:3000         # Grafana
+curl http://localhost:1880         # Node-RED
+```
+
+### 4. Access Dashboards
+
+- **Node-RED**: http://localhost:1880
+- **Grafana**: http://localhost:3000 (admin/admin)
+- **Maestra Dashboard**: http://localhost:3001
+- **Fleet Manager API**: http://localhost:8080/docs
+- **Portainer**: https://localhost:9443
+- **Traefik**: http://localhost:8081
+
+---
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+Copy `.env.example` to `.env` and configure:
+
+```bash
+# Database
+POSTGRES_PASSWORD=your_secure_password
+
+# Grafana
+GRAFANA_PASSWORD=your_admin_password
+
+# Security (generate random strings)
+JWT_SECRET=your_jwt_secret_key
+```
+
+### Service-Specific Configuration
+
+#### Mosquitto MQTT
+
+Edit `config/mosquitto/mosquitto.conf`:
+
+```conf
+# Enable authentication for production
+allow_anonymous false
+password_file /mosquitto/config/passwd
+```
+
+Generate password file:
+
+```bash
+docker-compose exec mosquitto mosquitto_passwd -c /mosquitto/config/passwd username
+```
+
+#### Node-RED
+
+Edit `config/nodered/settings.js` to customize:
+
+- Security settings
+- Available nodes
+- Function timeout
+- Context storage
+
+#### Grafana
+
+Add datasources: `config/grafana/provisioning/datasources/`
+Add dashboards: `config/grafana/dashboards/`
+
+---
+
+## 🔌 SDK Integration
+
+### TouchDesigner
+
+```python
+# OSC Out DAT configuration
+Network Address: <docker-host-ip>
+Network Port: 57120
+Protocol: UDP
+
+# Send OSC message
+import oscP5.*
+oscP5 = OscP5(this, 12000)
+myMessage = OscMessage("/device/sensor/temperature")
+myMessage.add(23.5)
+oscP5.send(myMessage, "<docker-host-ip>", 57120)
+```
+
+### Max/MSP
+
+```
+[udpsend <docker-host-ip> 57120]
+  |
+[prepend /device/sensor]
+  |
+[send $1 $2]
+```
+
+### Arduino / ESP32
+
+```cpp
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+const char* mqtt_server = "<docker-host-ip>";
+const int mqtt_port = 1883;
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+void setup() {
+  client.setServer(mqtt_server, mqtt_port);
+  client.connect("ESP32_Device");
+  client.publish("maestra/devices/esp32/status", "online");
+}
+```
+
+### Web / JavaScript
+
+```javascript
+// WebSocket connection
+const ws = new WebSocket('ws://<docker-host-ip>:8765');
+
+ws.onopen = () => {
+  // Publish message
+  ws.send(JSON.stringify({
+    type: 'publish',
+    subject: 'maestra.web.event',
+    data: { temperature: 23.5 }
+  }));
+};
+
+ws.onmessage = (event) => {
+  const message = JSON.parse(event.data);
+  console.log('Received:', message);
+};
+
+// MQTT over WebSocket
+import mqtt from 'mqtt';
+const client = mqtt.connect('ws://<docker-host-ip>:9001');
+
+client.on('connect', () => {
+  client.subscribe('maestra/devices/#');
+  client.publish('maestra/web/status', 'connected');
+});
+```
+
+### Raspberry Pi
+
+```python
+import paho.mqtt.client as mqtt
+
+client = mqtt.Client("RaspberryPi_Device")
+client.connect("<docker-host-ip>", 1883, 60)
+
+# Publish telemetry
+client.publish("maestra/devices/rpi/cpu_temp", "45.2")
+client.loop_start()
+```
+
+---
+
+## 💻 Development
+
+### Running Specific Services
+
+```bash
+# Start only message bus
+docker-compose up -d nats mosquitto redis
+
+# Start database
+docker-compose up -d postgres
+
+# Start with logs
+docker-compose up nodered
+```
+
+### Rebuilding Services
+
+```bash
+# Rebuild specific service
+docker-compose build fleet-manager
+
+# Rebuild and restart
+docker-compose up -d --build fleet-manager
+```
+
+### Accessing Service Shells
+
+```bash
+# Access PostgreSQL
+docker-compose exec postgres psql -U maestra -d maestra
+
+# Access Redis CLI
+docker-compose exec redis redis-cli
+
+# Access Node-RED container
+docker-compose exec nodered /bin/bash
+```
+
+### Development Workflow
+
+```bash
+# Make changes to service code
+vim services/fleet-manager/main.py
+
+# Rebuild and restart
+docker-compose up -d --build fleet-manager
+
+# View logs
+docker-compose logs -f fleet-manager
+```
+
+---
+
+## 🚢 Production Deployment
+
+### Security Checklist
+
+- [ ] Change all default passwords in `.env`
+- [ ] Enable Mosquitto authentication
+- [ ] Enable Node-RED authentication
+- [ ] Configure SSL/TLS with Traefik
+- [ ] Set up firewall rules
+- [ ] Enable PostgreSQL SSL
+- [ ] Review CORS settings
+- [ ] Set secure JWT secret
+
+### SSL/TLS Configuration
+
+Edit `config/traefik/traefik.yml`:
+
+```yaml
+entryPoints:
+  websecure:
+    address: ":443"
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: your@email.com
+      storage: /etc/traefik/acme.json
+      httpChallenge:
+        entryPoint: web
+```
+
+### Resource Limits
+
+Edit `docker-compose.yml` to add resource constraints:
+
+```yaml
+services:
+  postgres:
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+```
+
+### Backup Strategy
+
+```bash
+# Backup PostgreSQL
+docker-compose exec postgres pg_dump -U maestra maestra > backup.sql
+
+# Backup volumes
+docker run --rm -v maestra-core_postgres-data:/data -v $(pwd):/backup \
+  alpine tar czf /backup/postgres-backup.tar.gz /data
+```
+
+---
+
+## 🔧 Troubleshooting
+
+### Service Won't Start
+
+```bash
+# Check logs
+docker-compose logs <service-name>
+
+# Check service status
+docker-compose ps
+
+# Restart service
+docker-compose restart <service-name>
+```
+
+### Port Conflicts
+
+```bash
+# Check what's using a port
+sudo lsof -i :8080
+
+# Change port in docker-compose.yml
+ports:
+  - "8081:8080"  # Map to different host port
+```
+
+### Database Connection Issues
+
+```bash
+# Verify PostgreSQL is running
+docker-compose exec postgres pg_isready -U maestra
+
+# Check connection from fleet-manager
+docker-compose exec fleet-manager ping postgres
+```
+
+### MQTT Connection Issues
+
+```bash
+# Test MQTT connectivity
+docker-compose exec mosquitto mosquitto_sub -t '#' -v
+
+# From external client
+mosquitto_pub -h localhost -t test -m "hello"
+```
+
+### Clear Everything and Start Fresh
+
+```bash
+# Stop and remove all containers
+docker-compose down
+
+# Remove volumes (⚠️ DELETES ALL DATA)
+docker-compose down -v
+
+# Remove images
+docker-compose down --rmi all
+
+# Start fresh
+docker-compose up -d
+```
+
+### Performance Issues
+
+```bash
+# Check resource usage
+docker stats
+
+# Check service health
+docker-compose exec <service> top
+
+# View container logs for errors
+docker-compose logs --tail=100 <service>
+```
+
+---
+
+## 📚 Additional Resources
+
+- [Docker Compose Documentation](https://docs.docker.com/compose/)
+- [NATS Documentation](https://docs.nats.io/)
+- [Node-RED Documentation](https://nodered.org/docs/)
+- [TimescaleDB Documentation](https://docs.timescale.com/)
+- [TouchDesigner OSC](https://docs.derivative.ca/OSC)
+- [Max/MSP OSC](https://docs.cycling74.com/max8/vignettes/osc)
+
+---
+
+## 🤝 Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE)

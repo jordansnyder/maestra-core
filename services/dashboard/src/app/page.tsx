@@ -1,75 +1,207 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useDevices, useFleetStats } from '@/hooks/useDevices'
+import { useWebSocket } from '@/hooks/useWebSocket'
+import { Card } from '@/components/Card'
+import { StatsCard } from '@/components/StatsCard'
+import { DeviceCard } from '@/components/DeviceCard'
+import { StatusBadge } from '@/components/StatusBadge'
+import type { Device, ServiceStatus } from '@/types'
+import { api } from '@/lib/api'
 
-interface ServiceStatus {
-  name: string
-  url: string
-  status: 'checking' | 'healthy' | 'unhealthy'
-}
+const services: ServiceStatus[] = [
+  { name: 'Fleet Manager', url: 'http://localhost:8080/health', status: 'checking' },
+  { name: 'NATS', url: 'http://localhost:8222', status: 'checking' },
+  { name: 'Node-RED', url: 'http://localhost:1880', status: 'checking' },
+  { name: 'Grafana', url: 'http://localhost:3000', status: 'checking' },
+]
 
 export default function Home() {
-  const [services, setServices] = useState<ServiceStatus[]>([
-    { name: 'Fleet Manager API', url: 'http://localhost:8080/health', status: 'checking' },
-    { name: 'NATS', url: 'http://localhost:8222', status: 'checking' },
-    { name: 'Node-RED', url: 'http://localhost:1880', status: 'checking' },
-    { name: 'Grafana', url: 'http://localhost:3000', status: 'checking' },
-  ])
+  const { devices, loading, error, refresh } = useDevices(true, 10000)
+  const stats = useFleetStats(devices)
+  const { isConnected, lastMessage } = useWebSocket(true)
+  const [showRegisterForm, setShowRegisterForm] = useState(false)
+  const [registerForm, setRegisterForm] = useState({
+    name: '',
+    device_type: 'arduino',
+    hardware_id: '',
+    ip_address: '',
+  })
 
-  useEffect(() => {
-    // Check service health (placeholder - implement actual checks)
-    const timer = setTimeout(() => {
-      setServices(services.map(s => ({ ...s, status: 'healthy' })))
-    }, 1000)
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await api.registerDevice(registerForm)
+      setShowRegisterForm(false)
+      setRegisterForm({ name: '', device_type: 'arduino', hardware_id: '', ip_address: '' })
+      refresh()
+    } catch (err) {
+      console.error('Failed to register device:', err)
+      alert('Failed to register device')
+    }
+  }
 
-    return () => clearTimeout(timer)
-  }, [])
+  const handleDelete = async (device: Device) => {
+    if (!confirm(`Delete device "${device.name}"?`)) return
+    try {
+      await api.deleteDevice(device.id)
+      refresh()
+    } catch (err) {
+      console.error('Failed to delete device:', err)
+      alert('Failed to delete device')
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <header className="mb-12">
-          <h1 className="text-5xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-            Maestra Dashboard
-          </h1>
-          <p className="text-slate-400 text-lg">
-            Immersive Experience Infrastructure Control Panel
-          </p>
+        <header className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-5xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                Maestra Dashboard
+              </h1>
+              <p className="text-slate-400 text-lg">
+                Immersive Experience Infrastructure Control Panel
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'
+                  }`}
+                />
+                <span className="text-sm text-slate-400">
+                  WebSocket {isConnected ? 'Connected' : 'Disconnected'}
+                </span>
+              </div>
+            </div>
+          </div>
         </header>
 
-        {/* Service Status Grid */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-semibold mb-6">Infrastructure Status</h2>
+        {/* Fleet Statistics */}
+        <section className="mb-8">
+          <h2 className="text-2xl font-semibold mb-4">Fleet Overview</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {services.map((service) => (
-              <div
-                key={service.name}
-                className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-slate-600 transition-colors"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold">{service.name}</h3>
-                  <div
-                    className={`w-3 h-3 rounded-full ${
-                      service.status === 'healthy'
-                        ? 'bg-green-500'
-                        : service.status === 'unhealthy'
-                        ? 'bg-red-500'
-                        : 'bg-yellow-500 animate-pulse'
-                    }`}
-                  />
-                </div>
-                <p className="text-sm text-slate-400">
-                  {service.status === 'checking' ? 'Checking...' : service.status}
-                </p>
-              </div>
-            ))}
+            <StatsCard title="Total Devices" value={stats.total} icon="📟" />
+            <StatsCard title="Online" value={stats.online} icon="✅" />
+            <StatsCard title="Offline" value={stats.offline} icon="⏸️" />
+            <StatsCard title="Error State" value={stats.error} icon="⚠️" />
           </div>
         </section>
 
+        {/* Device Management */}
+        <section className="mb-8">
+          <Card
+            title="Devices"
+            action={
+              <button
+                onClick={() => setShowRegisterForm(!showRegisterForm)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium transition-colors"
+              >
+                {showRegisterForm ? 'Cancel' : '+ Register Device'}
+              </button>
+            }
+          >
+            {showRegisterForm && (
+              <form onSubmit={handleRegister} className="mb-6 p-4 bg-slate-900 rounded-lg">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Device Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={registerForm.name}
+                      onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-md focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Device Type</label>
+                    <select
+                      value={registerForm.device_type}
+                      onChange={(e) =>
+                        setRegisterForm({ ...registerForm, device_type: e.target.value })
+                      }
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-md focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="arduino">Arduino</option>
+                      <option value="raspberry_pi">Raspberry Pi</option>
+                      <option value="esp32">ESP32</option>
+                      <option value="touchdesigner">TouchDesigner</option>
+                      <option value="max_msp">Max/MSP</option>
+                      <option value="unreal_engine">Unreal Engine</option>
+                      <option value="web_client">Web Client</option>
+                      <option value="mobile_client">Mobile Client</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Hardware ID</label>
+                    <input
+                      type="text"
+                      required
+                      value={registerForm.hardware_id}
+                      onChange={(e) =>
+                        setRegisterForm({ ...registerForm, hardware_id: e.target.value })
+                      }
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-md focus:outline-none focus:border-blue-500"
+                      placeholder="e.g., MAC address, serial number"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">IP Address (Optional)</label>
+                    <input
+                      type="text"
+                      value={registerForm.ip_address}
+                      onChange={(e) =>
+                        setRegisterForm({ ...registerForm, ip_address: e.target.value })
+                      }
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-md focus:outline-none focus:border-blue-500"
+                      placeholder="192.168.1.100"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  className="mt-4 px-6 py-2 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors"
+                >
+                  Register Device
+                </button>
+              </form>
+            )}
+
+            {loading && <p className="text-slate-400">Loading devices...</p>}
+            {error && (
+              <div className="p-4 bg-red-900/20 border border-red-500 rounded-md">
+                <p className="text-red-400">Error: {error}</p>
+                <button onClick={refresh} className="mt-2 text-sm text-red-300 underline">
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {!loading && !error && devices.length === 0 && (
+              <p className="text-slate-400 text-center py-8">
+                No devices registered. Click "Register Device" to add your first device.
+              </p>
+            )}
+
+            {!loading && devices.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {devices.map((device) => (
+                  <DeviceCard key={device.id} device={device} onDelete={handleDelete} />
+                ))}
+              </div>
+            )}
+          </Card>
+        </section>
+
         {/* Quick Links */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-semibold mb-6">Quick Access</h2>
+        <section className="mb-8">
+          <h2 className="text-2xl font-semibold mb-4">Quick Access</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <QuickLink
               title="Node-RED"
@@ -102,46 +234,62 @@ export default function Home() {
               icon="🔀"
             />
             <QuickLink
-              title="Documentation"
-              description="SDK and API documentation"
-              url="http://localhost:8000"
-              icon="📚"
+              title="MQTT Monitor"
+              description="Real-time message monitoring"
+              url="#"
+              icon="📡"
+              onClick={() => alert('MQTT Monitor coming soon!')}
             />
           </div>
         </section>
 
-        {/* Integration Examples */}
-        <section>
-          <h2 className="text-2xl font-semibold mb-6">SDK Integration</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <IntegrationCard
-              title="Creative Tools"
-              items={['TouchDesigner', 'Max/MSP', 'Unreal Engine']}
-              protocol="OSC / WebSocket"
-            />
-            <IntegrationCard
-              title="IoT Devices"
-              items={['Arduino', 'ESP32', 'Raspberry Pi']}
-              protocol="MQTT"
-            />
-            <IntegrationCard
-              title="Web & Mobile"
-              items={['Browser SDK', 'iOS', 'Android']}
-              protocol="WebSocket / MQTT"
-            />
-          </div>
-        </section>
+        {/* WebSocket Messages */}
+        {lastMessage && (
+          <section>
+            <Card title="Latest WebSocket Message">
+              <pre className="text-xs bg-slate-900 p-4 rounded-md overflow-auto">
+                {JSON.stringify(lastMessage, null, 2)}
+              </pre>
+            </Card>
+          </section>
+        )}
       </div>
     </div>
   )
 }
 
-function QuickLink({ title, description, url, icon }: {
+function QuickLink({
+  title,
+  description,
+  url,
+  icon,
+  onClick,
+}: {
   title: string
   description: string
   url: string
   icon: string
+  onClick?: () => void
 }) {
+  if (onClick) {
+    return (
+      <button
+        onClick={onClick}
+        className="block w-full text-left bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-blue-500 transition-colors group"
+      >
+        <div className="flex items-start gap-4">
+          <span className="text-3xl">{icon}</span>
+          <div>
+            <h3 className="font-semibold mb-1 group-hover:text-blue-400 transition-colors">
+              {title}
+            </h3>
+            <p className="text-sm text-slate-400">{description}</p>
+          </div>
+        </div>
+      </button>
+    )
+  }
+
   return (
     <a
       href={url}
@@ -159,28 +307,5 @@ function QuickLink({ title, description, url, icon }: {
         </div>
       </div>
     </a>
-  )
-}
-
-function IntegrationCard({ title, items, protocol }: {
-  title: string
-  items: string[]
-  protocol: string
-}) {
-  return (
-    <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-      <h3 className="font-semibold mb-3">{title}</h3>
-      <ul className="space-y-2 mb-4">
-        {items.map((item) => (
-          <li key={item} className="text-sm text-slate-300 flex items-center gap-2">
-            <span className="text-blue-400">•</span>
-            {item}
-          </li>
-        ))}
-      </ul>
-      <div className="pt-3 border-t border-slate-700">
-        <span className="text-xs text-slate-500 font-mono">{protocol}</span>
-      </div>
-    </div>
   )
 }

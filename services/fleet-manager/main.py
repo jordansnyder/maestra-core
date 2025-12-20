@@ -14,7 +14,7 @@ import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, String, DateTime, JSON, select, delete
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import UUID as PGUUID, INET
 
 # Database setup
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://maestra:maestra_dev_password@postgres:5432/maestra')
@@ -35,7 +35,7 @@ class DeviceDB(Base):
     device_type = Column(String(100), nullable=False)
     hardware_id = Column(String(255), unique=True, nullable=False)
     firmware_version = Column(String(50))
-    ip_address = Column(String(50))
+    ip_address = Column(INET)  # PostgreSQL INET type for IP addresses
     location = Column(JSON)
     device_metadata = Column('metadata', JSON)  # Map to 'metadata' column, avoid reserved word
     status = Column(String(50), default='offline')

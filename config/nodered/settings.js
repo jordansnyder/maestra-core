@@ -123,8 +123,7 @@ module.exports = {
     // =============================================================================
 
     // Context Storage
-    // The following property can be used to enable context storage. The configuration
-    // provided here will enable file-based context storage and Redis for global context
+    // Using file-based context storage (default Node-RED module)
     contextStorage: {
         default: "file",
         file: {
@@ -133,14 +132,9 @@ module.exports = {
                 dir: "/data/context",
                 cache: true
             }
-        },
-        redis: {
-            module: "redis",
-            config: {
-                url: process.env.REDIS_URL || 'redis://redis:6379',
-                prefix: 'nodered:context:'
-            }
         }
+        // Note: Redis context store requires additional npm package installation
+        // To enable: docker exec -it maestra-nodered npm install node-red-contrib-storage-redis
     },
 
     // =============================================================================

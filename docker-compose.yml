@@ -299,6 +299,23 @@ services:
       - redis
     restart: unless-stopped
 
+  # MQTT-NATS Bridge - Bidirectional MQTT and NATS routing
+  mqtt-nats-bridge:
+    build:
+      context: ./services/mqtt-nats-bridge
+      dockerfile: Dockerfile
+    container_name: maestra-mqtt-nats-bridge
+    environment:
+      - MQTT_BROKER=mosquitto
+      - MQTT_PORT=1883
+      - NATS_URL=nats://nats:4222
+    networks:
+      - maestra-network
+    depends_on:
+      - nats
+      - mosquitto
+    restart: unless-stopped
+
 # =============================================================================
 # NETWORKS
 # =============================================================================

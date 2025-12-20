@@ -130,7 +130,7 @@ def device_db_to_pydantic(db_device: DeviceDB) -> Device:
         device_type=db_device.device_type,
         hardware_id=db_device.hardware_id,
         firmware_version=db_device.firmware_version,
-        ip_address=db_device.ip_address,
+        ip_address=str(db_device.ip_address) if db_device.ip_address else None,  # Convert INET to string
         location=db_device.location,
         metadata=db_device.device_metadata,  # Use device_metadata attribute
         status=db_device.status,

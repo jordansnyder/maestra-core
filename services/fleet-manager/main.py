@@ -37,7 +37,7 @@ class DeviceDB(Base):
     firmware_version = Column(String(50))
     ip_address = Column(String(50))
     location = Column(JSON)
-    metadata = Column(JSON)
+    device_metadata = Column('metadata', JSON)  # Map to 'metadata' column, avoid reserved word
     status = Column(String(50), default='offline')
     last_seen = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -132,7 +132,7 @@ def device_db_to_pydantic(db_device: DeviceDB) -> Device:
         firmware_version=db_device.firmware_version,
         ip_address=db_device.ip_address,
         location=db_device.location,
-        metadata=db_device.metadata,
+        metadata=db_device.device_metadata,  # Use device_metadata attribute
         status=db_device.status,
         last_seen=db_device.last_seen.isoformat() if db_device.last_seen else None,
         created_at=db_device.created_at.isoformat() if db_device.created_at else datetime.utcnow().isoformat(),
@@ -202,7 +202,7 @@ async def register_device(registration: DeviceRegistration, db: AsyncSession = D
         firmware_version=registration.firmware_version,
         ip_address=registration.ip_address,
         location=registration.location,
-        metadata=registration.metadata,
+        device_metadata=registration.metadata,  # Use device_metadata attribute
         status='online',
         last_seen=datetime.utcnow()
     )
@@ -274,8 +274,8 @@ async def device_heartbeat(heartbeat: DeviceHeartbeat, db: AsyncSession = Depend
     db_device.updated_at = datetime.utcnow()
 
     if heartbeat.metadata:
-        current_metadata = db_device.metadata or {}
-        db_device.metadata = {**current_metadata, **heartbeat.metadata}
+        current_metadata = db_device.device_metadata or {}
+        db_device.device_metadata = {**current_metadata, **heartbeat.metadata}
 
     await db.commit()
 

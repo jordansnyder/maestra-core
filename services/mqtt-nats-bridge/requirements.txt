@@ -1,0 +1,10 @@
+# Maestra MQTT-NATS Bridge - Python Dependencies
+
+# MQTT Protocol
+paho-mqtt==2.0.0
+
+# NATS Protocol
+nats-py==2.6.0
+
+# Utilities
+python-dotenv==1.0.0

@@ -1,0 +1,44 @@
+# Test Environment Overrides
+# Usage: docker compose -f docker-compose.yml -f docker-compose.test.yml up -d
+
+services:
+  # Fleet Manager - No volume mounts, use built image
+  fleet-manager:
+    volumes: []  # Override: no live code mounting
+    environment:
+      - DATABASE_URL=postgresql://maestra:${POSTGRES_PASSWORD}@postgres:5432/maestra
+      - REDIS_URL=redis://redis:6379
+      - NATS_URL=nats://nats:4222
+      - MQTT_BROKER=mosquitto:1883
+      - LOG_LEVEL=info
+
+  # Dashboard - Production build, no dev server
+  dashboard:
+    volumes: []  # Override: no live code mounting
+    environment:
+      - NEXT_PUBLIC_API_URL=${API_URL:-http://localhost:8080}
+      - NEXT_PUBLIC_NODERED_URL=${NODERED_URL:-http://localhost:1880}
+      - NEXT_PUBLIC_GRAFANA_URL=${GRAFANA_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_MQTT_WS_URL=${MQTT_WS_URL:-ws://localhost:9001}
+      - NODE_ENV=production
+    command: npm run build && npm run start
+
+  # PostgreSQL - Use stronger password from env
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+  # Grafana - Use password from env
+  grafana:
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_SERVER_ROOT_URL=${GRAFANA_URL:-http://localhost:3000}
+
+  # Disable development-only services
+  docs:
+    profiles:
+      - docs  # Only start with --profile docs
+
+  portainer:
+    profiles:
+      - management  # Only start with --profile management

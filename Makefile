@@ -136,6 +136,47 @@ update: ## Pull latest images and restart
 	$(DOCKER_COMPOSE) up -d
 	@echo "✅ Services updated and restarted."
 
+# =============================================================================
+# ENVIRONMENT DEPLOYMENT
+# =============================================================================
+
+deploy-test: ## Deploy to test environment
+	@if [ ! -f .env.test ]; then \
+		echo "❌ .env.test not found. Copy .env.test.example and configure it."; \
+		exit 1; \
+	fi
+	cp .env.test .env
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.test.yml build
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.test.yml down --remove-orphans
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.test.yml up -d
+	@echo "✅ Test environment deployed."
+
+deploy-prod: ## Deploy to production environment
+	@if [ ! -f .env.prod ]; then \
+		echo "❌ .env.prod not found. Create it with production values."; \
+		exit 1; \
+	fi
+	cp .env.prod .env
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml build
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml down --remove-orphans
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml up -d
+	@echo "✅ Production environment deployed."
+
+stop-test: ## Stop test environment
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.test.yml down
+	@echo "✅ Test environment stopped."
+
+stop-prod: ## Stop production environment
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml down
+	@echo "✅ Production environment stopped."
+
+logs-test: ## View test environment logs
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.test.yml logs -f
+
+logs-prod: ## View production environment logs
+	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml logs -f
+
 # Development shortcuts
 .PHONY: dev-bus dev-db dev-core shell-postgres shell-redis shell-fleet
 .PHONY: backup-db restore-db test-mqtt watch stats update
+.PHONY: deploy-test deploy-prod stop-test stop-prod logs-test logs-prod

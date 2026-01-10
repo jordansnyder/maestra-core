@@ -1,0 +1,68 @@
+name: Deploy to Test Environment
+
+on:
+  push:
+    branches:
+      - develop
+
+env:
+  COMPOSE_PROJECT_NAME: maestra-test
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create .env file
+        run: |
+          cat > .env << EOF
+          POSTGRES_PASSWORD=${{ secrets.TEST_POSTGRES_PASSWORD }}
+          GRAFANA_PASSWORD=${{ secrets.TEST_GRAFANA_PASSWORD }}
+          API_URL=${{ vars.TEST_API_URL }}
+          NODERED_URL=${{ vars.TEST_NODERED_URL }}
+          GRAFANA_URL=${{ vars.TEST_GRAFANA_URL }}
+          MQTT_WS_URL=${{ vars.TEST_MQTT_WS_URL }}
+          LOG_LEVEL=info
+          EOF
+
+      - name: Build images
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.test.yml build
+
+      - name: Stop existing services
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.test.yml down --remove-orphans || true
+
+      - name: Start services
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.test.yml up -d
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for services to start..."
+          sleep 30
+
+          # Check fleet-manager health
+          for i in {1..10}; do
+            if curl -s http://localhost:8080/health > /dev/null; then
+              echo "Fleet Manager is healthy"
+              break
+            fi
+            echo "Waiting for Fleet Manager... ($i/10)"
+            sleep 5
+          done
+
+      - name: Run smoke tests
+        run: |
+          # Basic health checks
+          curl -f http://localhost:8080/health || exit 1
+          curl -f http://localhost:3001 || exit 1
+          echo "Smoke tests passed!"
+
+      - name: Cleanup old images
+        run: |
+          docker image prune -f

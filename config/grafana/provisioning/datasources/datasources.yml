@@ -6,6 +6,7 @@ apiVersion: 1
 datasources:
   # PostgreSQL/TimescaleDB - Device data and metrics
   - name: Maestra PostgreSQL
+    uid: maestra-postgres
     type: postgres
     access: proxy
     url: postgres:5432

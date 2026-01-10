@@ -123,8 +123,7 @@ module.exports = {
     // =============================================================================
 
     // Context Storage
-    // The following property can be used to enable context storage. The configuration
-    // provided here will enable file-based context storage and Redis for global context
+    // Using file-based context storage for persistence
     contextStorage: {
         default: "file",
         file: {
@@ -132,13 +131,6 @@ module.exports = {
             config: {
                 dir: "/data/context",
                 cache: true
-            }
-        },
-        redis: {
-            module: "redis",
-            config: {
-                url: process.env.REDIS_URL || 'redis://redis:6379',
-                prefix: 'nodered:context:'
             }
         }
     },

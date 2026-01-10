@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS devices (
     device_type VARCHAR(100) NOT NULL, -- 'arduino', 'raspberry_pi', 'esp32', 'touchdesigner', 'max_msp', etc.
     hardware_id VARCHAR(255) UNIQUE NOT NULL, -- MAC address, serial number, etc.
     firmware_version VARCHAR(50),
-    ip_address INET,
+    ip_address TEXT,
     location JSONB, -- Flexible location data
     metadata JSONB, -- Custom device metadata
     status VARCHAR(50) DEFAULT 'offline', -- 'online', 'offline', 'error', 'maintenance'

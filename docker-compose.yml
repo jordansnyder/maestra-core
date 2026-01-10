@@ -187,6 +187,7 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
       - GF_INSTALL_PLUGINS=redis-datasource
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-maestra_dev_password}
     ports:
       - "3000:3000"
     volumes:

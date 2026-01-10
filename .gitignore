@@ -133,6 +133,7 @@ dist
 # Docker volumes and data
 data/
 *.sql
+!config/postgres/init/*.sql
 backups/
 
 # Python

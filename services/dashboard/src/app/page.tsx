@@ -72,6 +72,13 @@ export default function Home() {
           <h2 className="text-2xl font-semibold mb-6">Quick Access</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <QuickLink
+              title="Entities"
+              description="Manage spaces, rooms, and state"
+              url="/entities"
+              icon="🏗️"
+              internal
+            />
+            <QuickLink
               title="Node-RED"
               description="Visual programming and automation"
               url="http://localhost:1880"
@@ -136,28 +143,43 @@ export default function Home() {
   )
 }
 
-function QuickLink({ title, description, url, icon }: {
+function QuickLink({ title, description, url, icon, internal }: {
   title: string
   description: string
   url: string
   icon: string
+  internal?: boolean
 }) {
+  const className = "block bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-blue-500 transition-colors group"
+
+  const content = (
+    <div className="flex items-start gap-4">
+      <span className="text-3xl">{icon}</span>
+      <div>
+        <h3 className="font-semibold mb-1 group-hover:text-blue-400 transition-colors">
+          {title}
+        </h3>
+        <p className="text-sm text-slate-400">{description}</p>
+      </div>
+    </div>
+  )
+
+  if (internal) {
+    return (
+      <a href={url} className={className}>
+        {content}
+      </a>
+    )
+  }
+
   return (
     <a
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="block bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-blue-500 transition-colors group"
+      className={className}
     >
-      <div className="flex items-start gap-4">
-        <span className="text-3xl">{icon}</span>
-        <div>
-          <h3 className="font-semibold mb-1 group-hover:text-blue-400 transition-colors">
-            {title}
-          </h3>
-          <p className="text-sm text-slate-400">{description}</p>
-        </div>
-      </div>
+      {content}
     </a>
   )
 }

@@ -90,6 +90,62 @@ export interface StateChangeEvent {
   changed_keys: string[]
   source?: string
   timestamp: string
+  validation_warnings?: ValidationWarning[]
+}
+
+// =============================================================================
+// Variable Definition Types
+// =============================================================================
+
+export type VariableType =
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'array'
+  | 'color'
+  | 'vector2'
+  | 'vector3'
+  | 'range'
+  | 'enum'
+  | 'object'
+
+export type VariableDirection = 'input' | 'output'
+
+export interface VariableDefinition {
+  name: string
+  type: VariableType
+  direction: VariableDirection
+  description?: string
+  defaultValue?: unknown
+  required?: boolean
+  config?: Record<string, unknown>
+}
+
+export interface EntityVariables {
+  inputs: VariableDefinition[]
+  outputs: VariableDefinition[]
+}
+
+export interface EntityVariablesResponse {
+  entity_id: string
+  entity_slug: string
+  variables: EntityVariables
+}
+
+export interface ValidationWarning {
+  variable_name: string
+  expected_type: string
+  actual_type: string
+  message: string
+  severity: 'warning' | 'info'
+}
+
+export interface StateValidationResult {
+  entity_id: string
+  valid: boolean
+  warnings: ValidationWarning[]
+  missing_required: string[]
+  undefined_keys: string[]
 }
 
 // Device Types (from existing API)

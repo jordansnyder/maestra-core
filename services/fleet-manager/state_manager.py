@@ -5,6 +5,7 @@ Handles state updates and event broadcasting to NATS and MQTT message buses
 
 import json
 import asyncio
+import logging
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Callable
 from uuid import UUID
@@ -13,6 +14,8 @@ import os
 import nats
 from nats.aio.client import Client as NATS
 import paho.mqtt.client as mqtt
+
+logger = logging.getLogger(__name__)
 
 
 class StateManager:
@@ -126,6 +129,65 @@ class StateManager:
                 changed.append(key)
         return changed
 
+    @staticmethod
+    def _check_type(value: Any, expected_type: str) -> bool:
+        """Check if a value matches the expected variable type"""
+        type_checks = {
+            "string": lambda v: isinstance(v, str),
+            "number": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool),
+            "boolean": lambda v: isinstance(v, bool),
+            "array": lambda v: isinstance(v, list),
+            "color": lambda v: isinstance(v, str),
+            "vector2": lambda v: isinstance(v, dict) and "x" in v and "y" in v,
+            "vector3": lambda v: isinstance(v, dict) and "x" in v and "y" in v and "z" in v,
+            "range": lambda v: isinstance(v, (int, float)),
+            "enum": lambda v: True,
+            "object": lambda v: isinstance(v, dict),
+        }
+        return type_checks.get(expected_type, lambda v: True)(value)
+
+    def validate_state_against_variables(
+        self,
+        state: Dict[str, Any],
+        variables: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Validate state values against variable definitions.
+        Returns list of warnings (non-blocking).
+        """
+        warnings = []
+        inputs = variables.get("inputs", [])
+        outputs = variables.get("outputs", [])
+        all_vars = {v["name"]: v for v in inputs + outputs}
+
+        # Check each state key against definitions
+        for key, value in state.items():
+            if key in all_vars:
+                var_def = all_vars[key]
+                expected_type = var_def.get("type", "string")
+                if not self._check_type(value, expected_type):
+                    actual_type = type(value).__name__
+                    warnings.append({
+                        "variable_name": key,
+                        "expected_type": expected_type,
+                        "actual_type": actual_type,
+                        "message": f"State key '{key}' has type '{actual_type}' but expected '{expected_type}'",
+                        "severity": "warning"
+                    })
+
+        # Check for missing required inputs
+        for var in inputs:
+            if var.get("required") and var["name"] not in state:
+                warnings.append({
+                    "variable_name": var["name"],
+                    "expected_type": var.get("type", "string"),
+                    "actual_type": "missing",
+                    "message": f"Required input '{var['name']}' is missing from state",
+                    "severity": "warning"
+                })
+
+        return warnings
+
     async def broadcast_state_change(
         self,
         entity_id: UUID,
@@ -134,16 +196,30 @@ class StateManager:
         entity_path: Optional[str],
         previous_state: Dict[str, Any],
         new_state: Dict[str, Any],
-        source: Optional[str] = None
+        source: Optional[str] = None,
+        entity_metadata: Optional[Dict[str, Any]] = None
     ):
         """
         Broadcast state change event to both NATS and MQTT.
         Called after database update.
+        Includes validation warnings if entity has variable definitions.
         """
         changed_keys = self.compute_changed_keys(previous_state, new_state)
 
         if not changed_keys:
             return  # No actual changes
+
+        # Validate state against variable definitions if present
+        validation_warnings = []
+        if entity_metadata and "variables" in entity_metadata:
+            validation_warnings = self.validate_state_against_variables(
+                new_state,
+                entity_metadata["variables"]
+            )
+
+            # Log warnings
+            for warning in validation_warnings:
+                logger.warning(f"Entity {entity_slug}: {warning['message']}")
 
         event = {
             "type": "state_changed",
@@ -155,7 +231,8 @@ class StateManager:
             "current_state": new_state,
             "changed_keys": changed_keys,
             "source": source,
-            "timestamp": datetime.utcnow().isoformat() + "Z"
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "validation_warnings": validation_warnings
         }
 
         # Broadcast to both NATS and MQTT concurrently

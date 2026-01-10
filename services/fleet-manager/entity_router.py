@@ -17,7 +17,10 @@ from models import (
     Entity, EntityCreate, EntityUpdate,
     EntityType, EntityTypeCreate, EntityTypeUpdate,
     StateUpdate, StateSet, StateResponse,
-    EntityTreeNode
+    EntityTreeNode,
+    VariableDefinition, VariableDefinitionCreate, VariableDefinitionUpdate,
+    EntityVariables, EntityVariablesResponse,
+    ValidationWarning, StateValidationResult
 )
 from state_manager import state_manager
 
@@ -391,6 +394,313 @@ async def get_entity_tree(
 
     return tree
 
+
+# =============================================================================
+# VARIABLE DEFINITION ENDPOINTS
+# =============================================================================
+
+@router.get("/{entity_id}/variables", response_model=EntityVariablesResponse)
+async def get_entity_variables(
+    entity_id: UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all variable definitions for an entity"""
+    result = await db.execute(
+        select(EntityDB).where(EntityDB.id == entity_id)
+    )
+    db_entity = result.scalar_one_or_none()
+
+    if not db_entity:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    metadata = db_entity.entity_metadata or {}
+    variables_data = metadata.get("variables", {"inputs": [], "outputs": []})
+
+    return EntityVariablesResponse(
+        entity_id=db_entity.id,
+        entity_slug=db_entity.slug,
+        variables=EntityVariables(
+            inputs=[VariableDefinition(**v) for v in variables_data.get("inputs", [])],
+            outputs=[VariableDefinition(**v) for v in variables_data.get("outputs", [])]
+        )
+    )
+
+
+@router.put("/{entity_id}/variables", response_model=EntityVariablesResponse)
+async def set_entity_variables(
+    entity_id: UUID,
+    variables: EntityVariables,
+    db: AsyncSession = Depends(get_db)
+):
+    """Replace all variable definitions for an entity"""
+    result = await db.execute(
+        select(EntityDB).where(EntityDB.id == entity_id)
+    )
+    db_entity = result.scalar_one_or_none()
+
+    if not db_entity:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    # Update metadata with new variables
+    metadata = db_entity.entity_metadata or {}
+    metadata["variables"] = {
+        "inputs": [v.model_dump() for v in variables.inputs],
+        "outputs": [v.model_dump() for v in variables.outputs]
+    }
+    db_entity.entity_metadata = metadata
+    db_entity.updated_at = datetime.utcnow()
+
+    await db.commit()
+    await db.refresh(db_entity)
+
+    return EntityVariablesResponse(
+        entity_id=db_entity.id,
+        entity_slug=db_entity.slug,
+        variables=variables
+    )
+
+
+@router.post("/{entity_id}/variables", response_model=VariableDefinition, status_code=201)
+async def add_variable(
+    entity_id: UUID,
+    variable: VariableDefinitionCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Add a single variable definition to an entity"""
+    result = await db.execute(
+        select(EntityDB).where(EntityDB.id == entity_id)
+    )
+    db_entity = result.scalar_one_or_none()
+
+    if not db_entity:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    metadata = db_entity.entity_metadata or {}
+    variables_data = metadata.get("variables", {"inputs": [], "outputs": []})
+
+    # Check if variable with same name already exists
+    all_names = [v["name"] for v in variables_data.get("inputs", [])] + \
+                [v["name"] for v in variables_data.get("outputs", [])]
+    if variable.name in all_names:
+        raise HTTPException(status_code=400, detail=f"Variable '{variable.name}' already exists")
+
+    # Create the variable definition
+    var_def = VariableDefinition(
+        name=variable.name,
+        type=variable.type,
+        direction=variable.direction,
+        description=variable.description,
+        defaultValue=variable.defaultValue,
+        required=variable.required,
+        config=variable.config or {}
+    )
+
+    # Add to appropriate list
+    target_list = "inputs" if variable.direction == "input" else "outputs"
+    if target_list not in variables_data:
+        variables_data[target_list] = []
+    variables_data[target_list].append(var_def.model_dump())
+
+    metadata["variables"] = variables_data
+    db_entity.entity_metadata = metadata
+    db_entity.updated_at = datetime.utcnow()
+
+    await db.commit()
+
+    return var_def
+
+
+@router.put("/{entity_id}/variables/{variable_name}", response_model=VariableDefinition)
+async def update_variable(
+    entity_id: UUID,
+    variable_name: str,
+    update: VariableDefinitionUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a specific variable definition"""
+    result = await db.execute(
+        select(EntityDB).where(EntityDB.id == entity_id)
+    )
+    db_entity = result.scalar_one_or_none()
+
+    if not db_entity:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    metadata = db_entity.entity_metadata or {}
+    variables_data = metadata.get("variables", {"inputs": [], "outputs": []})
+
+    # Find the variable
+    found = False
+    updated_var = None
+    for list_name in ["inputs", "outputs"]:
+        for i, v in enumerate(variables_data.get(list_name, [])):
+            if v["name"] == variable_name:
+                # Apply updates
+                if update.type is not None:
+                    v["type"] = update.type
+                if update.direction is not None:
+                    v["direction"] = update.direction
+                if update.description is not None:
+                    v["description"] = update.description
+                if update.defaultValue is not None:
+                    v["defaultValue"] = update.defaultValue
+                if update.required is not None:
+                    v["required"] = update.required
+                if update.config is not None:
+                    v["config"] = update.config
+
+                # If direction changed, move to other list
+                new_direction = v.get("direction", "input")
+                expected_list = "inputs" if new_direction == "input" else "outputs"
+                if list_name != expected_list:
+                    variables_data[list_name].pop(i)
+                    if expected_list not in variables_data:
+                        variables_data[expected_list] = []
+                    variables_data[expected_list].append(v)
+
+                updated_var = VariableDefinition(**v)
+                found = True
+                break
+        if found:
+            break
+
+    if not found:
+        raise HTTPException(status_code=404, detail=f"Variable '{variable_name}' not found")
+
+    metadata["variables"] = variables_data
+    db_entity.entity_metadata = metadata
+    db_entity.updated_at = datetime.utcnow()
+
+    await db.commit()
+
+    return updated_var
+
+
+@router.delete("/{entity_id}/variables/{variable_name}")
+async def delete_variable(
+    entity_id: UUID,
+    variable_name: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Remove a variable definition from an entity"""
+    result = await db.execute(
+        select(EntityDB).where(EntityDB.id == entity_id)
+    )
+    db_entity = result.scalar_one_or_none()
+
+    if not db_entity:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    metadata = db_entity.entity_metadata or {}
+    variables_data = metadata.get("variables", {"inputs": [], "outputs": []})
+
+    # Find and remove the variable
+    found = False
+    for list_name in ["inputs", "outputs"]:
+        for i, v in enumerate(variables_data.get(list_name, [])):
+            if v["name"] == variable_name:
+                variables_data[list_name].pop(i)
+                found = True
+                break
+        if found:
+            break
+
+    if not found:
+        raise HTTPException(status_code=404, detail=f"Variable '{variable_name}' not found")
+
+    metadata["variables"] = variables_data
+    db_entity.entity_metadata = metadata
+    db_entity.updated_at = datetime.utcnow()
+
+    await db.commit()
+
+    return {"status": "deleted", "variable_name": variable_name}
+
+
+@router.post("/{entity_id}/variables/validate", response_model=StateValidationResult)
+async def validate_state_against_variables(
+    entity_id: UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """Validate current state against variable definitions"""
+    result = await db.execute(
+        select(EntityDB).where(EntityDB.id == entity_id)
+    )
+    db_entity = result.scalar_one_or_none()
+
+    if not db_entity:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    metadata = db_entity.entity_metadata or {}
+    variables_data = metadata.get("variables", {"inputs": [], "outputs": []})
+    state = db_entity.state or {}
+
+    warnings = []
+    missing_required = []
+    undefined_keys = []
+
+    # Build variable lookup
+    all_vars = {}
+    for v in variables_data.get("inputs", []):
+        all_vars[v["name"]] = v
+    for v in variables_data.get("outputs", []):
+        all_vars[v["name"]] = v
+
+    # Type checking functions
+    def check_type(value: Any, expected_type: str) -> bool:
+        type_checks = {
+            "string": lambda v: isinstance(v, str),
+            "number": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool),
+            "boolean": lambda v: isinstance(v, bool),
+            "array": lambda v: isinstance(v, list),
+            "color": lambda v: isinstance(v, str),
+            "vector2": lambda v: isinstance(v, dict) and "x" in v and "y" in v,
+            "vector3": lambda v: isinstance(v, dict) and "x" in v and "y" in v and "z" in v,
+            "range": lambda v: isinstance(v, (int, float)),
+            "enum": lambda v: True,
+            "object": lambda v: isinstance(v, dict),
+        }
+        return type_checks.get(expected_type, lambda v: True)(value)
+
+    # Check each state key
+    for key, value in state.items():
+        if key in all_vars:
+            var_def = all_vars[key]
+            expected_type = var_def.get("type", "string")
+            if not check_type(value, expected_type):
+                actual_type = type(value).__name__
+                warnings.append(ValidationWarning(
+                    variable_name=key,
+                    expected_type=expected_type,
+                    actual_type=actual_type,
+                    message=f"State key '{key}' has type '{actual_type}' but expected '{expected_type}'"
+                ))
+        else:
+            undefined_keys.append(key)
+
+    # Check for missing required inputs
+    for v in variables_data.get("inputs", []):
+        if v.get("required") and v["name"] not in state:
+            missing_required.append(v["name"])
+            warnings.append(ValidationWarning(
+                variable_name=v["name"],
+                expected_type=v.get("type", "string"),
+                actual_type="missing",
+                message=f"Required input '{v['name']}' is missing from state"
+            ))
+
+    return StateValidationResult(
+        entity_id=db_entity.id,
+        valid=len(warnings) == 0,
+        warnings=warnings,
+        missing_required=missing_required,
+        undefined_keys=undefined_keys
+    )
+
+
+# =============================================================================
+# ENTITY CRUD ENDPOINTS
+# =============================================================================
 
 @router.get("/{entity_id}", response_model=Entity)
 async def get_entity(
@@ -820,7 +1130,7 @@ async def update_state(
     await db.commit()
     await db.refresh(db_entity)
 
-    # Broadcast state change event
+    # Broadcast state change event with metadata for validation
     await state_manager.broadcast_state_change(
         entity_id=db_entity.id,
         entity_slug=db_entity.slug,
@@ -828,7 +1138,8 @@ async def update_state(
         entity_path=db_entity.path,
         previous_state=previous_state,
         new_state=new_state,
-        source=update.source
+        source=update.source,
+        entity_metadata=db_entity.entity_metadata
     )
 
     return StateResponse(
@@ -867,7 +1178,7 @@ async def set_state(
     await db.commit()
     await db.refresh(db_entity)
 
-    # Broadcast state change event
+    # Broadcast state change event with metadata for validation
     await state_manager.broadcast_state_change(
         entity_id=db_entity.id,
         entity_slug=db_entity.slug,
@@ -875,7 +1186,8 @@ async def set_state(
         entity_path=db_entity.path,
         previous_state=previous_state,
         new_state=new_state,
-        source=state_set.source
+        source=state_set.source,
+        entity_metadata=db_entity.entity_metadata
     )
 
     return StateResponse(
@@ -941,7 +1253,7 @@ async def bulk_update_state(
 
             results[slug] = {"status": "updated", "state": new_state}
 
-            # Broadcast
+            # Broadcast with metadata for validation
             await state_manager.broadcast_state_change(
                 entity_id=db_entity.id,
                 entity_slug=db_entity.slug,
@@ -949,7 +1261,8 @@ async def bulk_update_state(
                 entity_path=db_entity.path,
                 previous_state=previous_state,
                 new_state=new_state,
-                source=source
+                source=source,
+                entity_metadata=db_entity.entity_metadata
             )
         else:
             results[slug] = {"status": "not_found"}

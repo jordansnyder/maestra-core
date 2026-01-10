@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Entity, EntityType, EntityUpdate } from '@/lib/types'
 import { entitiesApi, entityTypesApi } from '@/lib/api'
+import { EntityVariablesPanel } from '@/components/EntityVariablesPanel'
 
 export default function EntityDetailPage() {
   const params = useParams()
@@ -29,6 +30,9 @@ export default function EntityDetailPage() {
   const [stateJson, setStateJson] = useState('')
   const [stateError, setStateError] = useState<string | null>(null)
   const [savingState, setSavingState] = useState(false)
+
+  // Tab navigation
+  const [activeTab, setActiveTab] = useState<'state' | 'variables'>('state')
 
   const loadData = useCallback(async () => {
     try {
@@ -376,110 +380,143 @@ export default function EntityDetailPage() {
             )}
           </div>
 
-          {/* Right Column - State */}
+          {/* Right Column - State & Variables */}
           <div>
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">State</h2>
-                <span className="text-xs text-slate-500">
-                  Updated: {new Date(entity.state_updated_at).toLocaleString()}
-                </span>
-              </div>
+            {/* Tab Navigation */}
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setActiveTab('state')}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === 'state'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+                }`}
+              >
+                State
+              </button>
+              <button
+                onClick={() => setActiveTab('variables')}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === 'variables'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+                }`}
+              >
+                Variables
+              </button>
+            </div>
 
-              {stateError && (
-                <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded text-sm">
-                  {stateError}
+            {activeTab === 'state' ? (
+              <>
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold">State</h2>
+                    <span className="text-xs text-slate-500">
+                      Updated: {new Date(entity.state_updated_at).toLocaleString()}
+                    </span>
+                  </div>
+
+                  {stateError && (
+                    <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded text-sm">
+                      {stateError}
+                    </div>
+                  )}
+
+                  <textarea
+                    value={stateJson}
+                    onChange={(e) => setStateJson(e.target.value)}
+                    rows={15}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded font-mono text-sm focus:outline-none focus:border-blue-500"
+                    spellCheck={false}
+                  />
+
+                  <div className="flex justify-between items-center mt-4">
+                    <div className="text-xs text-slate-500">
+                      Edit the JSON above and click Save to update the entity state.
+                      <br />
+                      State changes are broadcast to all connected devices via NATS/MQTT.
+                    </div>
+                    <button
+                      onClick={handleSaveState}
+                      disabled={savingState}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {savingState ? 'Saving...' : 'Save State'}
+                    </button>
+                  </div>
                 </div>
-              )}
 
-              <textarea
-                value={stateJson}
-                onChange={(e) => setStateJson(e.target.value)}
-                rows={15}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded font-mono text-sm focus:outline-none focus:border-blue-500"
-                spellCheck={false}
+                {/* Quick State Actions */}
+                <div className="mt-6 bg-slate-800 border border-slate-700 rounded-lg p-6">
+                  <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
+                  <p className="text-sm text-slate-400 mb-4">
+                    Common state updates for this entity type:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => {
+                        const current = JSON.parse(stateJson)
+                        current.active = !current.active
+                        setStateJson(JSON.stringify(current, null, 2))
+                      }}
+                      className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors"
+                    >
+                      Toggle Active
+                    </button>
+                    <button
+                      onClick={() => {
+                        const current = JSON.parse(stateJson)
+                        current.brightness = Math.min((current.brightness || 0) + 10, 100)
+                        setStateJson(JSON.stringify(current, null, 2))
+                      }}
+                      className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors"
+                    >
+                      Brightness +10
+                    </button>
+                    <button
+                      onClick={() => {
+                        const current = JSON.parse(stateJson)
+                        current.brightness = Math.max((current.brightness || 0) - 10, 0)
+                        setStateJson(JSON.stringify(current, null, 2))
+                      }}
+                      className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors"
+                    >
+                      Brightness -10
+                    </button>
+                    <button
+                      onClick={() => setStateJson('{}')}
+                      className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors"
+                    >
+                      Clear State
+                    </button>
+                  </div>
+                </div>
+
+                {/* MQTT/NATS Info */}
+                <div className="mt-6 bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold mb-2">Message Bus Topics</h3>
+                  <div className="space-y-2 text-xs font-mono">
+                    <div>
+                      <span className="text-slate-500">NATS: </span>
+                      <span className="text-blue-400">
+                        maestra.entity.state.{entity.entity_type?.name || 'unknown'}.{entity.slug}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">MQTT: </span>
+                      <span className="text-green-400">
+                        maestra/entity/state/{entity.entity_type?.name || 'unknown'}/{entity.slug}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <EntityVariablesPanel
+                entity={entity}
+                onVariablesChange={loadData}
               />
-
-              <div className="flex justify-between items-center mt-4">
-                <div className="text-xs text-slate-500">
-                  Edit the JSON above and click Save to update the entity state.
-                  <br />
-                  State changes are broadcast to all connected devices via NATS/MQTT.
-                </div>
-                <button
-                  onClick={handleSaveState}
-                  disabled={savingState}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {savingState ? 'Saving...' : 'Save State'}
-                </button>
-              </div>
-            </div>
-
-            {/* Quick State Actions */}
-            <div className="mt-6 bg-slate-800 border border-slate-700 rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-              <p className="text-sm text-slate-400 mb-4">
-                Common state updates for this entity type:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => {
-                    const current = JSON.parse(stateJson)
-                    current.active = !current.active
-                    setStateJson(JSON.stringify(current, null, 2))
-                  }}
-                  className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors"
-                >
-                  Toggle Active
-                </button>
-                <button
-                  onClick={() => {
-                    const current = JSON.parse(stateJson)
-                    current.brightness = Math.min((current.brightness || 0) + 10, 100)
-                    setStateJson(JSON.stringify(current, null, 2))
-                  }}
-                  className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors"
-                >
-                  Brightness +10
-                </button>
-                <button
-                  onClick={() => {
-                    const current = JSON.parse(stateJson)
-                    current.brightness = Math.max((current.brightness || 0) - 10, 0)
-                    setStateJson(JSON.stringify(current, null, 2))
-                  }}
-                  className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors"
-                >
-                  Brightness -10
-                </button>
-                <button
-                  onClick={() => setStateJson('{}')}
-                  className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors"
-                >
-                  Clear State
-                </button>
-              </div>
-            </div>
-
-            {/* MQTT/NATS Info */}
-            <div className="mt-6 bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-              <h3 className="text-sm font-semibold mb-2">Message Bus Topics</h3>
-              <div className="space-y-2 text-xs font-mono">
-                <div>
-                  <span className="text-slate-500">NATS: </span>
-                  <span className="text-blue-400">
-                    maestra.entity.state.{entity.entity_type?.name || 'unknown'}.{entity.slug}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-500">MQTT: </span>
-                  <span className="text-green-400">
-                    maestra/entity/state/{entity.entity_type?.name || 'unknown'}/{entity.slug}
-                  </span>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

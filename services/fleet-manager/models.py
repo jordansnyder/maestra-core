@@ -3,9 +3,10 @@ Pydantic models for Fleet Manager API
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Literal
 from uuid import UUID, uuid4
 from datetime import datetime
+from enum import Enum
 
 
 # =============================================================================
@@ -148,6 +149,102 @@ class EntityLifecycleEvent(BaseModel):
     entity_type: str
     data: Optional[Dict[str, Any]] = None
     timestamp: datetime
+
+
+# =============================================================================
+# Variable Definition Models
+# =============================================================================
+
+class VariableType(str, Enum):
+    """Supported variable data types"""
+    STRING = "string"
+    NUMBER = "number"
+    BOOLEAN = "boolean"
+    ARRAY = "array"
+    COLOR = "color"
+    VECTOR2 = "vector2"
+    VECTOR3 = "vector3"
+    RANGE = "range"
+    ENUM = "enum"
+    OBJECT = "object"
+
+
+class VariableDirection(str, Enum):
+    """Variable direction - input or output"""
+    INPUT = "input"
+    OUTPUT = "output"
+
+
+class VariableDefinition(BaseModel):
+    """Single variable definition for entity I/O"""
+    name: str = Field(..., min_length=1, max_length=100, description="Variable name (maps to state key)")
+    type: VariableType = Field(..., description="Data type")
+    direction: VariableDirection = Field(..., description="Input or output")
+    description: Optional[str] = Field(None, max_length=500)
+    defaultValue: Optional[Any] = Field(None, description="Default value")
+    required: bool = Field(False, description="Whether this variable is required (inputs only)")
+    config: Dict[str, Any] = Field(default_factory=dict, description="Type-specific configuration")
+
+    class Config:
+        use_enum_values = True
+
+
+class VariableDefinitionCreate(BaseModel):
+    """Model for creating a variable definition"""
+    name: str = Field(..., min_length=1, max_length=100)
+    type: VariableType
+    direction: VariableDirection
+    description: Optional[str] = None
+    defaultValue: Optional[Any] = None
+    required: bool = False
+    config: Optional[Dict[str, Any]] = None
+
+    class Config:
+        use_enum_values = True
+
+
+class VariableDefinitionUpdate(BaseModel):
+    """Model for updating a variable definition"""
+    type: Optional[VariableType] = None
+    direction: Optional[VariableDirection] = None
+    description: Optional[str] = None
+    defaultValue: Optional[Any] = None
+    required: Optional[bool] = None
+    config: Optional[Dict[str, Any]] = None
+
+    class Config:
+        use_enum_values = True
+
+
+class EntityVariables(BaseModel):
+    """Container for all entity variable definitions"""
+    inputs: List[VariableDefinition] = Field(default_factory=list)
+    outputs: List[VariableDefinition] = Field(default_factory=list)
+
+
+class EntityVariablesResponse(BaseModel):
+    """Response model for entity variables"""
+    entity_id: UUID
+    entity_slug: str
+    variables: EntityVariables
+
+
+class ValidationWarning(BaseModel):
+    """Warning for state/variable mismatch"""
+    variable_name: str
+    expected_type: str
+    actual_type: str
+    message: str
+    severity: Literal["warning", "info"] = "warning"
+
+
+class StateValidationResult(BaseModel):
+    """Result of validating state against variable definitions"""
+    entity_id: UUID
+    valid: bool
+    warnings: List[ValidationWarning] = Field(default_factory=list)
+    missing_required: List[str] = Field(default_factory=list)
+    undefined_keys: List[str] = Field(default_factory=list)
 
 
 # =============================================================================

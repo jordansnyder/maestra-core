@@ -42,7 +42,7 @@ class EntityTypeDB(Base):
     icon = Column(String(50))
     state_schema = Column(JSONB)
     default_state = Column(JSONB, default={})
-    metadata = Column('metadata', JSONB, default={})
+    type_metadata = Column('metadata', JSONB, default={})
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -1,0 +1,417 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as count FROM device_metrics WHERE time > NOW() - INTERVAL '1 hour'",
+          "refId": "A"
+        }
+      ],
+      "title": "Metrics (1h)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*)::float / 60 as rate FROM device_metrics WHERE time > NOW() - INTERVAL '1 minute'",
+          "refId": "A"
+        }
+      ],
+      "title": "Metrics/sec",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT metric_name) as count FROM device_metrics WHERE time > NOW() - INTERVAL '1 hour'",
+          "refId": "A"
+        }
+      ],
+      "title": "Metric Types (1h)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(DISTINCT device_id) as count FROM device_metrics WHERE time > NOW() - INTERVAL '1 hour'",
+          "refId": "A"
+        }
+      ],
+      "title": "Reporting Devices (1h)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "yellow", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*)::float / 60 as rate FROM device_events WHERE time > NOW() - INTERVAL '1 minute'",
+          "refId": "A"
+        }
+      ],
+      "title": "Events/sec",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*)::float / 60 as rate FROM entities WHERE state_updated_at > NOW() - INTERVAL '1 minute'",
+          "refId": "A"
+        }
+      ],
+      "title": "State Updates/sec",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Count",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 30,
+            "gradientMode": "opacity",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
+      "id": 7,
+      "options": {
+        "legend": { "calcs": ["mean", "max", "sum"], "displayMode": "table", "placement": "right", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('1 minute', time) as time, COUNT(*) as \"Metrics\" FROM device_metrics WHERE time > NOW() - INTERVAL '1 hour' GROUP BY time_bucket('1 minute', time) ORDER BY time",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('1 minute', time) as time, COUNT(*) as \"Events\" FROM device_events WHERE time > NOW() - INTERVAL '1 hour' GROUP BY time_bucket('1 minute', time) ORDER BY time",
+          "refId": "B"
+        }
+      ],
+      "title": "Throughput Over Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "normal" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "id": 8,
+      "options": {
+        "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "right", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', time) as time, metric_name, COUNT(*) as count FROM device_metrics WHERE time > NOW() - INTERVAL '6 hours' GROUP BY time_bucket('5 minutes', time), metric_name ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "title": "Metrics by Type",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1000 }, { "color": "red", "value": 5000 }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "id": 9,
+      "options": {
+        "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT metric_name, COUNT(*) as count FROM device_metrics WHERE time > NOW() - INTERVAL '1 hour' GROUP BY metric_name ORDER BY count DESC LIMIT 15",
+          "refId": "A"
+        }
+      ],
+      "title": "Top Metrics by Volume (1h)",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "id": 10,
+      "options": {
+        "legend": { "calcs": ["mean", "min", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "time_series",
+          "rawSql": "SELECT bucket as time, metric_name, avg_value FROM device_metrics_hourly WHERE bucket > NOW() - INTERVAL '24 hours' ORDER BY bucket",
+          "refId": "A"
+        }
+      ],
+      "title": "Metric Values (Hourly Avg)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 28 },
+      "id": 11,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "count" }]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT d.name as device, m.metric_name, COUNT(*) as count, AVG(m.metric_value) as avg_value, MIN(m.metric_value) as min_value, MAX(m.metric_value) as max_value, m.unit FROM device_metrics m JOIN devices d ON m.device_id = d.id WHERE m.time > NOW() - INTERVAL '1 hour' GROUP BY d.name, m.metric_name, m.unit ORDER BY count DESC LIMIT 50",
+          "refId": "A"
+        }
+      ],
+      "title": "Metric Summary by Device (1h)",
+      "type": "table"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["maestra", "performance", "metrics"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Maestra - Performance Metrics",
+  "uid": "maestra-performance",
+  "version": 1,
+  "weekStart": ""
+}

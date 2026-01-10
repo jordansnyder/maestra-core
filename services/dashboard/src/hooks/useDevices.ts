@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
-import type { Device, FleetStats } from '@/types'
+import type { Device } from '@/lib/types'
+
+export interface FleetStats {
+  total: number
+  online: number
+  offline: number
+  error: number
+  byType: Record<string, number>
+}
 
 export function useDevices(autoRefresh = true, interval = 5000) {
   const [devices, setDevices] = useState<Device[]>([])

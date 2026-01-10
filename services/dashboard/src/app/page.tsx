@@ -7,7 +7,13 @@ import { Card } from '@/components/Card'
 import { StatsCard } from '@/components/StatsCard'
 import { DeviceCard } from '@/components/DeviceCard'
 import { StatusBadge } from '@/components/StatusBadge'
-import type { Device, ServiceStatus } from '@/types'
+import type { Device } from '@/lib/types'
+
+interface ServiceStatus {
+  name: string
+  url: string
+  status: 'checking' | 'healthy' | 'unhealthy'
+}
 import { api } from '@/lib/api'
 
 const services: ServiceStatus[] = [

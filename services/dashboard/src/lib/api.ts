@@ -1,6 +1,6 @@
 // API Client for Fleet Manager
 
-import { Entity, EntityCreate, EntityUpdate, EntityType, EntityTreeNode, StateUpdate, StateResponse } from './types'
+import { Entity, EntityCreate, EntityUpdate, EntityType, EntityTreeNode, StateUpdate, StateResponse, Device } from './types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
@@ -167,6 +167,59 @@ export const healthApi = {
       message_bus: { connected: boolean }
       timestamp: string
     }>('/status'),
+}
+
+// Devices API
+export const devicesApi = {
+  list: () => fetchApi<Device[]>('/devices'),
+
+  get: (id: string) => fetchApi<Device>(`/devices/${id}`),
+
+  register: (data: {
+    name: string
+    device_type: string
+    hardware_id: string
+    firmware_version?: string
+    ip_address?: string
+    location?: Record<string, unknown>
+    metadata?: Record<string, unknown>
+  }) =>
+    fetchApi<Device>('/devices/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    fetchApi<{ status: string }>(`/devices/${id}`, {
+      method: 'DELETE',
+    }),
+
+  heartbeat: (data: { hardware_id: string; status: string; metadata?: Record<string, unknown> }) =>
+    fetchApi<{ status: string; device_id: string }>('/devices/heartbeat', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+}
+
+// Combined API object for convenience
+export const api = {
+  // Devices
+  listDevices: devicesApi.list,
+  getDevice: devicesApi.get,
+  registerDevice: devicesApi.register,
+  deleteDevice: devicesApi.delete,
+  deviceHeartbeat: devicesApi.heartbeat,
+
+  // Entities
+  listEntities: entitiesApi.list,
+  getEntity: entitiesApi.get,
+  createEntity: entitiesApi.create,
+  updateEntity: entitiesApi.update,
+  deleteEntity: entitiesApi.delete,
+
+  // Health
+  health: healthApi.check,
+  status: healthApi.status,
 }
 
 export { ApiError }

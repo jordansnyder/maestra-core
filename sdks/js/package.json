@@ -1,0 +1,56 @@
+{
+  "name": "@maestra/sdk",
+  "version": "0.1.0",
+  "description": "JavaScript/TypeScript SDK for Maestra immersive experience platform",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "lint": "eslint src/",
+    "test": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "maestra",
+    "iot",
+    "mqtt",
+    "websocket",
+    "immersive",
+    "creative-coding",
+    "state-management"
+  ],
+  "author": "Maestra Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maestra/maestra-core"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "peerDependencies": {
+    "mqtt": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "mqtt": {
+      "optional": true
+    }
+  }
+}

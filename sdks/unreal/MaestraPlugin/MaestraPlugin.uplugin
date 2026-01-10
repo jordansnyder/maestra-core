@@ -1,0 +1,25 @@
+{
+    "FileVersion": 3,
+    "Version": 1,
+    "VersionName": "0.1.0",
+    "FriendlyName": "Maestra Plugin",
+    "Description": "Connect Unreal Engine to the Maestra immersive experience platform",
+    "Category": "Networking",
+    "CreatedBy": "Maestra Team",
+    "CreatedByURL": "https://maestra.dev",
+    "DocsURL": "https://maestra.dev/docs/sdk/unreal",
+    "MarketplaceURL": "",
+    "SupportURL": "https://github.com/maestra/maestra-core/issues",
+    "CanContainContent": false,
+    "IsBetaVersion": true,
+    "IsExperimentalVersion": false,
+    "Installed": false,
+    "Modules": [
+        {
+            "Name": "MaestraPlugin",
+            "Type": "Runtime",
+            "LoadingPhase": "Default"
+        }
+    ],
+    "Plugins": []
+}

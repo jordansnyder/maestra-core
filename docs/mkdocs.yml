@@ -1,49 +1,44 @@
-# Maestra Documentation
-
 site_name: Maestra Documentation
-site_description: Documentation for the Maestra immersive experience infrastructure platform
-site_author: Maestra Team
-site_url: http://localhost:8000
+site_description: Documentation for the Maestra immersive experience platform
+site_url: https://maestra.dev/docs
 
-# Repository
-repo_name: maestra-core
-repo_url: https://github.com/jordansnyder/maestra-core
-
-# Theme
 theme:
   name: material
   palette:
-    # Palette toggle for dark mode
     - scheme: slate
       primary: blue
       accent: purple
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
-    # Palette toggle for light mode
-    - scheme: default
-      primary: blue
-      accent: purple
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
   features:
     - navigation.tabs
     - navigation.sections
     - navigation.expand
-    - navigation.top
-    - search.suggest
     - search.highlight
     - content.code.copy
-  icon:
-    repo: fontawesome/brands/github
 
-# Extensions
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Services: architecture/services.md
+  - API Reference:
+      - Fleet Manager: api/fleet-manager.md
+      - Entities: api/entities.md
+  - SDKs:
+      - Overview: sdks/overview.md
+      - Python: sdks/python.md
+      - JavaScript: sdks/javascript.md
+      - Arduino/ESP32: sdks/arduino.md
+      - TouchDesigner: sdks/touchdesigner.md
+      - Max/MSP: sdks/maxmsp.md
+      - Unreal Engine: sdks/unreal.md
+      - Unity: sdks/unity.md
+
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
@@ -52,42 +47,7 @@ markdown_extensions:
   - attr_list
   - md_in_html
 
-# Navigation
-nav:
-  - Home: index.md
-  - Getting Started:
-    - Quick Start: getting-started/quickstart.md
-    - Installation: getting-started/installation.md
-    - Architecture: getting-started/architecture.md
-  - SDKs:
-    - Overview: sdks/overview.md
-    - Arduino/ESP32: sdks/arduino.md
-    - Raspberry Pi: sdks/raspberry-pi.md
-    - TouchDesigner: sdks/touchdesigner.md
-    - Max/MSP: sdks/max-msp.md
-    - Unreal Engine: sdks/unreal.md
-    - Web/JavaScript: sdks/web.md
-  - API Reference:
-    - Fleet Manager: api/fleet-manager.md
-    - WebSocket Gateway: api/websocket.md
-    - OSC Gateway: api/osc.md
-  - Guides:
-    - Device Registration: guides/device-registration.md
-    - MQTT Messaging: guides/mqtt.md
-    - Node-RED Flows: guides/nodered.md
-    - Monitoring: guides/monitoring.md
-  - Infrastructure:
-    - Docker Setup: infrastructure/docker.md
-    - Configuration: infrastructure/configuration.md
-    - Production Deployment: infrastructure/production.md
-
-# Plugins
-plugins:
-  - search
-  - tags
-
-# Extra
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/jordansnyder/maestra-core
+      link: https://github.com/maestra/maestra-core

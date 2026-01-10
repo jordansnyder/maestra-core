@@ -1,0 +1,25 @@
+{
+  "name": "dev.maestra.sdk",
+  "version": "0.1.0",
+  "displayName": "Maestra SDK",
+  "description": "Connect Unity to the Maestra immersive experience platform for real-time entity state management.",
+  "unity": "2021.3",
+  "unityRelease": "0f1",
+  "documentationUrl": "https://maestra.dev/docs/sdk/unity",
+  "changelogUrl": "https://github.com/maestra/maestra-core/blob/main/sdks/unity/CHANGELOG.md",
+  "licensesUrl": "https://github.com/maestra/maestra-core/blob/main/LICENSE",
+  "keywords": [
+    "maestra",
+    "iot",
+    "state",
+    "mqtt",
+    "immersive"
+  ],
+  "author": {
+    "name": "Maestra Team",
+    "url": "https://maestra.dev"
+  },
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.0.0"
+  }
+}

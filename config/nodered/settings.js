@@ -123,7 +123,7 @@ module.exports = {
     // =============================================================================
 
     // Context Storage
-    // Using file-based context storage (default Node-RED module)
+    // Using file-based context storage for persistence
     contextStorage: {
         default: "file",
         file: {

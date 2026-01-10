@@ -152,7 +152,7 @@ def setup_mqtt():
     """Setup MQTT client"""
     global mqtt_client
 
-    mqtt_client = mqtt.Client("maestra-mqtt-nats-bridge")
+    mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, "maestra-mqtt-nats-bridge")
     mqtt_client.on_connect = on_mqtt_connect
     mqtt_client.on_message = on_mqtt_message
 

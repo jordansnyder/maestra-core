@@ -6,9 +6,29 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, String, DateTime, Text, ARRAY, ForeignKey, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
+from sqlalchemy.types import TypeDecorator, UserDefinedType
 from datetime import datetime
 from uuid import uuid4
 import os
+
+
+# Custom LTREE type for PostgreSQL
+class LtreeType(UserDefinedType):
+    """PostgreSQL LTREE type for hierarchical labels"""
+    cache_ok = True
+
+    def get_col_spec(self):
+        return "LTREE"
+
+    def bind_processor(self, dialect):
+        def process(value):
+            return value
+        return process
+
+    def result_processor(self, dialect, coltype):
+        def process(value):
+            return value
+        return process
 
 # Database URL from environment
 DATABASE_URL = os.getenv(
@@ -56,7 +76,7 @@ class EntityDB(Base):
     slug = Column(String(255), unique=True, nullable=False)
     entity_type_id = Column(PGUUID(as_uuid=True), ForeignKey("entity_types.id"), nullable=False)
     parent_id = Column(PGUUID(as_uuid=True), ForeignKey("entities.id", ondelete="SET NULL"))
-    path = Column(String)  # LTREE stored as string, converted by PostgreSQL
+    path = Column(LtreeType)  # PostgreSQL LTREE for hierarchical paths
     state = Column(JSONB, default={})
     state_updated_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String(50), default='active')

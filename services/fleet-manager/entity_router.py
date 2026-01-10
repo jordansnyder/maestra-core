@@ -322,6 +322,76 @@ async def create_entity(
     return response
 
 
+@router.get("/tree", response_model=List[EntityTreeNode])
+async def get_entity_tree(
+    root_id: Optional[UUID] = Query(None, description="Start from specific entity"),
+    entity_type: Optional[str] = Query(None, description="Filter by type"),
+    max_depth: int = Query(5, ge=1, le=20),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get entity tree structure with nested children"""
+    # Build base query for root entities
+    if root_id:
+        query = select(EntityDB, EntityTypeDB).join(
+            EntityTypeDB, EntityDB.entity_type_id == EntityTypeDB.id
+        ).where(EntityDB.id == root_id)
+    else:
+        query = select(EntityDB, EntityTypeDB).join(
+            EntityTypeDB, EntityDB.entity_type_id == EntityTypeDB.id
+        ).where(EntityDB.parent_id.is_(None))
+
+    if entity_type:
+        query = query.where(EntityTypeDB.name == entity_type)
+
+    query = query.order_by(EntityDB.name)
+
+    result = await db.execute(query)
+    root_entities = result.all()
+
+    async def build_tree(entity_id: UUID, current_depth: int) -> List[EntityTreeNode]:
+        if current_depth >= max_depth:
+            return []
+
+        result = await db.execute(
+            select(EntityDB, EntityTypeDB)
+            .join(EntityTypeDB, EntityDB.entity_type_id == EntityTypeDB.id)
+            .where(EntityDB.parent_id == entity_id)
+            .order_by(EntityDB.name)
+        )
+        children_rows = result.all()
+
+        nodes = []
+        for db_entity, entity_type in children_rows:
+            children = await build_tree(db_entity.id, current_depth + 1)
+            nodes.append(EntityTreeNode(
+                id=db_entity.id,
+                name=db_entity.name,
+                slug=db_entity.slug,
+                entity_type_id=db_entity.entity_type_id,
+                entity_type_name=entity_type.name,
+                status=db_entity.status or 'active',
+                state=db_entity.state or {},
+                children=children
+            ))
+        return nodes
+
+    tree = []
+    for db_entity, entity_type in root_entities:
+        children = await build_tree(db_entity.id, 1)
+        tree.append(EntityTreeNode(
+            id=db_entity.id,
+            name=db_entity.name,
+            slug=db_entity.slug,
+            entity_type_id=db_entity.entity_type_id,
+            entity_type_name=entity_type.name,
+            status=db_entity.status or 'active',
+            state=db_entity.state or {},
+            children=children
+        ))
+
+    return tree
+
+
 @router.get("/{entity_id}", response_model=Entity)
 async def get_entity(
     entity_id: UUID,
@@ -666,76 +736,6 @@ async def get_siblings(entity_id: UUID, db: AsyncSession = Depends(get_db)):
     rows = result.all()
 
     return [entity_db_to_response(e, t) for e, t in rows]
-
-
-@router.get("/tree", response_model=List[EntityTreeNode])
-async def get_entity_tree(
-    root_id: Optional[UUID] = Query(None, description="Start from specific entity"),
-    entity_type: Optional[str] = Query(None, description="Filter by type"),
-    max_depth: int = Query(5, ge=1, le=20),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get entity tree structure with nested children"""
-    # Build base query for root entities
-    if root_id:
-        query = select(EntityDB, EntityTypeDB).join(
-            EntityTypeDB, EntityDB.entity_type_id == EntityTypeDB.id
-        ).where(EntityDB.id == root_id)
-    else:
-        query = select(EntityDB, EntityTypeDB).join(
-            EntityTypeDB, EntityDB.entity_type_id == EntityTypeDB.id
-        ).where(EntityDB.parent_id.is_(None))
-
-    if entity_type:
-        query = query.where(EntityTypeDB.name == entity_type)
-
-    query = query.order_by(EntityDB.name)
-
-    result = await db.execute(query)
-    root_entities = result.all()
-
-    async def build_tree(entity_id: UUID, current_depth: int) -> List[EntityTreeNode]:
-        if current_depth >= max_depth:
-            return []
-
-        result = await db.execute(
-            select(EntityDB, EntityTypeDB)
-            .join(EntityTypeDB, EntityDB.entity_type_id == EntityTypeDB.id)
-            .where(EntityDB.parent_id == entity_id)
-            .order_by(EntityDB.name)
-        )
-        children_rows = result.all()
-
-        nodes = []
-        for db_entity, entity_type in children_rows:
-            children = await build_tree(db_entity.id, current_depth + 1)
-            nodes.append(EntityTreeNode(
-                id=db_entity.id,
-                name=db_entity.name,
-                slug=db_entity.slug,
-                entity_type_id=db_entity.entity_type_id,
-                entity_type_name=entity_type.name,
-                status=db_entity.status or 'active',
-                state=db_entity.state or {},
-                children=children
-            ))
-        return nodes
-
-    tree = []
-    for db_entity, entity_type in root_entities:
-        children = await build_tree(db_entity.id, 1)
-        tree.append(EntityTreeNode(
-            id=db_entity.id,
-            name=db_entity.name,
-            slug=db_entity.slug,
-            entity_type_id=db_entity.entity_type_id,
-            entity_type_name=entity_type.name,
-            status=db_entity.status or 'active',
-            state=db_entity.state or {},
-            children=children
-        ))
-
-    return tree
 
 
 # =============================================================================

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Entity, EntityType, EntityUpdate } from '@/lib/types'
 import { entitiesApi, entityTypesApi } from '@/lib/api'
 import { EntityVariablesPanel } from '@/components/EntityVariablesPanel'
+import { StateTestPanel } from '@/components/StateTestPanel'
 
 export default function EntityDetailPage() {
   const params = useParams()
@@ -33,6 +34,7 @@ export default function EntityDetailPage() {
 
   // Tab navigation
   const [activeTab, setActiveTab] = useState<'state' | 'variables'>('state')
+  const [variablesMode, setVariablesMode] = useState<'define' | 'test'>('test')
 
   const loadData = useCallback(async () => {
     try {
@@ -512,10 +514,43 @@ export default function EntityDetailPage() {
                 </div>
               </>
             ) : (
-              <EntityVariablesPanel
-                entity={entity}
-                onVariablesChange={loadData}
-              />
+              <div className="space-y-4">
+                {/* Define/Test Toggle */}
+                <div className="flex items-center gap-2 p-1 bg-slate-800 rounded-lg w-fit">
+                  <button
+                    onClick={() => setVariablesMode('test')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      variablesMode === 'test'
+                        ? 'bg-green-600 text-white'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Test
+                  </button>
+                  <button
+                    onClick={() => setVariablesMode('define')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      variablesMode === 'define'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Define
+                  </button>
+                </div>
+
+                {variablesMode === 'test' ? (
+                  <StateTestPanel
+                    entity={entity}
+                    onStateChange={loadData}
+                  />
+                ) : (
+                  <EntityVariablesPanel
+                    entity={entity}
+                    onVariablesChange={loadData}
+                  />
+                )}
+              </div>
             )}
           </div>
         </div>

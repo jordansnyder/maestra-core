@@ -6,7 +6,7 @@ services:
   fleet-manager:
     volumes: []  # Override: no live code mounting
     environment:
-      - DATABASE_URL=postgresql://maestra:${POSTGRES_PASSWORD}@postgres:5432/maestra
+      - DATABASE_URL=postgresql://maestra:${POSTGRES_PASSWORD:-maestra_test_password}@postgres:5432/maestra
       - REDIS_URL=redis://redis:6379
       - NATS_URL=nats://nats:4222
       - MQTT_BROKER=mosquitto:1883
@@ -26,13 +26,14 @@ services:
   # PostgreSQL - Use stronger password from env
   postgres:
     environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-maestra_test_password}
 
   # Grafana - Use password from env
   grafana:
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
       - GF_SERVER_ROOT_URL=${GRAFANA_URL:-http://localhost:3000}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-maestra_test_password}
 
   # Disable development-only services
   docs:

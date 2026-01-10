@@ -20,12 +20,12 @@ jobs:
       - name: Create .env file
         run: |
           cat > .env << EOF
-          POSTGRES_PASSWORD=${{ secrets.TEST_POSTGRES_PASSWORD }}
-          GRAFANA_PASSWORD=${{ secrets.TEST_GRAFANA_PASSWORD }}
-          API_URL=${{ vars.TEST_API_URL }}
-          NODERED_URL=${{ vars.TEST_NODERED_URL }}
-          GRAFANA_URL=${{ vars.TEST_GRAFANA_URL }}
-          MQTT_WS_URL=${{ vars.TEST_MQTT_WS_URL }}
+          POSTGRES_PASSWORD=${{ secrets.TEST_POSTGRES_PASSWORD || 'maestra_test_password' }}
+          GRAFANA_PASSWORD=${{ secrets.TEST_GRAFANA_PASSWORD || 'admin' }}
+          API_URL=${{ vars.TEST_API_URL || 'http://localhost:8080' }}
+          NODERED_URL=${{ vars.TEST_NODERED_URL || 'http://localhost:1880' }}
+          GRAFANA_URL=${{ vars.TEST_GRAFANA_URL || 'http://localhost:3000' }}
+          MQTT_WS_URL=${{ vars.TEST_MQTT_WS_URL || 'ws://localhost:9001' }}
           LOG_LEVEL=info
           EOF
 
@@ -44,17 +44,42 @@ jobs:
       - name: Wait for services to be healthy
         run: |
           echo "Waiting for services to start..."
-          sleep 30
+          sleep 10
+
+          # Check PostgreSQL health first
+          echo "Checking PostgreSQL..."
+          for i in {1..12}; do
+            if docker exec maestra-test-postgres-1 pg_isready -U maestra > /dev/null 2>&1; then
+              echo "PostgreSQL is healthy"
+              break
+            fi
+            echo "Waiting for PostgreSQL... ($i/12)"
+            docker logs maestra-test-postgres-1 --tail 10 2>&1 || true
+            sleep 5
+          done
 
           # Check fleet-manager health
-          for i in {1..10}; do
+          echo "Checking Fleet Manager..."
+          for i in {1..12}; do
             if curl -s http://localhost:8080/health > /dev/null; then
               echo "Fleet Manager is healthy"
               break
             fi
-            echo "Waiting for Fleet Manager... ($i/10)"
+            echo "Waiting for Fleet Manager... ($i/12)"
             sleep 5
           done
+
+      - name: Show container status on failure
+        if: failure()
+        run: |
+          echo "=== Container Status ==="
+          docker compose -f docker-compose.yml -f docker-compose.test.yml ps -a
+          echo ""
+          echo "=== PostgreSQL Logs ==="
+          docker logs maestra-test-postgres-1 --tail 50 2>&1 || true
+          echo ""
+          echo "=== Fleet Manager Logs ==="
+          docker logs maestra-test-fleet-manager-1 --tail 50 2>&1 || true
 
       - name: Run smoke tests
         run: |

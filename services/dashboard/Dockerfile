@@ -14,8 +14,8 @@ RUN mkdir -p public
 
 EXPOSE 3000
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 # Run in development mode (supports hot reload with volume mounts)
 CMD ["npm", "run", "dev"]

@@ -1,0 +1,3 @@
+# Maestra Dashboard - Robots.txt
+User-agent: *
+Allow: /

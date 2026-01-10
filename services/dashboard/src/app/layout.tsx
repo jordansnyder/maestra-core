@@ -4,6 +4,9 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Maestra Dashboard',
   description: 'Control panel for Maestra immersive experience infrastructure',
+  icons: {
+    icon: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({

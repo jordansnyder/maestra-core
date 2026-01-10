@@ -133,6 +133,8 @@ module.exports = {
                 cache: true
             }
         }
+        // Note: Redis context store requires additional npm package installation
+        // To enable: docker exec -it maestra-nodered npm install node-red-contrib-storage-redis
     },
 
     // =============================================================================

@@ -1,6 +1,10 @@
 // API Client for Fleet Manager
 
-import { Entity, EntityCreate, EntityUpdate, EntityType, EntityTreeNode, StateUpdate, StateResponse, Device } from './types'
+import {
+  Entity, EntityCreate, EntityUpdate, EntityType, EntityTreeNode,
+  StateUpdate, StateResponse, Device,
+  VariableDefinition, EntityVariables, EntityVariablesResponse, StateValidationResult
+} from './types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
@@ -152,6 +156,38 @@ export const entitiesApi = {
         body: JSON.stringify(updates),
       }
     ),
+
+  // Variable management
+  getVariables: (id: string) =>
+    fetchApi<EntityVariablesResponse>(`/entities/${id}/variables`),
+
+  setVariables: (id: string, variables: EntityVariables) =>
+    fetchApi<EntityVariablesResponse>(`/entities/${id}/variables`, {
+      method: 'PUT',
+      body: JSON.stringify(variables),
+    }),
+
+  addVariable: (id: string, variable: Omit<VariableDefinition, 'name'> & { name: string }) =>
+    fetchApi<VariableDefinition>(`/entities/${id}/variables`, {
+      method: 'POST',
+      body: JSON.stringify(variable),
+    }),
+
+  updateVariable: (id: string, variableName: string, update: Partial<VariableDefinition>) =>
+    fetchApi<VariableDefinition>(`/entities/${id}/variables/${variableName}`, {
+      method: 'PUT',
+      body: JSON.stringify(update),
+    }),
+
+  deleteVariable: (id: string, variableName: string) =>
+    fetchApi<{ status: string }>(`/entities/${id}/variables/${variableName}`, {
+      method: 'DELETE',
+    }),
+
+  validateVariables: (id: string) =>
+    fetchApi<StateValidationResult>(`/entities/${id}/variables/validate`, {
+      method: 'POST',
+    }),
 }
 
 // Health check

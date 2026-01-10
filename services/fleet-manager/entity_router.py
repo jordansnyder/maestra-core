@@ -62,7 +62,7 @@ def entity_db_to_response(db_entity: EntityDB, entity_type: EntityTypeDB = None)
             icon=entity_type.icon,
             state_schema=entity_type.state_schema,
             default_state=entity_type.default_state or {},
-            metadata=entity_type.metadata or {},
+            metadata=entity_type.type_metadata or {},
             created_at=entity_type.created_at,
             updated_at=entity_type.updated_at
         ) if entity_type else None
@@ -79,7 +79,7 @@ def entity_type_db_to_response(db_type: EntityTypeDB) -> EntityType:
         icon=db_type.icon,
         state_schema=db_type.state_schema,
         default_state=db_type.default_state or {},
-        metadata=db_type.metadata or {},
+        metadata=db_type.type_metadata or {},
         created_at=db_type.created_at or datetime.utcnow(),
         updated_at=db_type.updated_at or datetime.utcnow()
     )

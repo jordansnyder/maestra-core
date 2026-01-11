@@ -20,19 +20,33 @@ nav:
   - Getting Started:
       - Installation: getting-started/installation.md
       - Quick Start: getting-started/quickstart.md
+      - Architecture: getting-started/architecture.md
   - Architecture:
       - Overview: architecture/overview.md
       - Services: architecture/services.md
+  - Guides:
+      - Device Registration: guides/device-registration.md
+      - MQTT: guides/mqtt.md
+      - Node-RED: guides/nodered.md
+      - Monitoring: guides/monitoring.md
+  - Infrastructure:
+      - Docker: infrastructure/docker.md
+      - Configuration: infrastructure/configuration.md
+      - Production: infrastructure/production.md
   - API Reference:
       - Fleet Manager: api/fleet-manager.md
       - Entities: api/entities.md
+      - WebSocket: api/websocket.md
+      - OSC: api/osc.md
   - SDKs:
       - Overview: sdks/overview.md
       - Python: sdks/python.md
       - JavaScript: sdks/javascript.md
+      - Web: sdks/web.md
       - Arduino/ESP32: sdks/arduino.md
+      - Raspberry Pi: sdks/raspberry-pi.md
       - TouchDesigner: sdks/touchdesigner.md
-      - Max/MSP: sdks/maxmsp.md
+      - Max/MSP: sdks/max-msp.md
       - Unreal Engine: sdks/unreal.md
       - Unity: sdks/unity.md
 

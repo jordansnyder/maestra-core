@@ -49,12 +49,12 @@ jobs:
           # Check PostgreSQL health first
           echo "Checking PostgreSQL..."
           for i in {1..12}; do
-            if docker exec maestra-test-postgres-1 pg_isready -U maestra > /dev/null 2>&1; then
+            if docker exec maestra-postgres pg_isready -U maestra > /dev/null 2>&1; then
               echo "PostgreSQL is healthy"
               break
             fi
             echo "Waiting for PostgreSQL... ($i/12)"
-            docker logs maestra-test-postgres-1 --tail 10 2>&1 || true
+            docker logs maestra-postgres --tail 10 2>&1 || true
             sleep 5
           done
 
@@ -76,10 +76,10 @@ jobs:
           docker compose -f docker-compose.yml -f docker-compose.test.yml ps -a
           echo ""
           echo "=== PostgreSQL Logs ==="
-          docker logs maestra-test-postgres-1 --tail 50 2>&1 || true
+          docker logs maestra-postgres --tail 50 2>&1 || true
           echo ""
           echo "=== Fleet Manager Logs ==="
-          docker logs maestra-test-fleet-manager-1 --tail 50 2>&1 || true
+          docker logs maestra-fleet-manager --tail 50 2>&1 || true
 
       - name: Run smoke tests
         run: |

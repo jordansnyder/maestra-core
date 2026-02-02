@@ -46,6 +46,22 @@ Maestra is an immersive experience infrastructure platform for creatives. It's a
 | WebSocket Gateway | 8765 | Bridges browser clients to NATS |
 | MQTT-NATS Bridge | internal | Bidirectional MQTT↔NATS routing |
 
+### Gateway Layer Details
+
+| Gateway | Ports | Purpose | Protocol | Documentation |
+|---------|-------|---------|----------|---------------|
+| OSC Gateway | 57120 (in), 57121 (out) | Creative tools (TouchDesigner, Max/MSP, SuperCollider) | OSC over UDP | [OSC API](docs/docs/api/osc.md) |
+| WebSocket Gateway | 8765 | Browser clients, web apps | WebSocket + JSON | [WebSocket API](docs/docs/api/websocket.md) |
+| MQTT Broker | 1883 (TCP), 9001 (WS) | IoT devices, embedded systems | MQTT 3.1.1 | [MQTT Guide](docs/docs/guides/mqtt.md) |
+| MQTT-NATS Bridge | internal | Bidirectional message routing | MQTT ↔ NATS | Built into stack |
+
+**Message transformations:**
+- OSC `"/device/temp"` → NATS `"maestra.osc.device.temp"`
+- MQTT `"maestra/device/temp"` → NATS `"maestra.mqtt.maestra.device.temp"`
+- WebSocket publishes directly to NATS subjects
+- NATS `"maestra.to_osc.*"` → OSC output
+- NATS `"maestra.to_mqtt.*"` → MQTT output
+
 ### Message Flow Patterns
 
 **Topic naming:**
@@ -118,6 +134,10 @@ Located at `services/fleet-manager/main.py`:
 - Pydantic models for request/response validation
 - Async SQLAlchemy with AsyncPG driver
 - Key endpoints: `/devices/register`, `/devices/heartbeat`, `/metrics`, `/events`
+- **Entity Variables**: Define typed input/output fields with validation
+  - 6 endpoints: GET/PUT/POST/DELETE `/entities/{id}/variables/*`
+  - Types: string, number, boolean, array, color, vector2, vector3, range, enum, object
+  - Features: Direction (input/output), default values, type-specific config, state validation
 - API docs at http://localhost:8080/docs
 
 ### Dashboard (Next.js)
@@ -141,14 +161,138 @@ All inter-service messages include:
 
 ## Database Schema (TimescaleDB)
 
-Key tables in `config/postgres/init/01-init-db.sql`:
+Maestra uses PostgreSQL with TimescaleDB extension for time-series data and LTREE extension for hierarchical entities.
 
-- **devices**: Device registry with status, location, metadata
-- **device_metrics**: Time-series hypertable (90-day retention)
-- **device_events**: Event logs hypertable (30-day retention)
-- **device_configurations**: Versioned device configs (JSON)
-- **experiences**: Node-RED flow definitions
-- **device_groups**: Logical device groupings
+### Core Tables
+
+**Device Management** (`config/postgres/init/01-init-db.sql`):
+- **devices** - Device registry with status, location, metadata (JSONB)
+- **device_groups** - Logical grouping of devices
+- **device_group_members** - Many-to-many device↔group relationship
+- **device_configurations** - Versioned device configs (JSONB)
+- **experiences** - Node-RED flow definitions
+
+**Entity System** (`config/postgres/init/02-entities.sql`):
+- **entity_types** - Entity type definitions with variable schemas
+- **entities** - Core entity table with hierarchical path (LTREE)
+- **entity_variables** - Typed input/output field definitions
+- **entity_states** - State change history (hypertable)
+- **entity_subscriptions** - State change subscriptions
+
+### TimescaleDB Hypertables
+
+Time-series tables with automatic partitioning and compression:
+
+1. **device_metrics** (time-series telemetry)
+   - Automatic 90-day retention policy
+   - Compressed after 7 days
+   - Indexed on (device_id, time) and (metric_name, time)
+   - Stores metric_name, metric_value, unit, tags (JSONB)
+
+2. **device_events** (discrete events)
+   - Automatic 30-day retention policy
+   - Compressed after 7 days
+   - Indexed on (device_id, time) and (severity, time)
+   - Stores event_type, severity, message, data (JSONB)
+
+3. **entity_states** (entity state changes)
+   - State history with automatic partitioning
+   - Full state snapshots with source tracking
+   - Supports JSONB queries for nested state fields
+
+### Continuous Aggregates
+
+Pre-computed rollups for faster historical queries:
+
+1. **device_metrics_hourly**
+   - 1-hour time buckets
+   - AVG, MAX, MIN, COUNT aggregations
+   - Auto-refreshes every 1 hour
+   - 1-year retention
+
+2. **device_metrics_daily**
+   - 1-day time buckets
+   - AVG, MAX, MIN, COUNT aggregations
+   - Auto-refreshes every 1 day
+   - 5-year retention
+
+**Usage**: Query aggregates instead of raw data for historical analysis:
+```sql
+-- Use hourly aggregate for 7-day queries (much faster)
+SELECT * FROM device_metrics_hourly
+WHERE bucket > NOW() - INTERVAL '7 days';
+```
+
+### Hierarchical Entities (LTREE)
+
+Entities use PostgreSQL LTREE extension for efficient hierarchy queries:
+
+**Path Structure**: `building.floor1.room5.light1`
+
+**Key Features**:
+- **GiST indexes** for fast tree queries
+- **Ancestor queries**: `SELECT * FROM entities WHERE path @> 'building.floor1'`
+- **Descendant queries**: `SELECT * FROM entities WHERE path <@ 'building.floor1.>'`
+- **Depth queries**: `SELECT * FROM entities WHERE nlevel(path) = 3`
+- **Sibling queries**: Find entities with same parent
+
+**Helper Functions**:
+- `get_entity_ancestors(entity_uuid)` - Get all ancestors from root to parent
+- `get_entity_descendants(entity_uuid, max_depth)` - Get all descendants up to depth
+
+**Example Queries**:
+```sql
+-- Find all lights in building
+SELECT * FROM entities
+WHERE path <@ 'building.>'
+AND entity_type_id = (SELECT id FROM entity_types WHERE name = 'light');
+
+-- Get immediate children
+SELECT * FROM entities
+WHERE parent_id = 'your-uuid';
+
+-- Find by path pattern
+SELECT * FROM entities
+WHERE path ~ '*.floor1.*.light*';
+```
+
+### JSONB Field Usage
+
+Many tables use JSONB for flexible schema:
+
+**Querying JSONB**:
+```sql
+-- Extract field
+SELECT state->>'brightness' FROM entity_states;
+
+-- Nested field
+SELECT state->'position'->>'x' FROM entity_states;
+
+-- Cast to numeric
+SELECT (state->>'temperature')::float FROM entity_states;
+
+-- Check field exists
+SELECT * FROM entities WHERE metadata ? 'serial_number';
+
+-- Array contains
+SELECT * FROM entities WHERE metadata @> '{"tags": ["production"]}';
+```
+
+**JSONB Indexes**:
+- GIN indexes on JSONB columns for fast existence/containment queries
+- Automatically created on state, metadata, tags columns
+
+### Data Retention Policies
+
+- **device_metrics**: 90 days (raw), 1 year (hourly), 5 years (daily)
+- **device_events**: 30 days (raw)
+- **entity_states**: No automatic retention (managed by application)
+
+**Manual cleanup**:
+```sql
+-- Delete old entity states
+DELETE FROM entity_states WHERE time < NOW() - INTERVAL '1 year';
+```
 
 ## Port Reference
 
@@ -170,9 +314,69 @@ Key tables in `config/postgres/init/01-init-db.sql`:
 57120/57121 - OSC (UDP in/out)
 ```
 
+## Monitoring & Observability
+
+### Grafana Dashboards
+
+Access at http://localhost:3000 (default: admin/admin)
+
+Maestra includes **8 pre-configured dashboards**:
+
+1. **System Health** - Infrastructure monitoring (CPU, memory, containers, database)
+2. **Device Overview** - Fleet status, registration rates, heartbeats
+3. **Entity State** - Real-time entity state changes and history
+4. **Events & Debug** - Event logs, error rates, debugging
+5. **Message Bus Metrics** - NATS/MQTT throughput, subscriptions, latency
+6. **Performance Metrics** - API response times, database queries, cache performance
+7. **SDK Connections** - WebSocket, OSC, MQTT gateway monitoring
+8. **Experiences & Flows** - Node-RED flow execution and performance
+
+**Key Features**:
+- TimescaleDB hypertables with automatic compression
+- Continuous aggregates (hourly, daily) for historical data
+- JSONB field extraction for flexible querying
+- Alerting support (email, Slack)
+- Custom dashboard creation
+
+See [Monitoring Guide](docs/docs/guides/monitoring.md) for complete documentation.
+
 ## Configuration
 
 - **Environment**: Copy `.env.example` to `.env` (or `make init`)
 - **Docker network**: `maestra-network` (172.28.0.0/16)
 - **Service configs**: `config/<service>/`
 - **Node-RED flows**: `flows/`
+
+## Environment Variables Reference
+
+### Required Variables
+- `POSTGRES_PASSWORD` - Database password for PostgreSQL
+- `DATABASE_URL` - Full PostgreSQL connection string
+- `GRAFANA_PASSWORD` - Grafana admin password
+
+### Message Bus
+- `NATS_URL` - NATS server connection (default: nats://nats:4222)
+- `MQTT_BROKER` - MQTT broker address (default: mosquitto:1883)
+
+### Gateway Configuration
+- `OSC_IN_PORT` - OSC receive port (default: 57120)
+- `OSC_OUT_PORT` - OSC send port (default: 57121)
+
+### Development
+- `NODE_ENV` - Environment mode (development/production)
+
+## Documentation Structure
+
+Complete documentation is available at http://localhost:8000 (MkDocs).
+
+**Key Documentation**:
+- [API Reference](docs/docs/api/) - Fleet Manager, Entities, WebSocket, OSC Gateway APIs
+- [User Guides](docs/docs/guides/) - Device registration, MQTT, Node-RED, monitoring
+- [SDK Documentation](docs/docs/sdks/) - Web, Python, Arduino, TouchDesigner integrations
+- [Architecture](docs/docs/architecture/) - System design and service architecture
+
+**Project Documentation**:
+- `CLAUDE.md` - AI assistant guidance (this file)
+- `DOCKER.md` - Docker infrastructure and production deployment
+- `QUICKSTART.md` - Quick start guide
+- `README.md` - Project overview

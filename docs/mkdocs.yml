@@ -26,7 +26,15 @@ nav:
   - API Reference:
       - Fleet Manager: api/fleet-manager.md
       - Entities: api/entities.md
+      - WebSocket Gateway: api/websocket.md
+      - OSC Gateway: api/osc.md
+  - Guides:
+      - Device Registration: guides/device-registration.md
+      - MQTT Integration: guides/mqtt.md
+      - Node-RED: guides/nodered.md
+      - Monitoring: guides/monitoring.md
   - SDKs:
+      - Web SDK: sdks/web.md
       - Overview: sdks/overview.md
       - Python: sdks/python.md
       - JavaScript: sdks/javascript.md

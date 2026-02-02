@@ -134,7 +134,7 @@ services:
       - DATABASE_URL=postgresql://maestra:${POSTGRES_PASSWORD:-maestra_dev_password}@postgres:5432/maestra
       - REDIS_URL=redis://redis:6379
       - NATS_URL=nats://nats:4222
-      - MQTT_BROKER=mosquitto:1883
+      - MQTT_BROKER=mosquitto
     ports:
       - "8080:8080"
     volumes:

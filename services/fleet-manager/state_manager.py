@@ -58,6 +58,7 @@ class StateManager:
                 callback_api_version=mqtt.CallbackAPIVersion.VERSION2
             )
             self.mqtt_client.on_connect = self._on_mqtt_connect
+            self.mqtt_client.on_connect_fail = lambda client, userdata: print("⚠️ MQTT connection failed")
             self.mqtt_client.on_message = self._on_mqtt_message
             self.mqtt_client.connect_async(self.mqtt_broker, self.mqtt_port)
             self.mqtt_client.loop_start()

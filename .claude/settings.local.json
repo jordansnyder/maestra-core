@@ -24,7 +24,14 @@
       "Bash(curl:*)",
       "Bash(find:*)",
       "Bash(wc:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(xargs ls:*)",
+      "Bash(npx next build)",
+      "Bash(where:*)",
+      "Bash(where npm)",
+      "Bash(cmd.exe /c \"where node\")",
+      "Bash(cmd.exe /c \"where node 2>&1 && where npm 2>&1\")",
+      "Bash(powershell.exe:*)"
     ]
   }
 }

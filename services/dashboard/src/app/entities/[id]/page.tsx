@@ -161,7 +161,7 @@ export default function EntityDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white flex items-center justify-center">
+      <div className="min-h-full bg-gradient-to-br from-slate-900 to-slate-800 text-white flex items-center justify-center">
         <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
       </div>
     )
@@ -169,7 +169,7 @@ export default function EntityDetailPage() {
 
   if (error || !entity) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white">
+      <div className="min-h-full bg-gradient-to-br from-slate-900 to-slate-800 text-white">
         <div className="container mx-auto px-4 py-8">
           <Link href="/entities" className="text-slate-400 hover:text-white">
             ← Back to Entities
@@ -183,7 +183,7 @@ export default function EntityDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white">
+    <div className="min-h-full bg-gradient-to-br from-slate-900 to-slate-800 text-white">
       <div className="container mx-auto px-4 py-8">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-sm mb-6">

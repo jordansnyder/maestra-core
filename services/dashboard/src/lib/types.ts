@@ -163,3 +163,101 @@ export interface Device {
   created_at: string
   updated_at: string
 }
+
+// =============================================================================
+// Routing Types
+// =============================================================================
+
+export interface RoutingDevice {
+  id: string
+  name: string
+  device_type: string
+  icon: string
+  color: string
+  inputs: string[]
+  outputs: string[]
+  metadata: Record<string, unknown>
+  position_x: number
+  position_y: number
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface RoutingDeviceCreate {
+  name: string
+  device_type: string
+  icon?: string
+  color?: string
+  inputs?: string[]
+  outputs?: string[]
+  metadata?: Record<string, unknown>
+  position_x?: number
+  position_y?: number
+  sort_order?: number
+}
+
+export interface RoutingDeviceUpdate {
+  name?: string
+  device_type?: string
+  icon?: string
+  color?: string
+  inputs?: string[]
+  outputs?: string[]
+  metadata?: Record<string, unknown>
+  position_x?: number
+  position_y?: number
+  sort_order?: number
+}
+
+export interface RouteData {
+  id: string
+  from: string
+  fromPort: string
+  to: string
+  toPort: string
+  preset_id?: string
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+export interface RouteCreate {
+  from: string
+  fromPort: string
+  to: string
+  toPort: string
+  metadata?: Record<string, unknown>
+}
+
+export interface RoutePreset {
+  id: string
+  name: string
+  description?: string
+  metadata: Record<string, unknown>
+  is_active: boolean
+  route_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface RoutePresetCreate {
+  name: string
+  description?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface RoutePresetUpdate {
+  name?: string
+  description?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface RoutePresetDetail extends RoutePreset {
+  routes: RouteData[]
+}
+
+export interface RoutingState {
+  devices: RoutingDevice[]
+  routes: RouteData[]
+  presets: RoutePreset[]
+}

@@ -19,6 +19,7 @@ from models import (
 )
 from state_manager import state_manager
 from entity_router import router as entity_router
+from routing_router import router as routing_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -36,8 +37,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include entity router
+# Include routers
 app.include_router(entity_router)
+app.include_router(routing_router)
 
 
 # =============================================================================

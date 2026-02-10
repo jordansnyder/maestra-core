@@ -31,7 +31,10 @@
       "Bash(where npm)",
       "Bash(cmd.exe /c \"where node\")",
       "Bash(cmd.exe /c \"where node 2>&1 && where npm 2>&1\")",
-      "Bash(powershell.exe:*)"
+      "Bash(powershell.exe:*)",
+      "Bash(docker compose:*)",
+      "Bash(cmd.exe /c \"if exist C:\\\\Users\\\\jorda\\\\Dev\\\\maestra-core\\\\.env \\(echo .env EXISTS\\) else \\(echo .env MISSING\\)\")",
+      "Bash(timeout 15 cmd.exe:*)"
     ]
   }
 }

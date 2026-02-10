@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Route, RoutingDevice, DEVICES, SIGNAL_TYPES, getSignalType } from './types'
+import { Route, RoutingDevice, SIGNAL_TYPES, getSignalType } from './types'
 
 interface NodeGraphViewProps {
+  devices: RoutingDevice[]
   routes: Route[]
   onAddRoute: (route: Route) => void
   onRemoveRoute: (route: Route) => void
+  initialPositions?: Record<string, { x: number; y: number }>
+  onPositionsChange?: (positions: Record<string, { x: number; y: number }>) => void
 }
 
 interface PortRef {
@@ -14,7 +17,7 @@ interface PortRef {
   portName: string
 }
 
-export function NodeGraphView({ routes, onAddRoute, onRemoveRoute }: NodeGraphViewProps) {
+export function NodeGraphView({ devices, routes, onAddRoute, onRemoveRoute, initialPositions, onPositionsChange }: NodeGraphViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({})
   const [dragging, setDragging] = useState<string | null>(null)
@@ -23,24 +26,74 @@ export function NodeGraphView({ routes, onAddRoute, onRemoveRoute }: NodeGraphVi
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const [hoveredPort, setHoveredPort] = useState<PortRef | null>(null)
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
-  const [zoom] = useState(1)
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+
+  // Wheel zoom (desktop) and pinch-to-zoom (touch)
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault()
+        const delta = e.deltaY > 0 ? 0.95 : 1.05
+        setZoom((z) => Math.min(Math.max(z * delta, 0.3), 3))
+      }
+    }
+
+    let lastTouchDist = 0
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX
+        const dy = e.touches[0].clientY - e.touches[1].clientY
+        lastTouchDist = Math.sqrt(dx * dx + dy * dy)
+      }
+    }
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault()
+        const dx = e.touches[0].clientX - e.touches[1].clientX
+        const dy = e.touches[0].clientY - e.touches[1].clientY
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        if (lastTouchDist > 0) {
+          const scale = dist / lastTouchDist
+          setZoom((z) => Math.min(Math.max(z * scale, 0.3), 3))
+        }
+        lastTouchDist = dist
+      }
+    }
+
+    container.addEventListener('wheel', handleWheel, { passive: false })
+    container.addEventListener('touchstart', handleTouchStart, { passive: true })
+    container.addEventListener('touchmove', handleTouchMove, { passive: false })
+    return () => {
+      container.removeEventListener('wheel', handleWheel)
+      container.removeEventListener('touchstart', handleTouchStart)
+      container.removeEventListener('touchmove', handleTouchMove)
+    }
+  }, [])
 
   useEffect(() => {
+    if (initialPositions && Object.keys(initialPositions).length > 0) {
+      setPositions(initialPositions)
+      return
+    }
     const cols: Record<string, number> = { camera: 0, audio: 0, sync: 0, switcher: 1, ai: 1, recorder: 1, monitor: 2, storage: 2, output: 2 }
     const colCounts: Record<number, number> = {}
     const init: Record<string, { x: number; y: number }> = {}
-    DEVICES.forEach((d) => {
+    devices.forEach((d) => {
       const col = cols[d.type] ?? 1
       colCounts[col] = (colCounts[col] || 0) + 1
       init[d.id] = { x: 80 + col * 380, y: 40 + (colCounts[col] - 1) * 160 }
     })
     setPositions(init)
-  }, [])
+  }, [devices, initialPositions])
 
   const getPortPos = useCallback((deviceId: string, portName: string, isOutput: boolean) => {
     const pos = positions[deviceId]
     if (!pos) return { x: 0, y: 0 }
-    const device = DEVICES.find((d) => d.id === deviceId)
+    const device = devices.find((d) => d.id === deviceId)
     if (!device) return { x: 0, y: 0 }
     const ports = isOutput ? device.outputs : device.inputs
     const idx = ports.indexOf(portName)
@@ -73,6 +126,9 @@ export function NodeGraphView({ routes, onAddRoute, onRemoveRoute }: NodeGraphVi
   }
 
   const handleMouseUp = () => {
+    if (dragging && onPositionsChange) {
+      onPositionsChange(positions)
+    }
     setDragging(null)
     if (connecting && hoveredPort) {
       onAddRoute({ from: connecting.deviceId, fromPort: connecting.portName, to: hoveredPort.deviceId, toPort: hoveredPort.portName })
@@ -121,30 +177,39 @@ export function NodeGraphView({ routes, onAddRoute, onRemoveRoute }: NodeGraphVi
         ))}
       </div>
 
-      {/* SVG cables layer */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none">
-        <defs>
-          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ffffff06" strokeWidth="1" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#grid)" />
+      {/* Zoom indicator */}
+      {zoom !== 1 && (
+        <div className="absolute top-4 right-4 z-10 text-[10px] font-mono text-slate-600 bg-[#12121f] rounded px-2 py-0.5 border border-slate-800">
+          {Math.round(zoom * 100)}%
+        </div>
+      )}
 
-        {routes.map((r, i) => {
-          const from = getPortPos(r.from, r.fromPort, true)
-          const to = getPortPos(r.to, r.toPort, false)
-          const sig = getSignalType(r.fromPort)
-          return renderCable(from.x, from.y, to.x, to.y, sig, `route-${i}`)
-        })}
+      {/* Zoom/pan transform container */}
+      <div style={{ transform: `scale(${zoom})`, transformOrigin: '0 0', width: `${100 / zoom}%`, height: `${100 / zoom}%`, position: 'absolute', top: 0, left: 0 }}>
+        {/* SVG cables layer */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none">
+          <defs>
+            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ffffff06" strokeWidth="1" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#grid)" />
 
-        {connecting && (() => {
-          const fromPos = getPortPos(connecting.deviceId, connecting.portName, true)
-          return renderCable(fromPos.x, fromPos.y, mousePos.x, mousePos.y, getSignalType(connecting.portName), 'temp-cable', true)
-        })()}
-      </svg>
+          {routes.map((r, i) => {
+            const from = getPortPos(r.from, r.fromPort, true)
+            const to = getPortPos(r.to, r.toPort, false)
+            const sig = getSignalType(r.fromPort)
+            return renderCable(from.x, from.y, to.x, to.y, sig, `route-${i}`)
+          })}
 
-      {/* Device nodes */}
-      {DEVICES.map((device) => {
+          {connecting && (() => {
+            const fromPos = getPortPos(connecting.deviceId, connecting.portName, true)
+            return renderCable(fromPos.x, fromPos.y, mousePos.x, mousePos.y, getSignalType(connecting.portName), 'temp-cable', true)
+          })()}
+        </svg>
+
+        {/* Device nodes */}
+        {devices.map((device) => {
         const pos = positions[device.id]
         if (!pos) return null
         const isSelected = selectedDevice === device.id
@@ -235,6 +300,7 @@ export function NodeGraphView({ routes, onAddRoute, onRemoveRoute }: NodeGraphVi
           </div>
         )
       })}
+      </div>
     </div>
   )
 }

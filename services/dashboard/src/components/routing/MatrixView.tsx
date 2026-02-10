@@ -1,16 +1,17 @@
 'use client'
 
-import { Route, DEVICES, SIGNAL_TYPES, getSignalType } from './types'
+import { Route, RoutingDevice, SIGNAL_TYPES, getSignalType } from './types'
 
 interface MatrixViewProps {
+  devices: RoutingDevice[]
   routes: Route[]
   onAddRoute: (route: Route) => void
   onRemoveRoute: (route: Route) => void
 }
 
-export function MatrixView({ routes, onAddRoute, onRemoveRoute }: MatrixViewProps) {
-  const outputs = DEVICES.flatMap((d) => d.outputs.map((p) => ({ deviceId: d.id, port: p, device: d })))
-  const inputs = DEVICES.flatMap((d) => d.inputs.map((p) => ({ deviceId: d.id, port: p, device: d })))
+export function MatrixView({ devices, routes, onAddRoute, onRemoveRoute }: MatrixViewProps) {
+  const outputs = devices.flatMap((d) => d.outputs.map((p) => ({ deviceId: d.id, port: p, device: d })))
+  const inputs = devices.flatMap((d) => d.inputs.map((p) => ({ deviceId: d.id, port: p, device: d })))
 
   const isRouted = (out: typeof outputs[0], inp: typeof inputs[0]) =>
     routes.some((r) => r.from === out.deviceId && r.fromPort === out.port && r.to === inp.deviceId && r.toPort === inp.port)
@@ -28,7 +29,7 @@ export function MatrixView({ routes, onAddRoute, onRemoveRoute }: MatrixViewProp
       <div className="inline-block min-w-fit">
         {/* Column headers */}
         <div className="flex mb-0.5">
-          <div className="w-40 min-w-[160px] h-[120px] flex items-end justify-end pr-3 pb-2">
+          <div className="w-40 min-w-[160px] h-[120px] flex items-end justify-end pr-3 pb-2 sticky left-0 z-10 bg-[#09090f]">
             <div className="text-[10px] text-slate-600 font-mono text-right">
               <div>OUTPUTS &rarr;</div>
               <div>&darr; INPUTS</div>
@@ -49,7 +50,7 @@ export function MatrixView({ routes, onAddRoute, onRemoveRoute }: MatrixViewProp
         {/* Row entries */}
         {inputs.map((inp, row) => (
           <div key={`r-${row}`} className="flex mb-px">
-            <div className="w-40 min-w-[160px] h-9 flex items-center justify-end pr-3 gap-1.5">
+            <div className="w-40 min-w-[160px] h-9 flex items-center justify-end pr-3 gap-1.5 sticky left-0 z-10 bg-[#09090f]">
               <span className="text-[9px] text-slate-500 font-mono text-right overflow-hidden text-ellipsis whitespace-nowrap">
                 {inp.device.name.split(' ').pop()} / {inp.port}
               </span>

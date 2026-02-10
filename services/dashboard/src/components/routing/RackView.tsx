@@ -1,8 +1,9 @@
 'use client'
 
-import { Route, RoutingDevice, DEVICES, SIGNAL_TYPES, getSignalType } from './types'
+import { Route, RoutingDevice, SIGNAL_TYPES, getSignalType } from './types'
 
 interface RackViewProps {
+  devices: RoutingDevice[]
   routes: Route[]
 }
 
@@ -18,9 +19,9 @@ const GROUP_LABELS: Record<string, string> = {
   output: 'OUTPUT',
 }
 
-export function RackView({ routes }: RackViewProps) {
+export function RackView({ devices, routes }: RackViewProps) {
   const typeGroups: Record<string, RoutingDevice[]> = {}
-  DEVICES.forEach((d) => {
+  devices.forEach((d) => {
     if (!typeGroups[d.type]) typeGroups[d.type] = []
     typeGroups[d.type].push(d)
   })
@@ -85,7 +86,7 @@ export function RackView({ routes }: RackViewProps) {
                             <span className="w-1.5 h-1.5 rounded-full" style={{ background: sc }} />
                             <span className="text-slate-500 min-w-[60px]">{port}</span>
                             {routed.map((r, i) => {
-                              const target = DEVICES.find((d) => d.id === r.to)
+                              const target = devices.find((d) => d.id === r.to)
                               return (
                                 <span
                                   key={i}
@@ -115,7 +116,7 @@ export function RackView({ routes }: RackViewProps) {
                             <span className="w-1.5 h-1.5 rounded-sm" style={{ background: sc }} />
                             <span className="text-slate-500 min-w-[60px]">{port}</span>
                             {routed.map((r, i) => {
-                              const source = DEVICES.find((d) => d.id === r.from)
+                              const source = devices.find((d) => d.id === r.from)
                               return (
                                 <span
                                   key={i}

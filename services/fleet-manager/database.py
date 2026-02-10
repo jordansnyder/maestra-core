@@ -4,7 +4,7 @@ Database connection and SQLAlchemy models for Fleet Manager
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, String, DateTime, Text, ARRAY, ForeignKey, text
+from sqlalchemy import Column, String, DateTime, Text, ARRAY, ForeignKey, text, Integer, Float, Boolean
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
 from sqlalchemy.types import TypeDecorator, UserDefinedType
 from datetime import datetime
@@ -102,6 +102,56 @@ class DeviceDB(Base):
     device_metadata = Column('metadata', JSONB)
     status = Column(String(50), default='offline')
     last_seen = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# =============================================================================
+# Routing Models
+# =============================================================================
+
+class RoutingDeviceDB(Base):
+    """Routing device - signal chain equipment for visual patching"""
+    __tablename__ = "routing_devices"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    name = Column(String(255), nullable=False)
+    device_type = Column(String(100), nullable=False)
+    icon = Column(String(50), default='📦')
+    color = Column(String(20), default='#6C757D')
+    inputs = Column(JSONB, nullable=False, default=[])
+    outputs = Column(JSONB, nullable=False, default=[])
+    routing_metadata = Column('metadata', JSONB, default={})
+    position_x = Column(Float, default=0)
+    position_y = Column(Float, default=0)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class RouteDB(Base):
+    """Signal route between device ports"""
+    __tablename__ = "routes"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    from_device_id = Column(PGUUID(as_uuid=True), ForeignKey("routing_devices.id", ondelete="CASCADE"), nullable=False)
+    from_port = Column(String(100), nullable=False)
+    to_device_id = Column(PGUUID(as_uuid=True), ForeignKey("routing_devices.id", ondelete="CASCADE"), nullable=False)
+    to_port = Column(String(100), nullable=False)
+    preset_id = Column(PGUUID(as_uuid=True), ForeignKey("route_presets.id", ondelete="CASCADE"))
+    route_metadata = Column('metadata', JSONB, default={})
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class RoutePresetDB(Base):
+    """Named routing configuration snapshot"""
+    __tablename__ = "route_presets"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    name = Column(String(255), nullable=False, unique=True)
+    description = Column(Text)
+    preset_metadata = Column('metadata', JSONB, default={})
+    is_active = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

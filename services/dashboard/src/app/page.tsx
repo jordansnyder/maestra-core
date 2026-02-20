@@ -1,320 +1,202 @@
 'use client'
 
-import { useState } from 'react'
+import Link from 'next/link'
 import { useDevices, useFleetStats } from '@/hooks/useDevices'
-import { useWebSocket } from '@/hooks/useWebSocket'
-import { Card } from '@/components/Card'
+import { useActivityFeed, type ActivityItem, type ActivityCategory } from '@/hooks/useActivityFeed'
 import { StatsCard } from '@/components/StatsCard'
-import { DeviceCard } from '@/components/DeviceCard'
 import { StatusBadge } from '@/components/StatusBadge'
+import { Card } from '@/components/Card'
+import {
+  Activity,
+  CheckCircle2,
+  PauseCircle,
+  AlertTriangle,
+  ChevronRight,
+  DEVICE_TYPE_ICONS,
+  DEFAULT_DEVICE_ICON,
+  Boxes,
+  GitFork,
+  Monitor,
+} from '@/components/icons'
 import type { Device } from '@/lib/types'
 
-interface ServiceStatus {
-  name: string
-  url: string
-  status: 'checking' | 'healthy' | 'unhealthy'
-}
-import { api } from '@/lib/api'
-
-const services: ServiceStatus[] = [
-  { name: 'Fleet Manager', url: 'http://localhost:8080/health', status: 'checking' },
-  { name: 'NATS', url: 'http://localhost:8222', status: 'checking' },
-  { name: 'Node-RED', url: 'http://localhost:1880', status: 'checking' },
-  { name: 'Grafana', url: 'http://localhost:3000', status: 'checking' },
-]
-
 export default function Home() {
-  const { devices, loading, error, refresh } = useDevices(true, 10000)
+  const { devices, loading } = useDevices(true, 10000)
   const stats = useFleetStats(devices)
-  const { isConnected, lastMessage } = useWebSocket(true)
-  const [showRegisterForm, setShowRegisterForm] = useState(false)
-  const [registerForm, setRegisterForm] = useState({
-    name: '',
-    device_type: 'arduino',
-    hardware_id: '',
-    ip_address: '',
-  })
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      await api.registerDevice(registerForm)
-      setShowRegisterForm(false)
-      setRegisterForm({ name: '', device_type: 'arduino', hardware_id: '', ip_address: '' })
-      refresh()
-    } catch (err) {
-      console.error('Failed to register device:', err)
-      alert('Failed to register device')
-    }
-  }
-
-  const handleDelete = async (device: Device) => {
-    if (!confirm(`Delete device "${device.name}"?`)) return
-    try {
-      await api.deleteDevice(device.id)
-      refresh()
-    } catch (err) {
-      console.error('Failed to delete device:', err)
-      alert('Failed to delete device')
-    }
-  }
+  const { items: activityItems, isConnected } = useActivityFeed(50)
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-slate-900 to-slate-800 text-white">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <header className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-5xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                Maestra Dashboard
-              </h1>
-              <p className="text-slate-400 text-lg">
-                Immersive Experience Infrastructure Control Panel
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'
-                  }`}
-                />
-                <span className="text-sm text-slate-400">
-                  WebSocket {isConnected ? 'Connected' : 'Disconnected'}
-                </span>
-              </div>
-            </div>
+    <div className="flex h-full">
+      {/* Main content */}
+      <div className="flex-1 overflow-auto p-6 space-y-6">
+        {/* Compact header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Dashboard</h1>
+            <p className="text-sm text-slate-400 mt-0.5">Fleet overview and activity</p>
           </div>
-        </header>
-
-        {/* Fleet Statistics */}
-        <section className="mb-8">
-          <h2 className="text-2xl font-semibold mb-4">Fleet Overview</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatsCard title="Total Devices" value={stats.total} icon="📟" />
-            <StatsCard title="Online" value={stats.online} icon="✅" />
-            <StatsCard title="Offline" value={stats.offline} icon="⏸️" />
-            <StatsCard title="Error State" value={stats.error} icon="⚠️" />
+          <div className="flex items-center gap-2">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'
+              }`}
+            />
+            <span className="text-xs text-slate-500">
+              {isConnected ? 'Connected' : 'Disconnected'}
+            </span>
           </div>
-        </section>
+        </div>
 
-        {/* Device Management */}
-        <section className="mb-8">
-          <Card
-            title="Devices"
-            action={
-              <button
-                onClick={() => setShowRegisterForm(!showRegisterForm)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium transition-colors"
+        {/* Fleet stats bar */}
+        <div className="grid grid-cols-4 gap-3">
+          <StatsCard title="Total Devices" value={stats.total} icon={Activity} />
+          <StatsCard title="Online" value={stats.online} icon={CheckCircle2} />
+          <StatsCard title="Offline" value={stats.offline} icon={PauseCircle} />
+          <StatsCard title="Errors" value={stats.error} icon={AlertTriangle} />
+        </div>
+
+        {/* Device summary */}
+        <Card
+          title="Devices"
+          action={
+            <Link
+              href="/devices"
+              className="flex items-center gap-1 text-sm text-slate-400 hover:text-blue-400 transition-colors"
+            >
+              View All
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+          }
+        >
+          {loading && <p className="text-sm text-slate-500">Loading devices...</p>}
+          {!loading && devices.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-slate-400 mb-3">No devices registered yet.</p>
+              <Link
+                href="/devices"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
               >
-                {showRegisterForm ? 'Cancel' : '+ Register Device'}
-              </button>
-            }
-          >
-            {showRegisterForm && (
-              <form onSubmit={handleRegister} className="mb-6 p-4 bg-slate-900 rounded-lg">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Device Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={registerForm.name}
-                      onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-md focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Device Type</label>
-                    <select
-                      value={registerForm.device_type}
-                      onChange={(e) =>
-                        setRegisterForm({ ...registerForm, device_type: e.target.value })
-                      }
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-md focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="arduino">Arduino</option>
-                      <option value="raspberry_pi">Raspberry Pi</option>
-                      <option value="esp32">ESP32</option>
-                      <option value="touchdesigner">TouchDesigner</option>
-                      <option value="max_msp">Max/MSP</option>
-                      <option value="unreal_engine">Unreal Engine</option>
-                      <option value="web_client">Web Client</option>
-                      <option value="mobile_client">Mobile Client</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Hardware ID</label>
-                    <input
-                      type="text"
-                      required
-                      value={registerForm.hardware_id}
-                      onChange={(e) =>
-                        setRegisterForm({ ...registerForm, hardware_id: e.target.value })
-                      }
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-md focus:outline-none focus:border-blue-500"
-                      placeholder="e.g., MAC address, serial number"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">IP Address (Optional)</label>
-                    <input
-                      type="text"
-                      value={registerForm.ip_address}
-                      onChange={(e) =>
-                        setRegisterForm({ ...registerForm, ip_address: e.target.value })
-                      }
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-md focus:outline-none focus:border-blue-500"
-                      placeholder="192.168.1.100"
-                    />
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  className="mt-4 px-6 py-2 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors"
+                <Monitor className="w-4 h-4" />
+                Register a Device
+              </Link>
+            </div>
+          )}
+          {!loading && devices.length > 0 && (
+            <div className="space-y-1">
+              {devices.slice(0, 6).map((device) => (
+                <CompactDeviceRow key={device.id} device={device} />
+              ))}
+              {devices.length > 6 && (
+                <Link
+                  href="/devices"
+                  className="block text-center text-sm text-slate-500 hover:text-blue-400 py-2 transition-colors"
                 >
-                  Register Device
-                </button>
-              </form>
-            )}
+                  +{devices.length - 6} more devices
+                </Link>
+              )}
+            </div>
+          )}
+        </Card>
 
-            {loading && <p className="text-slate-400">Loading devices...</p>}
-            {error && (
-              <div className="p-4 bg-red-900/20 border border-red-500 rounded-md">
-                <p className="text-red-400">Error: {error}</p>
-                <button onClick={refresh} className="mt-2 text-sm text-red-300 underline">
-                  Retry
-                </button>
-              </div>
-            )}
+        {/* Quick navigation */}
+        <div className="grid grid-cols-3 gap-3">
+          <Link
+            href="/entities"
+            className="flex items-center gap-3 p-4 bg-slate-800 border border-slate-700 rounded-lg hover:border-blue-500/50 transition-colors group"
+          >
+            <Boxes className="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors" />
+            <div>
+              <p className="text-sm font-medium group-hover:text-blue-400 transition-colors">Entities</p>
+              <p className="text-xs text-slate-500">Spaces, rooms, state</p>
+            </div>
+          </Link>
+          <Link
+            href="/routing"
+            className="flex items-center gap-3 p-4 bg-slate-800 border border-slate-700 rounded-lg hover:border-blue-500/50 transition-colors group"
+          >
+            <GitFork className="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors" />
+            <div>
+              <p className="text-sm font-medium group-hover:text-blue-400 transition-colors">Routing</p>
+              <p className="text-xs text-slate-500">Signal patching</p>
+            </div>
+          </Link>
+          <Link
+            href="/devices"
+            className="flex items-center gap-3 p-4 bg-slate-800 border border-slate-700 rounded-lg hover:border-blue-500/50 transition-colors group"
+          >
+            <Monitor className="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors" />
+            <div>
+              <p className="text-sm font-medium group-hover:text-blue-400 transition-colors">Devices</p>
+              <p className="text-xs text-slate-500">Fleet management</p>
+            </div>
+          </Link>
+        </div>
+      </div>
 
-            {!loading && !error && devices.length === 0 && (
-              <p className="text-slate-400 text-center py-8">
-                No devices registered. Click "Register Device" to add your first device.
-              </p>
-            )}
-
-            {!loading && devices.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {devices.map((device) => (
-                  <DeviceCard key={device.id} device={device} onDelete={handleDelete} />
-                ))}
-              </div>
-            )}
-          </Card>
-        </section>
-
-        {/* Quick Links */}
-        <section className="mb-8">
-          <h2 className="text-2xl font-semibold mb-4">Quick Access</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <QuickLink
-              title="Entities"
-              description="Manage spaces, rooms, and state"
-              url="/entities"
-              icon="🏗️"
-              internal
-            />
-            <QuickLink
-              title="Device Routing"
-              description="Visual signal routing and patching"
-              url="/routing"
-              icon="🔀"
-              internal
-            />
-            <QuickLink
-              title="Node-RED"
-              description="Visual programming and automation"
-              url="http://localhost:1880"
-              icon="🔧"
-            />
-            <QuickLink
-              title="Grafana"
-              description="Monitoring and analytics"
-              url="http://localhost:3000"
-              icon="📊"
-            />
-            <QuickLink
-              title="Fleet Manager API"
-              description="Device management API docs"
-              url="http://localhost:8080/docs"
-              icon="🚀"
-            />
-            <QuickLink
-              title="Portainer"
-              description="Container management"
-              url="https://localhost:9443"
-              icon="🐳"
-            />
-            <QuickLink
-              title="Traefik"
-              description="Reverse proxy dashboard"
-              url="http://localhost:8081"
-              icon="🔀"
-            />
-            <QuickLink
-              title="MQTT Monitor"
-              description="Real-time message monitoring"
-              url="#"
-              icon="📡"
-              onClick={() => alert('MQTT Monitor coming soon!')}
-            />
-          </div>
-        </section>
-
-        {/* WebSocket Messages */}
-        {lastMessage && (
-          <section>
-            <Card title="Latest WebSocket Message">
-              <pre className="text-xs bg-slate-900 p-4 rounded-md overflow-auto">
-                {JSON.stringify(lastMessage, null, 2)}
-              </pre>
-            </Card>
-          </section>
+      {/* Activity feed sidebar */}
+      <div className="w-80 border-l border-slate-800 bg-slate-900/50 overflow-auto p-4 shrink-0">
+        <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+          Live Activity
+        </h2>
+        {activityItems.length === 0 && (
+          <p className="text-xs text-slate-600 text-center py-8">
+            {isConnected ? 'Waiting for events...' : 'Connecting to message bus...'}
+          </p>
         )}
+        <div className="space-y-0.5">
+          {activityItems.map((item) => (
+            <ActivityRow key={item.id} item={item} />
+          ))}
+        </div>
       </div>
     </div>
   )
 }
 
-function QuickLink({ title, description, url, icon, internal }: {
-  title: string
-  description: string
-  url: string
-  icon: string
-  internal?: boolean
-}) {
-  const className = "block bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-blue-500 transition-colors group"
-
-  const content = (
-    <div className="flex items-start gap-4">
-      <span className="text-3xl">{icon}</span>
-      <div>
-        <h3 className="font-semibold mb-1 group-hover:text-blue-400 transition-colors">
-          {title}
-        </h3>
-        <p className="text-sm text-slate-400">{description}</p>
-      </div>
-    </div>
-  )
-
-  if (internal) {
-    return (
-      <a href={url} className={className}>
-        {content}
-      </a>
-    )
-  }
+function CompactDeviceRow({ device }: { device: Device }) {
+  const Icon = DEVICE_TYPE_ICONS[device.device_type] || DEFAULT_DEVICE_ICON
 
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={className}
-    >
-      {content}
-    </a>
+    <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-800/50 transition-colors">
+      <div className="w-7 h-7 rounded bg-slate-700/50 flex items-center justify-center shrink-0">
+        <Icon className="w-3.5 h-3.5 text-slate-400" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{device.name}</p>
+        <p className="text-xs text-slate-500">{device.device_type.replace('_', ' ')}</p>
+      </div>
+      <StatusBadge status={device.status} />
+    </div>
+  )
+}
+
+const CATEGORY_COLORS: Record<ActivityCategory, string> = {
+  device: 'border-green-600',
+  entity: 'border-blue-600',
+  route: 'border-purple-600',
+  system: 'border-slate-600',
+}
+
+function formatRelativeTime(date: Date): string {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
+  if (seconds < 5) return 'now'
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h`
+}
+
+function ActivityRow({ item }: { item: ActivityItem }) {
+  return (
+    <div className={`flex gap-3 py-2 border-l-2 pl-3 ${CATEGORY_COLORS[item.category]}`}>
+      <span className="text-[10px] text-slate-600 w-8 shrink-0 text-right tabular-nums">
+        {formatRelativeTime(item.timestamp)}
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs text-slate-300 truncate">{item.title}</p>
+        <p className="text-[10px] text-slate-500 truncate">{item.detail}</p>
+      </div>
+    </div>
   )
 }

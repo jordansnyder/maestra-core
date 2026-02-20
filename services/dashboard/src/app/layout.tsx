@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { AppShell } from '@/components/AppShell'
+import { Providers } from '@/components/Providers'
 
 export const metadata: Metadata = {
   title: 'Maestra Dashboard',
@@ -18,7 +19,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AppShell>{children}</AppShell>
+        <Providers>
+          <AppShell>{children}</AppShell>
+        </Providers>
       </body>
     </html>
   )

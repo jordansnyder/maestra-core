@@ -35,3 +35,13 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #3a3a4a;
 }
+
+/* Toast animations */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}

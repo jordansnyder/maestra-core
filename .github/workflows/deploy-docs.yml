@@ -30,6 +30,9 @@ jobs:
             -v "${{ github.workspace }}/docs":/docs \
             squidfunk/mkdocs-material:latest \
             build --strict
+          docker run --rm \
+            -v "${{ github.workspace }}/docs/site":/site \
+            alpine chown -R "$(id -u):$(id -g)" /site
 
       - name: Export OpenAPI spec
         run: |

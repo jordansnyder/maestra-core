@@ -261,3 +261,57 @@ export interface RoutingState {
   routes: RouteData[]
   presets: RoutePreset[]
 }
+
+// =============================================================================
+// Stream Types
+// =============================================================================
+
+export interface StreamTypeInfo {
+  id: string
+  name: string
+  display_name: string
+  description?: string
+  icon?: string
+  default_config: Record<string, unknown>
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface StreamInfo {
+  id: string
+  name: string
+  stream_type: string
+  publisher_id: string
+  protocol: string
+  address: string
+  port: number
+  entity_id?: string
+  device_id?: string
+  config: Record<string, unknown>
+  metadata: Record<string, unknown>
+  advertised_at: string
+  last_heartbeat: string
+  active_sessions: number
+}
+
+export interface StreamSession {
+  session_id: string
+  stream_id: string
+  stream_name: string
+  stream_type: string
+  publisher_id: string
+  publisher_address: string
+  consumer_id: string
+  consumer_address: string
+  protocol: string
+  transport_config: Record<string, unknown>
+  started_at: string
+  status: string
+}
+
+export interface StreamRegistryState {
+  streams: StreamInfo[]
+  sessions: StreamSession[]
+  stream_types: StreamTypeInfo[]
+}

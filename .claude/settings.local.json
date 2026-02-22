@@ -42,7 +42,12 @@
       "Bash(powershell -Command \"Get-Command npm -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
       "Bash(powershell -Command:*)",
       "Bash(echo:*)",
-      "Bash(\"C:/Users/jorda/Dev/maestra-core/services/dashboard/node_modules/.bin/tsc\" --noEmit --project \"C:/Users/jorda/Dev/maestra-core/services/dashboard/tsconfig.json\")"
+      "Bash(\"C:/Users/jorda/Dev/maestra-core/services/dashboard/node_modules/.bin/tsc\" --noEmit --project \"C:/Users/jorda/Dev/maestra-core/services/dashboard/tsconfig.json\")",
+      "Bash(make build:*)",
+      "Bash(make clean-all:*)",
+      "Bash(make up:*)",
+      "Bash(python3:*)",
+      "Bash(npm install:*)"
     ]
   }
 }

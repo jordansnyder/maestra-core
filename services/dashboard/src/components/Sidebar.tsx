@@ -8,6 +8,7 @@ import {
   Monitor,
   Boxes,
   GitFork,
+  Cast,
   Workflow,
   BarChart3,
   FileCode,
@@ -26,6 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/devices', label: 'Devices', icon: Monitor },
   { href: '/entities', label: 'Entities', icon: Boxes },
   { href: '/routing', label: 'Routing', icon: GitFork },
+  { href: '/streams', label: 'Streams', icon: Cast },
 ]
 
 interface ServiceLink {

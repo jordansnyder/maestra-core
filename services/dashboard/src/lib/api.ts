@@ -7,6 +7,7 @@ import {
   RoutingDevice, RoutingDeviceCreate, RoutingDeviceUpdate,
   RouteData, RouteCreate, RoutePreset, RoutePresetCreate, RoutePresetUpdate,
   RoutePresetDetail, RoutingState,
+  StreamInfo, StreamSession, StreamTypeInfo, StreamRegistryState,
 } from './types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
@@ -375,6 +376,28 @@ export const api = {
   // Health
   health: healthApi.check,
   status: healthApi.status,
+}
+
+// Streams API
+export const streamsApi = {
+  getState: () => fetchApi<StreamRegistryState>('/streams/state'),
+
+  listStreams: (streamType?: string) => {
+    const params = streamType ? `?stream_type=${streamType}` : ''
+    return fetchApi<StreamInfo[]>(`/streams${params}`)
+  },
+
+  getStream: (id: string) => fetchApi<StreamInfo>(`/streams/${id}`),
+
+  listSessions: (streamId?: string) => {
+    const params = streamId ? `?stream_id=${streamId}` : ''
+    return fetchApi<StreamSession[]>(`/streams/sessions${params}`)
+  },
+
+  stopSession: (sessionId: string) =>
+    fetchApi<{ status: string }>(`/streams/sessions/${sessionId}`, { method: 'DELETE' }),
+
+  listTypes: () => fetchApi<StreamTypeInfo[]>('/streams/types'),
 }
 
 export { ApiError }

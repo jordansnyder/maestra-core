@@ -53,6 +53,17 @@ export {
   ExternalLink,
 } from 'lucide-react'
 
+// Streams
+export {
+  Cast,
+  Radio as RadioIcon,
+  Headphones,
+  Film,
+  Image,
+  Shield,
+  Monitor as MonitorIcon,
+} from 'lucide-react'
+
 // System health
 export {
   Database,
@@ -129,3 +140,29 @@ export const ENTITY_TYPE_ICONS: Record<string, LucideIcon> = {
 
 export const DEFAULT_DEVICE_ICON = Package
 export const DEFAULT_ENTITY_ICON = Package
+
+// Stream type icon lookup
+import {
+  Cast,
+  Headphones,
+  Film,
+  Image,
+  Shield,
+  Monitor as MonitorIcon2,
+} from 'lucide-react'
+
+export const STREAM_TYPE_ICONS: Record<string, LucideIcon> = {
+  ndi: Cast,
+  audio: Headphones,
+  video: Film,
+  texture: Image,
+  sensor: Radar,
+  osc: Radio,
+  midi: Music,
+  data: Server,
+  srt: Shield,
+  spout: MonitorIcon2,
+  syphon: MonitorIcon2,
+}
+
+export const DEFAULT_STREAM_ICON = Cast

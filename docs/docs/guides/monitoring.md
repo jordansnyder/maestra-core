@@ -488,4 +488,4 @@ docker exec -it maestra-postgres psql -U maestra -c "SHOW max_connections;"
 
 - [Fleet Manager API](../api/fleet-manager.md) - API endpoints for metrics and events
 - [Architecture Overview](../architecture/overview.md) - System architecture
-- [Database Schema](../../CLAUDE.md#database-schema) - TimescaleDB schema details
+- [Infrastructure](../infrastructure/docker.md) - Docker and infrastructure details

@@ -10,7 +10,7 @@ Maestra provides SDKs for multiple platforms to integrate with the entity state 
 | [JavaScript/TypeScript](javascript.md) | HTTP, WebSocket, MQTT | `sdks/js/` |
 | [Arduino/ESP32](arduino.md) | MQTT | `sdks/arduino/` |
 | [TouchDesigner](touchdesigner.md) | HTTP, OSC | `sdks/touchdesigner/` |
-| [Max/MSP](maxmsp.md) | OSC | `sdks/maxmsp/` |
+| [Max/MSP](max-msp.md) | OSC | `sdks/maxmsp/` |
 | [Unreal Engine](unreal.md) | HTTP | `sdks/unreal/` |
 | [Unity](unity.md) | HTTP | `sdks/unity/` |
 

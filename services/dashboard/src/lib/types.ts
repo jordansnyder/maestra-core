@@ -152,13 +152,13 @@ export interface StateValidationResult {
 export interface Device {
   id: string
   name: string
-  device_type: string
+  device_type: 'arduino' | 'raspberry_pi' | 'esp32' | 'touchdesigner' | 'max_msp' | 'unreal_engine' | 'web_client' | 'mobile_client' | (string & {})
   hardware_id: string
   firmware_version?: string
   ip_address?: string
   location?: Record<string, unknown>
   metadata?: Record<string, unknown>
-  status: string
+  status: 'online' | 'offline' | 'error' | 'maintenance'
   last_seen?: string
   created_at: string
   updated_at: string

@@ -20,6 +20,7 @@ nav:
   - Getting Started:
       - Installation: getting-started/installation.md
       - Quick Start: getting-started/quickstart.md
+      - Architecture: getting-started/architecture.md
   - Architecture:
       - Overview: architecture/overview.md
       - Services: architecture/services.md
@@ -35,16 +36,21 @@ nav:
       - Streams: guides/streams.md
       - Node-RED: guides/nodered.md
       - Monitoring: guides/monitoring.md
+  - Infrastructure:
+      - Docker: infrastructure/docker.md
+      - Configuration: infrastructure/configuration.md
+      - Production: infrastructure/production.md
   - SDKs:
-      - Web SDK: sdks/web.md
       - Overview: sdks/overview.md
+      - Web SDK: sdks/web.md
       - Python: sdks/python.md
       - JavaScript: sdks/javascript.md
       - Arduino/ESP32: sdks/arduino.md
       - TouchDesigner: sdks/touchdesigner.md
-      - Max/MSP: sdks/maxmsp.md
+      - Max/MSP: sdks/max-msp.md
       - Unreal Engine: sdks/unreal.md
       - Unity: sdks/unity.md
+      - Raspberry Pi: sdks/raspberry-pi.md
 
 markdown_extensions:
   - pymdownx.highlight:

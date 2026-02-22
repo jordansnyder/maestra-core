@@ -5,6 +5,7 @@ on:
     branches: [main, develop]
     paths:
       - 'docs/**'
+      - 'services/fleet-manager/**'
       - '.github/workflows/deploy-docs.yml'
   workflow_dispatch:  # Manual trigger
 
@@ -23,12 +24,57 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build docs
+      - name: Build MkDocs site
         run: |
           docker run --rm \
             -v "${{ github.workspace }}/docs":/docs \
             squidfunk/mkdocs-material:latest \
             build --strict
+
+      - name: Export OpenAPI spec
+        run: |
+          pip install --quiet fastapi==0.109.0 pydantic==2.5.3 pydantic-settings==2.1.0 sqlalchemy==2.0.25
+          cd services/fleet-manager
+          python export_openapi.py > "${{ github.workspace }}/openapi.json"
+
+      - name: Build API reference (ReDoc)
+        run: |
+          mkdir -p docs/site/api
+          cat > docs/site/api/index.html << 'HEREDOC'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Maestra API Reference</title>
+            <meta charset="utf-8"/>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+            <style>body { margin: 0; padding: 0; }</style>
+          </head>
+          <body>
+            <div id="redoc-container"></div>
+            <script src="https://cdn.redoc.ly/redoc/v2.1.5/bundles/redoc.standalone.js"></script>
+            <script>
+              Redoc.init('./openapi.json', {
+                theme: {
+                  colors: { primary: { main: '#4dabf7' } },
+                  typography: {
+                    fontFamily: 'Inter, sans-serif',
+                    headings: { fontFamily: 'Inter, sans-serif' },
+                    code: { fontFamily: 'JetBrains Mono, monospace' }
+                  },
+                  sidebar: { backgroundColor: '#1e293b', textColor: '#e2e8f0' },
+                  rightPanel: { backgroundColor: '#0f172a' }
+                },
+                expandResponses: '200',
+                hideDownloadButton: false,
+                hideHostname: false,
+                pathInMiddlePanel: true
+              }, document.getElementById('redoc-container'));
+            </script>
+          </body>
+          </html>
+          HEREDOC
+          cp openapi.json docs/site/api/openapi.json
 
       - uses: actions/upload-pages-artifact@v3
         with:

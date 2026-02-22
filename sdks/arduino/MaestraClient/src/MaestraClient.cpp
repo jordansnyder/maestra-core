@@ -82,7 +82,8 @@ void MaestraEntity::_handleMessage(JsonObject payload) {
 // ============================================================================
 
 MaestraClient::MaestraClient(Client& networkClient)
-    : _mqtt(networkClient), _port(1883), _hasCredentials(false), _entityCount(0) {
+    : _mqtt(networkClient), _port(1883), _hasCredentials(false),
+      _entityCount(0), _streamCallback(nullptr), _streamCount(0) {
     strcpy(_broker, "localhost");
     strcpy(_clientId, "maestra-arduino");
     _globalClient = this;
@@ -90,6 +91,7 @@ MaestraClient::MaestraClient(Client& networkClient)
     for (int i = 0; i < MAX_ENTITIES; i++) {
         _entities[i] = nullptr;
     }
+    memset(_streams, 0, sizeof(_streams));
 }
 
 void MaestraClient::setBroker(const char* host, uint16_t port) {
@@ -192,35 +194,109 @@ void MaestraClient::_publishState(const char* slug, JsonObject state, const char
     _mqtt.publish(topic, buffer);
 }
 
+// ============================================================================
+// Stream Methods
+// ============================================================================
+
+void MaestraClient::subscribeStreamEvents(StreamAdvertisedCallback callback) {
+    _streamCallback = callback;
+    _mqtt.subscribe("maestra/stream/advertise");
+    Serial.println("📡 Subscribed to stream events");
+}
+
+void MaestraClient::subscribeStreamType(const char* streamType, StreamAdvertisedCallback callback) {
+    _streamCallback = callback;
+    char topic[MAESTRA_TOPIC_BUFFER_SIZE];
+    snprintf(topic, sizeof(topic), "maestra/stream/advertise/%s", streamType);
+    _mqtt.subscribe(topic);
+    Serial.print("📡 Subscribed to stream type: ");
+    Serial.println(streamType);
+}
+
+void MaestraClient::advertiseStream(const char* name, const char* streamType,
+                                     const char* protocol, const char* address,
+                                     int port, const char* publisherId) {
+    StaticJsonDocument<MAESTRA_JSON_BUFFER_SIZE> doc;
+    doc["name"] = name;
+    doc["stream_type"] = streamType;
+    doc["publisher_id"] = publisherId ? publisherId : _clientId;
+    doc["protocol"] = protocol;
+    doc["address"] = address;
+    doc["port"] = port;
+
+    char buffer[MAESTRA_JSON_BUFFER_SIZE];
+    serializeJson(doc, buffer);
+
+    _mqtt.publish("maestra/stream/advertise", buffer);
+    Serial.print("📡 Advertised stream: ");
+    Serial.println(name);
+}
+
+void MaestraClient::withdrawStream(const char* streamId) {
+    char topic[MAESTRA_TOPIC_BUFFER_SIZE];
+    snprintf(topic, sizeof(topic), "maestra/stream/withdraw/%s", streamId);
+    _mqtt.publish(topic, "{}");
+}
+
+void MaestraClient::streamHeartbeat(const char* streamId) {
+    char topic[MAESTRA_TOPIC_BUFFER_SIZE];
+    snprintf(topic, sizeof(topic), "maestra/stream/heartbeat/%s", streamId);
+    _mqtt.publish(topic, "{}");
+}
+
+void MaestraClient::_handleStreamMessage(const char* topic, JsonObject payload) {
+    if (!_streamCallback) return;
+
+    const char* streamId = payload["id"] | "";
+    const char* streamName = payload["name"] | "";
+    const char* streamType = payload["stream_type"] | "";
+    const char* address = payload["address"] | "";
+    int port = payload["port"] | 0;
+
+    _streamCallback(streamId, streamName, streamType, address, port);
+}
+
+// ============================================================================
+// Message Handler
+// ============================================================================
+
 void MaestraClient::_handleMessage(char* topic, byte* payload, unsigned int length) {
-    // Parse topic to extract entity slug
-    // Format: maestra/entity/state/<type>/<slug>
-    char* parts[5];
+    // Parse topic into parts
+    char* parts[6];
     int partCount = 0;
     char topicCopy[MAESTRA_TOPIC_BUFFER_SIZE];
     strncpy(topicCopy, topic, sizeof(topicCopy));
+    topicCopy[sizeof(topicCopy) - 1] = '\0';
 
     char* token = strtok(topicCopy, "/");
-    while (token && partCount < 5) {
+    while (token && partCount < 6) {
         parts[partCount++] = token;
         token = strtok(nullptr, "/");
     }
 
-    if (partCount < 5) return;
+    if (partCount < 3) return;
 
-    const char* entitySlug = parts[4];
+    // Parse JSON payload
+    StaticJsonDocument<MAESTRA_JSON_BUFFER_SIZE> doc;
+    DeserializationError error = deserializeJson(doc, payload, length);
+    if (error) return;
 
-    // Find entity
-    for (int i = 0; i < _entityCount; i++) {
-        if (_entities[i] && strcmp(_entities[i]->slug(), entitySlug) == 0) {
-            // Parse payload
-            StaticJsonDocument<MAESTRA_JSON_BUFFER_SIZE> doc;
-            DeserializationError error = deserializeJson(doc, payload, length);
+    // Route stream messages: maestra/stream/advertise[/type]
+    if (partCount >= 3 && strcmp(parts[1], "stream") == 0 &&
+        strcmp(parts[2], "advertise") == 0) {
+        _handleStreamMessage(topic, doc.as<JsonObject>());
+        return;
+    }
 
-            if (!error) {
+    // Route entity messages: maestra/entity/state/<type>/<slug>
+    if (partCount >= 5 && strcmp(parts[1], "entity") == 0) {
+        const char* entitySlug = parts[4];
+
+        for (int i = 0; i < _entityCount; i++) {
+            if (_entities[i] && strcmp(_entities[i]->slug(), entitySlug) == 0) {
                 _entities[i]->_handleMessage(doc.as<JsonObject>());
+                break;
             }
-            break;
         }
     }
 }

@@ -31,4 +31,29 @@ async def main():
 asyncio.run(main())
 ```
 
+## Streams
+
+```python
+from maestra import StreamPublisher, StreamAdvertiseParams
+
+async def publish_stream():
+    client = MaestraClient()
+    await client.connect()
+
+    publisher = StreamPublisher(client, StreamAdvertiseParams(
+        name="Camera A",
+        stream_type="ndi",
+        publisher_id="td-01",
+        protocol="ndi",
+        address="192.168.1.50",
+        port=5960,
+    ))
+
+    stream = await publisher.start()  # Advertise + auto-heartbeat
+    # ... stream stays alive automatically ...
+    await publisher.stop()             # Withdraw + stop heartbeat
+```
+
+See [Streams Guide](../guides/streams.md) for consumer examples and more.
+
 See `sdks/python/README.md` for full documentation.

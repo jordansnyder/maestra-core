@@ -291,12 +291,62 @@ Your Actor must exist in the level. Either:
 
 ---
 
+## Streams
+
+The Unreal plugin supports stream discovery, advertisement, and consumption via the same `UMaestraClient`.
+
+```cpp
+// In your Actor's BeginPlay()
+MaestraClient = NewObject<UMaestraClient>(this);
+MaestraClient->Initialize(TEXT("http://localhost:8080"));
+
+// Bind stream events
+MaestraClient->OnStreamsReceived.AddDynamic(this, &AMyActor::OnStreamsReceived);
+MaestraClient->OnStreamAdvertised.AddDynamic(this, &AMyActor::OnStreamAdvertised);
+MaestraClient->OnStreamOfferReceived.AddDynamic(this, &AMyActor::OnStreamOffer);
+
+// Discover NDI streams
+MaestraClient->GetStreams(TEXT("ndi"));
+
+// Advertise a stream
+FMaestraStreamAdvertiseRequest Adv;
+Adv.Name = TEXT("Unreal Render Output");
+Adv.StreamType = TEXT("ndi");
+Adv.PublisherId = TEXT("unreal-workstation-01");
+Adv.Protocol = TEXT("ndi");
+Adv.Address = TEXT("192.168.1.90");
+Adv.Port = 5960;
+MaestraClient->AdvertiseStream(Adv);
+
+// Request to consume a stream
+FMaestraStreamRequestBody Req;
+Req.ConsumerId = TEXT("unreal-client-01");
+Req.ConsumerAddress = TEXT("192.168.1.90");
+MaestraClient->RequestStream(StreamId, Req);
+```
+
+**Heartbeats**: Streams and sessions have a 30-second TTL. Use a Timer to call `StreamHeartbeat()` and `SessionHeartbeat()` every ~10 seconds:
+
+```cpp
+// In BeginPlay(), after advertising a stream:
+GetWorldTimerManager().SetTimer(HeartbeatHandle, [this]()
+{
+    MaestraClient->StreamHeartbeat(MyStreamId);
+}, 10.0f, true);
+```
+
+See [Streams Guide](../guides/streams.md) for full stream lifecycle documentation.
+
+---
+
 ## Next Steps
 
 Once you have the basic integration working, you can:
 
 - Subscribe to multiple entities
 - Update entity state from Unreal
+- Discover and consume streams from other devices
+- Advertise render outputs as NDI/Spout streams
 - Create Blueprint-accessible wrapper functions with `UFUNCTION(BlueprintCallable)`
 - Build custom components that encapsulate Maestra functionality
 

@@ -47,7 +47,11 @@
       "Bash(make clean-all:*)",
       "Bash(make up:*)",
       "Bash(python3:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(python:*)",
+      "Bash(npx tsc:*)",
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(node:*)"
     ]
   }
 }

@@ -16,8 +16,7 @@ jobs:
     steps:
       - name: Clean workspace
         run: |
-          sudo rm -rf "$GITHUB_WORKSPACE"/*
-          sudo rm -rf "$GITHUB_WORKSPACE"/.* 2>/dev/null || true
+          docker run --rm -v "$GITHUB_WORKSPACE":/workspace alpine sh -c "rm -rf /workspace/*  /workspace/.[!.]* /workspace/..?*" 2>/dev/null || true
 
       - name: Checkout code
         uses: actions/checkout@v4

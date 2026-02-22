@@ -1,4 +1,4 @@
-import type { Device } from '@/types'
+import type { Device } from '@/lib/types'
 import { StatusBadge } from './StatusBadge'
 import { Card } from './Card'
 import { DEVICE_TYPE_ICONS, DEFAULT_DEVICE_ICON } from './icons'

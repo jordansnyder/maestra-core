@@ -155,3 +155,145 @@ class MaestraExt:
     def __getitem__(self, key: str):
         """Dictionary-style access to state"""
         return self._state.get(key)
+
+    # ===== Streams =====
+
+    def ListStreams(self, stream_type: str = None) -> list:
+        """List active streams from the registry"""
+        try:
+            import urllib.request
+            url = f"{self._api_url}/streams"
+            if stream_type:
+                url += f"?stream_type={stream_type}"
+            with urllib.request.urlopen(url) as response:
+                return json.loads(response.read().decode())
+        except Exception as e:
+            print(f"Maestra: Error listing streams: {e}")
+            return []
+
+    def GetStream(self, stream_id: str) -> dict:
+        """Get a single stream by ID"""
+        try:
+            import urllib.request
+            url = f"{self._api_url}/streams/{stream_id}"
+            with urllib.request.urlopen(url) as response:
+                return json.loads(response.read().decode())
+        except Exception as e:
+            print(f"Maestra: Error getting stream: {e}")
+            return {}
+
+    def AdvertiseStream(
+        self,
+        name: str,
+        stream_type: str,
+        protocol: str,
+        address: str,
+        port: int,
+        publisher_id: str = "touchdesigner",
+        config: dict = None,
+        metadata: dict = None,
+    ) -> dict:
+        """Advertise a new stream to the registry"""
+        try:
+            import urllib.request
+            url = f"{self._api_url}/streams/advertise"
+            body = {
+                "name": name,
+                "stream_type": stream_type,
+                "publisher_id": publisher_id,
+                "protocol": protocol,
+                "address": address,
+                "port": port,
+            }
+            if config:
+                body["config"] = config
+            if metadata:
+                body["metadata"] = metadata
+
+            payload = json.dumps(body).encode()
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={'Content-Type': 'application/json'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req) as response:
+                return json.loads(response.read().decode())
+        except Exception as e:
+            print(f"Maestra: Error advertising stream: {e}")
+            return {}
+
+    def WithdrawStream(self, stream_id: str) -> bool:
+        """Withdraw a stream from the registry"""
+        try:
+            import urllib.request
+            url = f"{self._api_url}/streams/{stream_id}"
+            req = urllib.request.Request(url, method='DELETE')
+            with urllib.request.urlopen(req) as response:
+                return True
+        except Exception as e:
+            print(f"Maestra: Error withdrawing stream: {e}")
+            return False
+
+    def StreamHeartbeat(self, stream_id: str) -> bool:
+        """Refresh a stream's TTL (call every ~10s from a Timer CHOP)"""
+        try:
+            import urllib.request
+            url = f"{self._api_url}/streams/{stream_id}/heartbeat"
+            req = urllib.request.Request(
+                url,
+                data=b'{}',
+                headers={'Content-Type': 'application/json'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req) as response:
+                return True
+        except Exception as e:
+            print(f"Maestra: Error sending heartbeat: {e}")
+            return False
+
+    def RequestStream(
+        self,
+        stream_id: str,
+        consumer_id: str = "touchdesigner",
+        consumer_address: str = "127.0.0.1",
+        consumer_port: int = None,
+        config: dict = None,
+    ) -> dict:
+        """Request to consume a stream. Returns connection details from the publisher."""
+        try:
+            import urllib.request
+            url = f"{self._api_url}/streams/{stream_id}/request"
+            body = {
+                "consumer_id": consumer_id,
+                "consumer_address": consumer_address,
+            }
+            if consumer_port is not None:
+                body["consumer_port"] = consumer_port
+            if config:
+                body["config"] = config
+
+            payload = json.dumps(body).encode()
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={'Content-Type': 'application/json'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req) as response:
+                return json.loads(response.read().decode())
+        except Exception as e:
+            print(f"Maestra: Error requesting stream: {e}")
+            return {}
+
+    def StopSession(self, session_id: str) -> bool:
+        """Stop an active streaming session"""
+        try:
+            import urllib.request
+            url = f"{self._api_url}/streams/sessions/{session_id}"
+            req = urllib.request.Request(url, method='DELETE')
+            with urllib.request.urlopen(req) as response:
+                return True
+        except Exception as e:
+            print(f"Maestra: Error stopping session: {e}")
+            return False

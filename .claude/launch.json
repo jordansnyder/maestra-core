@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dashboard",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3002,
+      "cwd": "services/dashboard",
+      "env": {
+        "PORT": "3002",
+        "NEXT_PUBLIC_API_URL": "http://localhost:8080"
+      }
+    }
+  ]
+}

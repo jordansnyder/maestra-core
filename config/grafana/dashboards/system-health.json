@@ -1,0 +1,480 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "match": "null", "result": { "color": "red", "text": "DOWN" } }, "type": "special" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT 'UP' as status",
+          "refId": "A"
+        }
+      ],
+      "title": "PostgreSQL",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "redis-datasource", "uid": "maestra-redis" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "PONG": { "color": "green", "text": "UP" } }, "type": "value" },
+            { "options": { "match": "null", "result": { "color": "red", "text": "DOWN" } }, "type": "special" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "redis-datasource", "uid": "maestra-redis" },
+          "command": "ping",
+          "refId": "A"
+        }
+      ],
+      "title": "Redis",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as count FROM devices WHERE status = 'online'",
+          "refId": "A"
+        }
+      ],
+      "title": "Devices Online",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as count FROM entities WHERE status = 'active'",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Entities",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) as count FROM sdk_connections WHERE disconnected_at IS NULL",
+          "refId": "A"
+        }
+      ],
+      "title": "SDK Connections",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT pg_database_size('maestra') as size",
+          "refId": "A"
+        }
+      ],
+      "title": "Database Size",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "id": 7,
+      "options": {
+        "legend": { "calcs": ["last", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', time) as time, COUNT(*) as \"Events\" FROM device_events WHERE time > NOW() - INTERVAL '6 hours' GROUP BY time_bucket('5 minutes', time) ORDER BY time",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "time_series",
+          "rawSql": "SELECT time_bucket('5 minutes', time) as time, COUNT(*) as \"Metrics\" FROM device_metrics WHERE time > NOW() - INTERVAL '6 hours' GROUP BY time_bucket('5 minutes', time) ORDER BY time",
+          "refId": "B"
+        }
+      ],
+      "title": "Data Ingestion Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "id": 8,
+      "options": {
+        "legend": { "calcs": ["last", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('minute', state_updated_at) as time, COUNT(*) as \"State Changes\" FROM entities WHERE state_updated_at > NOW() - INTERVAL '6 hours' GROUP BY date_trunc('minute', state_updated_at) ORDER BY time",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('minute', connected_at) as time, COUNT(*) as \"SDK Connects\" FROM sdk_connections WHERE connected_at > NOW() - INTERVAL '6 hours' GROUP BY date_trunc('minute', connected_at) ORDER BY time",
+          "refId": "B"
+        }
+      ],
+      "title": "System Activity",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "decbytes"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "table_name" }, "properties": [{ "id": "custom.width", "value": 200 }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "id": 9,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "total_size" }]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT relname as table_name, pg_total_relation_size(relid) as total_size, pg_relation_size(relid) as data_size, pg_indexes_size(relid) as index_size, n_live_tup as row_count FROM pg_stat_user_tables ORDER BY pg_total_relation_size(relid) DESC LIMIT 15",
+          "refId": "A"
+        }
+      ],
+      "title": "Table Sizes",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "status" }, "properties": [
+            { "id": "mappings", "value": [
+              { "options": { "online": { "color": "green", "text": "ONLINE" } }, "type": "value" },
+              { "options": { "offline": { "color": "red", "text": "OFFLINE" } }, "type": "value" },
+              { "options": { "error": { "color": "orange", "text": "ERROR" } }, "type": "value" },
+              { "options": { "maintenance": { "color": "yellow", "text": "MAINTENANCE" } }, "type": "value" }
+            ]},
+            { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+          ]}
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "id": 10,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "last_seen" }]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT name, device_type, status, last_seen, CASE WHEN last_seen < NOW() - INTERVAL '5 minutes' THEN 'Stale' ELSE 'Recent' END as health FROM devices ORDER BY last_seen DESC NULLS LAST LIMIT 20",
+          "refId": "A"
+        }
+      ],
+      "title": "Device Health",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 80 }, { "color": "red", "value": 95 }] },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 20 },
+      "id": 11,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT (COUNT(*) FILTER (WHERE status = 'online')::float / NULLIF(COUNT(*), 0) * 100) as uptime FROM devices",
+          "refId": "A"
+        }
+      ],
+      "title": "Device Uptime %",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 80 }, { "color": "red", "value": 95 }] },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 20 },
+      "id": 12,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT (COUNT(*) FILTER (WHERE status = 'active')::float / NULLIF(COUNT(*), 0) * 100) as active_pct FROM entities",
+          "refId": "A"
+        }
+      ],
+      "title": "Entity Active %",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 10 }, { "color": "green", "value": 50 }] },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 20 },
+      "id": 13,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "maestra-postgres" },
+          "format": "table",
+          "rawSql": "SELECT (COUNT(*) FILTER (WHERE severity NOT IN ('error', 'critical'))::float / NULLIF(COUNT(*), 0) * 100) as success_rate FROM device_events WHERE time > NOW() - INTERVAL '1 hour'",
+          "refId": "A"
+        }
+      ],
+      "title": "Event Success Rate (1h)",
+      "type": "gauge"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["maestra", "health", "system"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Maestra - System Health",
+  "uid": "maestra-system-health",
+  "version": 1,
+  "weekStart": ""
+}

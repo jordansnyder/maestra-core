@@ -402,39 +402,172 @@ docker compose logs -f fleet-manager
 
 ## 🚢 Production Deployment
 
-### Security Checklist
+### Production vs Development
 
-- [ ] Change all default passwords in `.env`
-- [ ] Enable Mosquitto authentication
-- [ ] Enable Node-RED authentication
-- [ ] Configure SSL/TLS with Traefik
-- [ ] Set up firewall rules
-- [ ] Enable PostgreSQL SSL
-- [ ] Review CORS settings
-- [ ] Set secure JWT secret
+| Aspect | Development | Production |
+|--------|-------------|-----------|
+| Environment | Local Docker | Cloud VMs / Kubernetes |
+| Passwords | Default (admin/admin) | Strong, unique passwords |
+| Authentication | Disabled/basic | Enabled on all services |
+| SSL/TLS | HTTP only | HTTPS with Let's Encrypt |
+| Volumes | Local bind mounts | Named volumes / NFS |
+| Backups | Manual | Automated (cron) |
+| Monitoring | Optional | Required (Grafana alerts) |
+| Resource Limits | None | CPU/Memory limits set |
+| Logging | Docker logs | Centralized (Loki/ELK) |
+| Networking | Bridge network | Custom network / VPN |
 
-### SSL/TLS Configuration
+### Production Deployment Checklist
 
-Edit `config/traefik/traefik.yml`:
+#### 1. Environment Configuration
 
+```bash
+# Strong passwords (use password generator)
+POSTGRES_PASSWORD=$(openssl rand -base64 32)
+GRAFANA_PASSWORD=$(openssl rand -base64 16)
+
+# Production environment
+NODE_ENV=production
+```
+
+#### 2. Authentication & Authorization
+
+**Enable Grafana Authentication:**
+```ini
+# config/grafana/grafana.ini
+[auth.anonymous]
+enabled = false
+
+[security]
+admin_user = admin
+admin_password = ${GRAFANA_PASSWORD}
+```
+
+**Enable Node-RED Authentication:**
+```javascript
+// config/nodered/settings.js
+adminAuth: {
+    type: "credentials",
+    users: [{
+        username: "admin",
+        password: "$2b$08$...",  // Use bcrypt hash
+        permissions: "*"
+    }]
+}
+```
+
+**Enable NATS Authentication:**
+```yaml
+# config/nats/nats.conf
+authorization: {
+    users: [
+        {user: admin, password: "your-secure-password"}
+    ]
+}
+```
+
+**Enable Mosquitto Authentication:**
+```bash
+# Generate password file
+docker compose exec mosquitto mosquitto_passwd -c /mosquitto/config/passwd maestra
+
+# Edit config/mosquitto/mosquitto.conf
+allow_anonymous false
+password_file /mosquitto/config/passwd
+```
+
+#### 3. SSL/TLS with Traefik & Let's Encrypt
+
+**Update `config/traefik/traefik.yml`:**
 ```yaml
 entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+
   websecure:
     address: ":443"
+    http:
+      tls:
+        certResolver: letsencrypt
 
 certificatesResolvers:
   letsencrypt:
     acme:
-      email: your@email.com
+      email: admin@yourdomain.com
       storage: /etc/traefik/acme.json
       httpChallenge:
         entryPoint: web
 ```
 
-### Resource Limits
+**Update service labels in `docker-compose.yml`:**
+```yaml
+labels:
+  - "traefik.http.routers.dashboard.tls=true"
+  - "traefik.http.routers.dashboard.tls.certresolver=letsencrypt"
+```
 
-Edit `docker compose.yml` to add resource constraints:
+#### 4. Database Backups
 
+**Automated Backup Script** (`scripts/backup-db.sh`):
+```bash
+#!/bin/bash
+BACKUP_DIR="/backups/postgres"
+DATE=$(date +%Y%m%d_%H%M%S)
+mkdir -p $BACKUP_DIR
+
+# Backup PostgreSQL
+docker compose exec -T postgres pg_dump -U maestra maestra | gzip > $BACKUP_DIR/maestra_$DATE.sql.gz
+
+# Keep only last 7 days
+find $BACKUP_DIR -name "*.sql.gz" -mtime +7 -delete
+
+echo "Backup completed: maestra_$DATE.sql.gz"
+```
+
+**Add to crontab:**
+```bash
+# Daily backup at 2 AM
+0 2 * * * /path/to/maestra-core/scripts/backup-db.sh >> /var/log/maestra-backup.log 2>&1
+```
+
+#### 5. Monitoring & Alerting
+
+**Configure Grafana Alerts:**
+1. Navigate to **Alerting → Contact points**
+2. Add email or Slack contact point
+3. Create alert rules for:
+   - CPU/Memory > 80% for 5 minutes
+   - Database connection pool exhaustion
+   - High error rate (> 10 errors/min)
+   - Device heartbeat failures
+   - NATS/MQTT connection drops
+
+**Health Check Script** (`scripts/health-check.sh`):
+```bash
+#!/bin/bash
+SERVICES=("fleet-manager:8080/health" "nats:8222/varz" "grafana:3000/api/health")
+
+for service in "${SERVICES[@]}"; do
+  name=$(echo $service | cut -d: -f1)
+  endpoint=$(echo $service | cut -d: -f2-)
+
+  if curl -sf http://$endpoint > /dev/null; then
+    echo "✅ $name is healthy"
+  else
+    echo "❌ $name is down"
+    # Send alert (email, Slack, PagerDuty, etc.)
+  fi
+done
+```
+
+#### 6. Resource Limits
+
+**Update `docker-compose.yml`:**
 ```yaml
 services:
   postgres:
@@ -443,17 +576,303 @@ services:
         limits:
           cpus: '2'
           memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  fleet-manager:
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  nats:
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+```
+
+#### 7. Log Management
+
+**Configure log rotation:**
+```yaml
+# docker-compose.yml
+services:
+  fleet-manager:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+
+**Centralized logging with Loki (optional):**
+```yaml
+# Add to docker-compose.yml
+loki:
+  image: grafana/loki:latest
+  ports:
+    - "3100:3100"
+  volumes:
+    - ./config/loki:/etc/loki
+    - loki-data:/loki
+```
+
+### Cloud Deployment
+
+#### AWS EC2 Deployment
+
+**1. Launch EC2 Instance:**
+- Instance type: t3.large (2 vCPU, 8GB RAM) or larger
+- AMI: Ubuntu 22.04 LTS
+- Storage: 50GB+ EBS volume
+- Security Group: Open ports 80, 443, 1883, 8765, 57120-57121
+
+**2. Install Docker:**
+```bash
+ssh ubuntu@<ec2-ip>
+
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker ubuntu
+
+# Logout and login again
+exit
+ssh ubuntu@<ec2-ip>
+```
+
+**3. Deploy Maestra:**
+```bash
+git clone <repo-url>
+cd maestra-core
+cp .env.example .env
+nano .env  # Update passwords
+
+# Start services
+docker compose up -d
+
+# Verify
+docker compose ps
+curl http://localhost:8080/health
+```
+
+**4. Configure DNS:**
+- Point A records to EC2 Elastic IP:
+  - `maestra.yourdomain.com` → EC2 IP
+  - `dashboard.yourdomain.com` → EC2 IP
+  - `grafana.yourdomain.com` → EC2 IP
+
+**5. Enable SSL:**
+Update Traefik configuration and restart services.
+
+#### Docker Swarm (Multi-Node)
+
+**Initialize Swarm:**
+```bash
+# On manager node
+docker swarm init --advertise-addr <manager-ip>
+
+# On worker nodes (use token from above)
+docker swarm join --token <token> <manager-ip>:2377
+```
+
+**Deploy Stack:**
+```bash
+docker stack deploy -c docker-compose.yml maestra
+docker stack ps maestra
+```
+
+#### Kubernetes (Future)
+
+Maestra can be adapted for Kubernetes deployment using Helm charts (planned for future release).
+
+### Production Troubleshooting
+
+#### Service Won't Start
+
+```bash
+# Check logs
+docker compose logs <service>
+
+# Check resource usage
+docker stats
+
+# Verify environment
+docker compose config
+
+# Check disk space
+df -h
+```
+
+#### High Latency
+
+```bash
+# Check database connections
+docker compose exec postgres psql -U maestra -c "SELECT count(*) FROM pg_stat_activity;"
+
+# Check NATS connections
+curl http://localhost:8222/connz
+
+# Monitor resource usage
+docker stats --no-stream
+```
+
+#### Memory Issues
+
+```bash
+# Restart memory-hungry service
+docker compose restart <service>
+
+# Check logs for memory errors
+docker compose logs | grep -i "memory\|oom"
+
+# Add swap space (temporary fix)
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+```
+
+#### Database Connection Pool Exhausted
+
+```bash
+# Check active connections
+docker compose exec postgres psql -U maestra -c "
+  SELECT count(*), state FROM pg_stat_activity
+  GROUP BY state;
+"
+
+# Increase max connections (config/postgres/postgresql.conf)
+max_connections = 200
+
+# Restart PostgreSQL
+docker compose restart postgres
+```
+
+### Security Hardening
+
+#### Firewall Configuration
+
+```bash
+# UFW (Ubuntu)
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow 22/tcp   # SSH
+sudo ufw allow 80/tcp   # HTTP
+sudo ufw allow 443/tcp  # HTTPS
+sudo ufw allow 1883/tcp # MQTT (if external)
+sudo ufw enable
+```
+
+#### Regular Updates
+
+```bash
+# Update Docker images
+docker compose pull
+docker compose up -d
+
+# Update system packages
+sudo apt update && sudo apt upgrade -y
+```
+
+#### Secrets Management
+
+Use Docker secrets or external secret managers:
+```bash
+# Create secret
+echo "my-secret-password" | docker secret create postgres_password -
+
+# Use in docker-compose.yml
+secrets:
+  postgres_password:
+    external: true
+
+services:
+  postgres:
+    secrets:
+      - postgres_password
 ```
 
 ### Backup Strategy
 
+**Daily Automated Backups:**
 ```bash
-# Backup PostgreSQL
-docker compose exec postgres pg_dump -U maestra maestra > backup.sql
+# Create backup script
+cat > /usr/local/bin/maestra-backup <<'EOF'
+#!/bin/bash
+DATE=$(date +%Y%m%d)
+BACKUP_DIR="/backups/maestra"
+mkdir -p $BACKUP_DIR
 
-# Backup volumes
-docker run --rm -v maestra-core_postgres-data:/data -v $(pwd):/backup \
-  alpine tar czf /backup/postgres-backup.tar.gz /data
+# PostgreSQL backup
+docker compose exec -T postgres pg_dump -U maestra maestra | gzip > $BACKUP_DIR/db_$DATE.sql.gz
+
+# Node-RED flows
+docker compose cp nodered:/data/flows.json $BACKUP_DIR/flows_$DATE.json
+
+# Grafana dashboards
+docker compose cp grafana:/var/lib/grafana $BACKUP_DIR/grafana_$DATE
+
+# Cleanup old backups (keep 30 days)
+find $BACKUP_DIR -mtime +30 -delete
+
+# Upload to S3 (optional)
+# aws s3 sync $BACKUP_DIR s3://my-maestra-backups/
+EOF
+
+chmod +x /usr/local/bin/maestra-backup
+
+# Add to crontab
+echo "0 2 * * * /usr/local/bin/maestra-backup" | crontab -
+```
+
+**Disaster Recovery:**
+```bash
+# Restore PostgreSQL
+gunzip < backup.sql.gz | docker compose exec -T postgres psql -U maestra maestra
+
+# Restore Node-RED flows
+docker compose cp flows.json nodered:/data/flows.json
+docker compose restart nodered
+```
+
+### Performance Optimization
+
+#### Database Tuning
+
+**Edit `config/postgres/postgresql.conf`:**
+```conf
+# Memory settings
+shared_buffers = 2GB
+effective_cache_size = 6GB
+work_mem = 64MB
+
+# Connection settings
+max_connections = 200
+
+# TimescaleDB settings
+timescaledb.max_background_workers = 8
+```
+
+#### NATS Tuning
+
+**Edit `config/nats/nats.conf`:**
+```conf
+max_connections: 1000
+max_payload: 1048576      # 1MB
+write_deadline: "10s"
+```
+
+#### Redis Memory Limit
+
+```yaml
+# docker-compose.yml
+redis:
+  command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
 ```
 
 ---

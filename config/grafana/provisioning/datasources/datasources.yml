@@ -6,6 +6,7 @@ apiVersion: 1
 datasources:
   # PostgreSQL/TimescaleDB - Device data and metrics
   - name: Maestra PostgreSQL
+    uid: maestra-postgres
     type: postgres
     access: proxy
     url: postgres:5432
@@ -22,25 +23,14 @@ datasources:
 
   # Redis - Real-time data and caching
   - name: Maestra Redis
+    uid: maestra-redis
     type: redis-datasource
     access: proxy
-    url: redis://redis:6379
+    url: redis:6379
     jsonData:
-      client: 'standalone'
+      client: standalone
       poolSize: 5
       timeout: 10
       pingInterval: 0
       pipelineWindow: 0
     editable: true
-
-  # NATS - Message bus metrics (if monitoring plugin available)
-  # - name: Maestra NATS
-  #   type: prometheus
-  #   access: proxy
-  #   url: http://nats:8222/metrics
-  #   editable: true
-
-deleteDatasources:
-  # Remove any previously auto-configured datasources that aren't needed
-  - name: TestData DB
-    orgId: 1

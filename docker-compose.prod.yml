@@ -1,0 +1,71 @@
+# Production Environment Overrides
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  # Fleet Manager - Production config
+  fleet-manager:
+    volumes: []
+    environment:
+      - DATABASE_URL=postgresql://maestra:${POSTGRES_PASSWORD}@postgres:5432/maestra
+      - REDIS_URL=redis://redis:6379
+      - NATS_URL=nats://nats:4222
+      - MQTT_BROKER=mosquitto:1883
+      - LOG_LEVEL=warning
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Dashboard - Production build
+  dashboard:
+    volumes: []
+    environment:
+      - NEXT_PUBLIC_API_URL=${API_URL}
+      - NEXT_PUBLIC_NODERED_URL=${NODERED_URL}
+      - NEXT_PUBLIC_GRAFANA_URL=${GRAFANA_URL}
+      - NEXT_PUBLIC_MQTT_WS_URL=${MQTT_WS_URL}
+      - NODE_ENV=production
+    command: npm run build && npm run start
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # PostgreSQL - Production settings
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # Grafana
+  grafana:
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_SERVER_ROOT_URL=${GRAFANA_URL}
+      - GF_USERS_ALLOW_SIGN_UP=false
+
+  # Disable all development services
+  docs:
+    profiles:
+      - disabled
+
+  portainer:
+    profiles:
+      - disabled
+
+  traefik:
+    command:
+      - "--api.insecure=false"  # Disable insecure dashboard
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"

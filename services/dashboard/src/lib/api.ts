@@ -3,7 +3,11 @@
 import {
   Entity, EntityCreate, EntityUpdate, EntityType, EntityTreeNode,
   StateUpdate, StateResponse, Device,
-  VariableDefinition, EntityVariables, EntityVariablesResponse, StateValidationResult
+  VariableDefinition, EntityVariables, EntityVariablesResponse, StateValidationResult,
+  RoutingDevice, RoutingDeviceCreate, RoutingDeviceUpdate,
+  RouteData, RouteCreate, RoutePreset, RoutePresetCreate, RoutePresetUpdate,
+  RoutePresetDetail, RoutingState,
+  StreamInfo, StreamSession, StreamTypeInfo, StreamRegistryState,
 } from './types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
@@ -237,6 +241,122 @@ export const devicesApi = {
     }),
 }
 
+// Routing API
+export const routingApi = {
+  // Full state (single fetch for frontend)
+  getState: () => fetchApi<RoutingState>('/routing/state'),
+
+  // Routing Devices
+  listDevices: (deviceType?: string) => {
+    const params = new URLSearchParams()
+    if (deviceType) params.set('device_type', deviceType)
+    const query = params.toString()
+    return fetchApi<RoutingDevice[]>(`/routing/devices${query ? `?${query}` : ''}`)
+  },
+
+  getDevice: (id: string) => fetchApi<RoutingDevice>(`/routing/devices/${id}`),
+
+  createDevice: (data: RoutingDeviceCreate) =>
+    fetchApi<RoutingDevice>('/routing/devices', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateDevice: (id: string, data: RoutingDeviceUpdate) =>
+    fetchApi<RoutingDevice>(`/routing/devices/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteDevice: (id: string) =>
+    fetchApi<{ status: string }>(`/routing/devices/${id}`, {
+      method: 'DELETE',
+    }),
+
+  updatePositions: (positions: Record<string, { x: number; y: number }>) =>
+    fetchApi<{ status: string; updated: number }>('/routing/devices/positions', {
+      method: 'PUT',
+      body: JSON.stringify(positions),
+    }),
+
+  // Routes
+  listRoutes: (presetId?: string) => {
+    const params = new URLSearchParams()
+    if (presetId) {
+      params.set('preset_id', presetId)
+      params.set('active_only', 'false')
+    }
+    const query = params.toString()
+    return fetchApi<RouteData[]>(`/routing/routes${query ? `?${query}` : ''}`)
+  },
+
+  createRoute: (data: RouteCreate) =>
+    fetchApi<RouteData>('/routing/routes', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  deleteRouteById: (id: string) =>
+    fetchApi<{ status: string }>(`/routing/routes/${id}`, {
+      method: 'DELETE',
+    }),
+
+  deleteRoute: (route: RouteCreate) => {
+    const params = new URLSearchParams()
+    params.set('from', route.from)
+    params.set('fromPort', route.fromPort)
+    params.set('to', route.to)
+    params.set('toPort', route.toPort)
+    return fetchApi<{ status: string }>(`/routing/routes?${params}`, {
+      method: 'DELETE',
+    })
+  },
+
+  replaceRoutes: (routes: RouteCreate[]) =>
+    fetchApi<RouteData[]>('/routing/routes', {
+      method: 'PUT',
+      body: JSON.stringify({ routes }),
+    }),
+
+  clearRoutes: () =>
+    fetchApi<{ status: string; deleted_count: number }>('/routing/routes/all', {
+      method: 'DELETE',
+    }),
+
+  // Presets
+  listPresets: () => fetchApi<RoutePreset[]>('/routing/presets'),
+
+  getPreset: (id: string) => fetchApi<RoutePresetDetail>(`/routing/presets/${id}`),
+
+  createPreset: (data: RoutePresetCreate) =>
+    fetchApi<RoutePreset>('/routing/presets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updatePreset: (id: string, data: RoutePresetUpdate) =>
+    fetchApi<RoutePreset>(`/routing/presets/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deletePreset: (id: string) =>
+    fetchApi<{ status: string }>(`/routing/presets/${id}`, {
+      method: 'DELETE',
+    }),
+
+  saveToPreset: (presetId: string) =>
+    fetchApi<{ status: string; route_count: number }>(`/routing/presets/${presetId}/save`, {
+      method: 'POST',
+    }),
+
+  recallPreset: (presetId: string) =>
+    fetchApi<{ status: string; preset_name: string; route_count: number }>(
+      `/routing/presets/${presetId}/recall`,
+      { method: 'POST' }
+    ),
+}
+
 // Combined API object for convenience
 export const api = {
   // Devices
@@ -256,6 +376,28 @@ export const api = {
   // Health
   health: healthApi.check,
   status: healthApi.status,
+}
+
+// Streams API
+export const streamsApi = {
+  getState: () => fetchApi<StreamRegistryState>('/streams/state'),
+
+  listStreams: (streamType?: string) => {
+    const params = streamType ? `?stream_type=${streamType}` : ''
+    return fetchApi<StreamInfo[]>(`/streams${params}`)
+  },
+
+  getStream: (id: string) => fetchApi<StreamInfo>(`/streams/${id}`),
+
+  listSessions: (streamId?: string) => {
+    const params = streamId ? `?stream_id=${streamId}` : ''
+    return fetchApi<StreamSession[]>(`/streams/sessions${params}`)
+  },
+
+  stopSession: (sessionId: string) =>
+    fetchApi<{ status: string }>(`/streams/sessions/${sessionId}`, { method: 'DELETE' }),
+
+  listTypes: () => fetchApi<StreamTypeInfo[]>('/streams/types'),
 }
 
 export { ApiError }

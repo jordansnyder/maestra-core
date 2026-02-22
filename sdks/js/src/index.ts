@@ -17,6 +17,15 @@ import type {
   StateChangeCallback,
   UnsubscribeFunction,
   EntityTreeNode,
+  StreamTypeInfo,
+  StreamTypeCreate,
+  StreamInfo,
+  StreamAdvertise,
+  StreamRequest,
+  StreamOffer,
+  StreamSession,
+  StreamSessionHistory,
+  StreamRegistryState,
 } from './types'
 
 /**
@@ -281,6 +290,72 @@ class HttpTransport {
   setState(id: string, state: Record<string, unknown>, source?: string): Promise<StateResponse> {
     return this.request('PUT', `/entities/${id}/state`, { state, source })
   }
+
+  // Streams
+  getStreamState(): Promise<StreamRegistryState> {
+    return this.request('GET', '/streams/state')
+  }
+
+  listStreamTypes(): Promise<StreamTypeInfo[]> {
+    return this.request('GET', '/streams/types')
+  }
+
+  createStreamType(data: StreamTypeCreate): Promise<StreamTypeInfo> {
+    return this.request('POST', '/streams/types', data)
+  }
+
+  listStreams(streamType?: string): Promise<StreamInfo[]> {
+    const qs = streamType ? `?stream_type=${streamType}` : ''
+    return this.request('GET', `/streams${qs}`)
+  }
+
+  getStream(streamId: string): Promise<StreamInfo> {
+    return this.request('GET', `/streams/${streamId}`)
+  }
+
+  advertiseStream(data: StreamAdvertise): Promise<StreamInfo> {
+    return this.request('POST', '/streams/advertise', data)
+  }
+
+  withdrawStream(streamId: string): Promise<void> {
+    return this.request('DELETE', `/streams/${streamId}`)
+  }
+
+  streamHeartbeat(streamId: string): Promise<void> {
+    return this.request('POST', `/streams/${streamId}/heartbeat`)
+  }
+
+  requestStream(streamId: string, data: StreamRequest): Promise<StreamOffer> {
+    return this.request('POST', `/streams/${streamId}/request`, data)
+  }
+
+  listSessions(streamId?: string): Promise<StreamSession[]> {
+    const qs = streamId ? `?stream_id=${streamId}` : ''
+    return this.request('GET', `/streams/sessions${qs}`)
+  }
+
+  getSessionHistory(params: {
+    streamId?: string
+    publisherId?: string
+    consumerId?: string
+    limit?: number
+  } = {}): Promise<StreamSessionHistory[]> {
+    const query = new URLSearchParams()
+    if (params.streamId) query.set('stream_id', params.streamId)
+    if (params.publisherId) query.set('publisher_id', params.publisherId)
+    if (params.consumerId) query.set('consumer_id', params.consumerId)
+    if (params.limit) query.set('limit', params.limit.toString())
+    const qs = query.toString()
+    return this.request('GET', `/streams/sessions/history${qs ? `?${qs}` : ''}`)
+  }
+
+  stopSession(sessionId: string): Promise<void> {
+    return this.request('DELETE', `/streams/sessions/${sessionId}`)
+  }
+
+  sessionHeartbeat(sessionId: string): Promise<void> {
+    return this.request('POST', `/streams/sessions/${sessionId}/heartbeat`)
+  }
 }
 
 /**
@@ -411,6 +486,78 @@ export class MaestraClient {
 
   async getTree(rootId?: string, entityType?: string, maxDepth = 5): Promise<EntityTreeNode[]> {
     return this._http.getTree(rootId, entityType, maxDepth)
+  }
+
+  // ===== Streams =====
+
+  /** Get complete stream registry state */
+  async getStreamState(): Promise<StreamRegistryState> {
+    return this._http.getStreamState()
+  }
+
+  /** List stream type definitions */
+  async getStreamTypes(): Promise<StreamTypeInfo[]> {
+    return this._http.listStreamTypes()
+  }
+
+  /** Create a custom stream type */
+  async createStreamType(data: StreamTypeCreate): Promise<StreamTypeInfo> {
+    return this._http.createStreamType(data)
+  }
+
+  /** List active streams, optionally filtered by type */
+  async getStreams(streamType?: string): Promise<StreamInfo[]> {
+    return this._http.listStreams(streamType)
+  }
+
+  /** Get a single stream by ID */
+  async getStream(streamId: string): Promise<StreamInfo> {
+    return this._http.getStream(streamId)
+  }
+
+  /** Advertise a new stream to the registry */
+  async advertiseStream(data: StreamAdvertise): Promise<StreamInfo> {
+    return this._http.advertiseStream(data)
+  }
+
+  /** Withdraw a stream from the registry */
+  async withdrawStream(streamId: string): Promise<void> {
+    return this._http.withdrawStream(streamId)
+  }
+
+  /** Refresh a stream's TTL */
+  async streamHeartbeat(streamId: string): Promise<void> {
+    return this._http.streamHeartbeat(streamId)
+  }
+
+  /** Request to consume a stream. Returns connection offer from the publisher. */
+  async requestStream(streamId: string, data: StreamRequest): Promise<StreamOffer> {
+    return this._http.requestStream(streamId, data)
+  }
+
+  /** List active sessions */
+  async getSessions(streamId?: string): Promise<StreamSession[]> {
+    return this._http.listSessions(streamId)
+  }
+
+  /** Query historical sessions */
+  async getSessionHistory(params?: {
+    streamId?: string
+    publisherId?: string
+    consumerId?: string
+    limit?: number
+  }): Promise<StreamSessionHistory[]> {
+    return this._http.getSessionHistory(params)
+  }
+
+  /** Stop an active session */
+  async stopSession(sessionId: string): Promise<void> {
+    return this._http.stopSession(sessionId)
+  }
+
+  /** Refresh a session's TTL */
+  async sessionHeartbeat(sessionId: string): Promise<void> {
+    return this._http.sessionHeartbeat(sessionId)
   }
 
   // Subscriptions

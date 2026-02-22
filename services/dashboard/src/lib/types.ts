@@ -163,3 +163,155 @@ export interface Device {
   created_at: string
   updated_at: string
 }
+
+// =============================================================================
+// Routing Types
+// =============================================================================
+
+export interface RoutingDevice {
+  id: string
+  name: string
+  device_type: string
+  icon: string
+  color: string
+  inputs: string[]
+  outputs: string[]
+  metadata: Record<string, unknown>
+  position_x: number
+  position_y: number
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface RoutingDeviceCreate {
+  name: string
+  device_type: string
+  icon?: string
+  color?: string
+  inputs?: string[]
+  outputs?: string[]
+  metadata?: Record<string, unknown>
+  position_x?: number
+  position_y?: number
+  sort_order?: number
+}
+
+export interface RoutingDeviceUpdate {
+  name?: string
+  device_type?: string
+  icon?: string
+  color?: string
+  inputs?: string[]
+  outputs?: string[]
+  metadata?: Record<string, unknown>
+  position_x?: number
+  position_y?: number
+  sort_order?: number
+}
+
+export interface RouteData {
+  id: string
+  from: string
+  fromPort: string
+  to: string
+  toPort: string
+  preset_id?: string
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+export interface RouteCreate {
+  from: string
+  fromPort: string
+  to: string
+  toPort: string
+  metadata?: Record<string, unknown>
+}
+
+export interface RoutePreset {
+  id: string
+  name: string
+  description?: string
+  metadata: Record<string, unknown>
+  is_active: boolean
+  route_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface RoutePresetCreate {
+  name: string
+  description?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface RoutePresetUpdate {
+  name?: string
+  description?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface RoutePresetDetail extends RoutePreset {
+  routes: RouteData[]
+}
+
+export interface RoutingState {
+  devices: RoutingDevice[]
+  routes: RouteData[]
+  presets: RoutePreset[]
+}
+
+// =============================================================================
+// Stream Types
+// =============================================================================
+
+export interface StreamTypeInfo {
+  id: string
+  name: string
+  display_name: string
+  description?: string
+  icon?: string
+  default_config: Record<string, unknown>
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface StreamInfo {
+  id: string
+  name: string
+  stream_type: string
+  publisher_id: string
+  protocol: string
+  address: string
+  port: number
+  entity_id?: string
+  device_id?: string
+  config: Record<string, unknown>
+  metadata: Record<string, unknown>
+  advertised_at: string
+  last_heartbeat: string
+  active_sessions: number
+}
+
+export interface StreamSession {
+  session_id: string
+  stream_id: string
+  stream_name: string
+  stream_type: string
+  publisher_id: string
+  publisher_address: string
+  consumer_id: string
+  consumer_address: string
+  protocol: string
+  transport_config: Record<string, unknown>
+  started_at: string
+  status: string
+}
+
+export interface StreamRegistryState {
+  streams: StreamInfo[]
+  sessions: StreamSession[]
+  stream_types: StreamTypeInfo[]
+}

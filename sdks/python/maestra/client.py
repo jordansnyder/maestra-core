@@ -8,7 +8,11 @@ from typing import Dict, Any, Optional, List, Callable
 from datetime import datetime
 import uuid
 
-from .types import ConnectionConfig, EntityData, EntityType, StateChangeEvent
+from .types import (
+    ConnectionConfig, EntityData, EntityType, StateChangeEvent,
+    StreamTypeData, StreamData, StreamAdvertiseParams, StreamRequestParams,
+    StreamOffer, StreamSessionData, StreamSessionHistoryData, StreamRegistryStateData,
+)
 from .entity import Entity
 
 
@@ -181,6 +185,65 @@ class HttpTransport:
             data["source"] = source
         return await self._request("PUT", f"/entities/{entity_id}/state", json=data)
 
+    # Streams
+    async def get_stream_state(self) -> Dict[str, Any]:
+        return await self._request("GET", "/streams/state")
+
+    async def list_stream_types(self) -> List[Dict[str, Any]]:
+        return await self._request("GET", "/streams/types")
+
+    async def create_stream_type(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return await self._request("POST", "/streams/types", json=data)
+
+    async def list_streams(self, stream_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        params = {}
+        if stream_type:
+            params["stream_type"] = stream_type
+        return await self._request("GET", "/streams", params=params)
+
+    async def get_stream(self, stream_id: str) -> Dict[str, Any]:
+        return await self._request("GET", f"/streams/{stream_id}")
+
+    async def advertise_stream(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return await self._request("POST", "/streams/advertise", json=data)
+
+    async def withdraw_stream(self, stream_id: str) -> Dict[str, Any]:
+        return await self._request("DELETE", f"/streams/{stream_id}")
+
+    async def stream_heartbeat(self, stream_id: str) -> Dict[str, Any]:
+        return await self._request("POST", f"/streams/{stream_id}/heartbeat")
+
+    async def request_stream(self, stream_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        return await self._request("POST", f"/streams/{stream_id}/request", json=data)
+
+    async def list_sessions(self, stream_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        params = {}
+        if stream_id:
+            params["stream_id"] = stream_id
+        return await self._request("GET", "/streams/sessions", params=params)
+
+    async def get_session_history(
+        self,
+        stream_id: Optional[str] = None,
+        publisher_id: Optional[str] = None,
+        consumer_id: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        params: Dict[str, Any] = {"limit": limit}
+        if stream_id:
+            params["stream_id"] = stream_id
+        if publisher_id:
+            params["publisher_id"] = publisher_id
+        if consumer_id:
+            params["consumer_id"] = consumer_id
+        return await self._request("GET", "/streams/sessions/history", params=params)
+
+    async def stop_session(self, session_id: str) -> Dict[str, Any]:
+        return await self._request("DELETE", f"/streams/sessions/{session_id}")
+
+    async def session_heartbeat(self, session_id: str) -> Dict[str, Any]:
+        return await self._request("POST", f"/streams/sessions/{session_id}/heartbeat")
+
 
 class MaestraClient:
     """
@@ -341,6 +404,134 @@ class MaestraClient:
         """Get entity tree"""
         return await self._http.get_tree(root_id, entity_type, max_depth)
 
+    # ===== Streams =====
+
+    async def get_stream_registry_state(self) -> StreamRegistryStateData:
+        """Get complete stream state: streams, sessions, and types"""
+        data = await self._http.get_stream_state()
+        return StreamRegistryStateData(
+            streams=[self._parse_stream_data(s) for s in data.get("streams", [])],
+            sessions=[self._parse_session_data(s) for s in data.get("sessions", [])],
+            stream_types=[self._parse_stream_type(t) for t in data.get("stream_types", [])],
+        )
+
+    async def get_stream_types(self) -> List[StreamTypeData]:
+        """List all stream type definitions"""
+        data = await self._http.list_stream_types()
+        return [self._parse_stream_type(t) for t in data]
+
+    async def create_stream_type(
+        self,
+        name: str,
+        display_name: str,
+        description: Optional[str] = None,
+        icon: Optional[str] = None,
+        default_config: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> StreamTypeData:
+        """Create a custom stream type"""
+        body: Dict[str, Any] = {"name": name, "display_name": display_name}
+        if description:
+            body["description"] = description
+        if icon:
+            body["icon"] = icon
+        if default_config:
+            body["default_config"] = default_config
+        if metadata:
+            body["metadata"] = metadata
+        data = await self._http.create_stream_type(body)
+        return self._parse_stream_type(data)
+
+    async def get_streams(self, stream_type: Optional[str] = None) -> List[StreamData]:
+        """List active streams, optionally filtered by type"""
+        data = await self._http.list_streams(stream_type)
+        return [self._parse_stream_data(s) for s in data]
+
+    async def get_stream(self, stream_id: str) -> StreamData:
+        """Get a single stream by ID"""
+        data = await self._http.get_stream(stream_id)
+        return self._parse_stream_data(data)
+
+    async def advertise_stream(self, params: StreamAdvertiseParams) -> StreamData:
+        """Advertise a new stream to the registry"""
+        body: Dict[str, Any] = {
+            "name": params.name,
+            "stream_type": params.stream_type,
+            "publisher_id": params.publisher_id,
+            "protocol": params.protocol,
+            "address": params.address,
+            "port": params.port,
+        }
+        if params.entity_id:
+            body["entity_id"] = params.entity_id
+        if params.device_id:
+            body["device_id"] = params.device_id
+        if params.config:
+            body["config"] = params.config
+        if params.metadata:
+            body["metadata"] = params.metadata
+        data = await self._http.advertise_stream(body)
+        return self._parse_stream_data(data)
+
+    async def withdraw_stream(self, stream_id: str) -> None:
+        """Withdraw a stream from the registry"""
+        await self._http.withdraw_stream(stream_id)
+
+    async def stream_heartbeat(self, stream_id: str) -> None:
+        """Refresh a stream's TTL"""
+        await self._http.stream_heartbeat(stream_id)
+
+    async def request_stream(self, stream_id: str, params: StreamRequestParams) -> StreamOffer:
+        """Request to consume a stream. Returns connection offer from the publisher."""
+        body: Dict[str, Any] = {
+            "consumer_id": params.consumer_id,
+            "consumer_address": params.consumer_address,
+        }
+        if params.consumer_port is not None:
+            body["consumer_port"] = params.consumer_port
+        if params.config:
+            body["config"] = params.config
+        data = await self._http.request_stream(stream_id, body)
+        return StreamOffer(
+            session_id=data["session_id"],
+            stream_id=data["stream_id"],
+            stream_name=data["stream_name"],
+            stream_type=data["stream_type"],
+            protocol=data["protocol"],
+            publisher_address=data["publisher_address"],
+            publisher_port=data["publisher_port"],
+            transport_config=data.get("transport_config", {}),
+        )
+
+    async def get_sessions(self, stream_id: Optional[str] = None) -> List[StreamSessionData]:
+        """List active sessions"""
+        data = await self._http.list_sessions(stream_id)
+        return [self._parse_session_data(s) for s in data]
+
+    async def get_session_history(
+        self,
+        stream_id: Optional[str] = None,
+        publisher_id: Optional[str] = None,
+        consumer_id: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[StreamSessionHistoryData]:
+        """Query historical sessions from the database"""
+        data = await self._http.get_session_history(
+            stream_id=stream_id,
+            publisher_id=publisher_id,
+            consumer_id=consumer_id,
+            limit=limit,
+        )
+        return [self._parse_session_history(s) for s in data]
+
+    async def stop_session(self, session_id: str) -> None:
+        """Stop an active session"""
+        await self._http.stop_session(session_id)
+
+    async def session_heartbeat(self, session_id: str) -> None:
+        """Refresh a session's TTL"""
+        await self._http.session_heartbeat(session_id)
+
     # Subscriptions
     async def _subscribe_entity(self, entity: Entity) -> None:
         """Subscribe to entity state changes"""
@@ -431,6 +622,70 @@ class MaestraClient:
             device_id=data.get("device_id"),
             created_at=datetime.fromisoformat(data["created_at"].rstrip("Z")) if data.get("created_at") else None,
             updated_at=datetime.fromisoformat(data["updated_at"].rstrip("Z")) if data.get("updated_at") else None,
+        )
+
+    # Stream parsing helpers
+    def _parse_stream_type(self, data: Dict[str, Any]) -> StreamTypeData:
+        return StreamTypeData(
+            id=data["id"],
+            name=data["name"],
+            display_name=data["display_name"],
+            description=data.get("description"),
+            icon=data.get("icon"),
+            default_config=data.get("default_config", {}),
+            metadata=data.get("metadata", {}),
+            created_at=datetime.fromisoformat(data["created_at"].rstrip("Z")) if data.get("created_at") else None,
+            updated_at=datetime.fromisoformat(data["updated_at"].rstrip("Z")) if data.get("updated_at") else None,
+        )
+
+    def _parse_stream_data(self, data: Dict[str, Any]) -> StreamData:
+        return StreamData(
+            id=data["id"],
+            name=data["name"],
+            stream_type=data["stream_type"],
+            publisher_id=data["publisher_id"],
+            protocol=data["protocol"],
+            address=data["address"],
+            port=data["port"],
+            entity_id=data.get("entity_id"),
+            device_id=data.get("device_id"),
+            config=data.get("config", {}),
+            metadata=data.get("metadata", {}),
+            advertised_at=datetime.fromisoformat(data["advertised_at"].rstrip("Z")) if data.get("advertised_at") else None,
+            last_heartbeat=datetime.fromisoformat(data["last_heartbeat"].rstrip("Z")) if data.get("last_heartbeat") else None,
+            active_sessions=data.get("active_sessions", 0),
+        )
+
+    def _parse_session_data(self, data: Dict[str, Any]) -> StreamSessionData:
+        return StreamSessionData(
+            session_id=data["session_id"],
+            stream_id=data["stream_id"],
+            stream_name=data["stream_name"],
+            stream_type=data["stream_type"],
+            publisher_id=data["publisher_id"],
+            publisher_address=data.get("publisher_address", ""),
+            consumer_id=data["consumer_id"],
+            consumer_address=data.get("consumer_address", ""),
+            protocol=data.get("protocol", ""),
+            transport_config=data.get("transport_config", {}),
+            started_at=datetime.fromisoformat(data["started_at"].rstrip("Z")) if data.get("started_at") else None,
+            status=data.get("status", "active"),
+        )
+
+    def _parse_session_history(self, data: Dict[str, Any]) -> StreamSessionHistoryData:
+        return StreamSessionHistoryData(
+            time=datetime.fromisoformat(data["time"].rstrip("Z")),
+            session_id=data["session_id"],
+            stream_id=data["stream_id"],
+            stream_name=data["stream_name"],
+            stream_type=data["stream_type"],
+            publisher_id=data["publisher_id"],
+            consumer_id=data["consumer_id"],
+            protocol=data["protocol"],
+            status=data["status"],
+            duration_seconds=data.get("duration_seconds"),
+            bytes_transferred=data.get("bytes_transferred", 0),
+            error_message=data.get("error_message"),
         )
 
 

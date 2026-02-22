@@ -78,6 +78,23 @@ private:
     StateChangeCallback _callback;
 };
 
+// Stream advertisement callback
+typedef std::function<void(const char* streamId, const char* streamName,
+                           const char* streamType, const char* address, int port)> StreamAdvertisedCallback;
+
+/**
+ * Lightweight stream info container
+ */
+struct MaestraStreamInfo {
+    char id[40];
+    char name[64];
+    char stream_type[16];
+    char publisher_id[64];
+    char protocol[16];
+    char address[64];
+    int port;
+};
+
 /**
  * Maestra Client
  * Main entry point for Arduino SDK
@@ -105,6 +122,16 @@ public:
     void updateEntityState(const char* slug, JsonObject state, const char* source = nullptr);
     void setEntityState(const char* slug, JsonObject state, const char* source = nullptr);
 
+    // Stream discovery
+    void subscribeStreamEvents(StreamAdvertisedCallback callback);
+    void subscribeStreamType(const char* streamType, StreamAdvertisedCallback callback);
+
+    // Stream advertisement (for sensor streams)
+    void advertiseStream(const char* name, const char* streamType, const char* protocol,
+                         const char* address, int port, const char* publisherId = nullptr);
+    void withdrawStream(const char* streamId);
+    void streamHeartbeat(const char* streamId);
+
     // Internal: MQTT callback
     void _handleMessage(char* topic, byte* payload, unsigned int length);
 
@@ -122,7 +149,14 @@ private:
     MaestraEntity* _entities[MAX_ENTITIES];
     int _entityCount;
 
+    // Stream registry
+    StreamAdvertisedCallback _streamCallback;
+    static const int MAX_STREAMS = 5;
+    MaestraStreamInfo _streams[MAX_STREAMS];
+    int _streamCount;
+
     void _publishState(const char* slug, JsonObject state, const char* source, bool replace);
+    void _handleStreamMessage(const char* topic, JsonObject payload);
 };
 
 #endif // MAESTRA_CLIENT_H

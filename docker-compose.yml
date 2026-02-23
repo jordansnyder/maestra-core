@@ -161,10 +161,10 @@ services:
       dockerfile: Dockerfile
     container_name: maestra-dashboard
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8080
-      - NEXT_PUBLIC_NODERED_URL=http://localhost:1880
-      - NEXT_PUBLIC_GRAFANA_URL=http://localhost:3000
-      - NEXT_PUBLIC_MQTT_WS_URL=ws://localhost:9001
+      - NEXT_PUBLIC_API_URL=http://192.168.128.115:8080
+      - NEXT_PUBLIC_NODERED_URL=http://192.168.128.115:1880
+      - NEXT_PUBLIC_GRAFANA_URL=http://192.168.128.115:3000
+      - NEXT_PUBLIC_MQTT_WS_URL=ws://192.168.128.115:9001
     ports:
       - "3001:3000"
     volumes:

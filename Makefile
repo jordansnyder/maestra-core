@@ -104,6 +104,15 @@ shell-redis: ## Open Redis CLI
 shell-fleet: ## Open Fleet Manager shell
 	$(DOCKER_COMPOSE) exec fleet-manager /bin/bash
 
+migrate: ## Run pending database migrations
+	@./scripts/migrate.sh
+
+migrate-status: ## Show database migration status
+	@./scripts/migrate.sh --status
+
+migrate-dry-run: ## Show pending migrations without executing
+	@./scripts/migrate.sh --dry-run
+
 backup-db: ## Backup PostgreSQL database
 	@mkdir -p backups
 	$(DOCKER_COMPOSE) exec postgres pg_dump -U maestra maestra > backups/backup-$$(date +%Y%m%d-%H%M%S).sql
@@ -178,5 +187,6 @@ logs-prod: ## View production environment logs
 
 # Development shortcuts
 .PHONY: dev-bus dev-db dev-core shell-postgres shell-redis shell-fleet
+.PHONY: migrate migrate-status migrate-dry-run
 .PHONY: backup-db restore-db test-mqtt watch stats update
 .PHONY: deploy-test deploy-prod stop-test stop-prod logs-test logs-prod

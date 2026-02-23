@@ -11,6 +11,8 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime
 import re
+import json
+import logging
 
 from database import get_db, EntityDB, EntityTypeDB
 from models import (
@@ -23,6 +25,9 @@ from models import (
     ValidationWarning, StateValidationResult
 )
 from state_manager import state_manager
+from analytics_router import get_verbosity_for_entity
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/entities", tags=["entities"])
 
@@ -37,6 +42,59 @@ def generate_slug(name: str) -> str:
     slug = re.sub(r'[^a-z0-9]+', '-', slug)
     slug = slug.strip('-')
     return slug
+
+
+async def record_state_change(
+    db: AsyncSession,
+    entity_id: UUID,
+    entity_slug: str,
+    entity_type: str,
+    entity_path: Optional[str],
+    previous_state: Dict[str, Any],
+    new_state: Dict[str, Any],
+    source: Optional[str] = None,
+    device_id: Optional[UUID] = None
+):
+    """
+    Insert a row into entity_states hypertable for historical tracking.
+    Respects verbosity configuration:
+      - minimal: skip recording entirely
+      - standard: record state snapshot (empty previous_state to save space)
+      - verbose: record full state + previous_state snapshot
+    Non-fatal: failures are logged but don't break the state update flow.
+    """
+    changed_keys = state_manager.compute_changed_keys(previous_state, new_state)
+    if not changed_keys:
+        return
+
+    try:
+        verbosity = await get_verbosity_for_entity(db, entity_type, device_id)
+
+        if verbosity == "minimal":
+            return  # Skip state history recording
+
+        prev_to_store = previous_state if verbosity == "verbose" else {}
+
+        await db.execute(text("""
+            INSERT INTO entity_states
+                (time, entity_id, entity_slug, entity_type, entity_path,
+                 state, previous_state, changed_keys, source)
+            VALUES
+                (NOW(), :entity_id, :entity_slug, :entity_type, :entity_path,
+                 :state::jsonb, :previous_state::jsonb, :changed_keys, :source)
+        """), {
+            "entity_id": entity_id,
+            "entity_slug": entity_slug,
+            "entity_type": entity_type,
+            "entity_path": entity_path,
+            "state": json.dumps(new_state),
+            "previous_state": json.dumps(prev_to_store),
+            "changed_keys": changed_keys,
+            "source": source
+        })
+        await db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to record state history for {entity_slug}: {e}")
 
 
 def entity_db_to_response(db_entity: EntityDB, entity_type: EntityTypeDB = None) -> Entity:
@@ -1130,6 +1188,13 @@ async def update_state(
     await db.commit()
     await db.refresh(db_entity)
 
+    # Record state history for analytics
+    await record_state_change(
+        db, db_entity.id, db_entity.slug, entity_type.name,
+        db_entity.path, previous_state, new_state,
+        source=update.source, device_id=db_entity.device_id
+    )
+
     # Broadcast state change event with metadata for validation
     await state_manager.broadcast_state_change(
         entity_id=db_entity.id,
@@ -1177,6 +1242,13 @@ async def set_state(
 
     await db.commit()
     await db.refresh(db_entity)
+
+    # Record state history for analytics
+    await record_state_change(
+        db, db_entity.id, db_entity.slug, entity_type.name,
+        db_entity.path, previous_state, new_state,
+        source=state_set.source, device_id=db_entity.device_id
+    )
 
     # Broadcast state change event with metadata for validation
     await state_manager.broadcast_state_change(
@@ -1252,6 +1324,13 @@ async def bulk_update_state(
             db_entity.state_updated_at = datetime.utcnow()
 
             results[slug] = {"status": "updated", "state": new_state}
+
+            # Record state history for analytics
+            await record_state_change(
+                db, db_entity.id, db_entity.slug, entity_type.name,
+                db_entity.path, previous_state, new_state,
+                source=source, device_id=db_entity.device_id
+            )
 
             # Broadcast with metadata for validation
             await state_manager.broadcast_state_change(

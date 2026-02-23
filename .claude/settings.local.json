@@ -34,7 +34,24 @@
       "Bash(powershell.exe:*)",
       "Bash(docker compose:*)",
       "Bash(cmd.exe /c \"if exist C:\\\\Users\\\\jorda\\\\Dev\\\\maestra-core\\\\.env \\(echo .env EXISTS\\) else \\(echo .env MISSING\\)\")",
-      "Bash(timeout 15 cmd.exe:*)"
+      "Bash(timeout 15 cmd.exe:*)",
+      "Bash(npm run build:*)",
+      "Bash(cmd /c \"where npm\")",
+      "Bash(cmd /c \"where npm 2>&1 & where node 2>&1 & where pnpm 2>&1 & where bun 2>&1\")",
+      "Bash(cmd /c \"echo %PATH%\")",
+      "Bash(powershell -Command \"Get-Command npm -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "Bash(powershell -Command:*)",
+      "Bash(echo:*)",
+      "Bash(\"C:/Users/jorda/Dev/maestra-core/services/dashboard/node_modules/.bin/tsc\" --noEmit --project \"C:/Users/jorda/Dev/maestra-core/services/dashboard/tsconfig.json\")",
+      "Bash(make build:*)",
+      "Bash(make clean-all:*)",
+      "Bash(make up:*)",
+      "Bash(python3:*)",
+      "Bash(npm install:*)",
+      "Bash(python:*)",
+      "Bash(npx tsc:*)",
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(node:*)"
     ]
   }
 }

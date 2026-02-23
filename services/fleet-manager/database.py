@@ -157,6 +157,25 @@ class RoutePresetDB(Base):
 
 
 # =============================================================================
+# Stream Models
+# =============================================================================
+
+class StreamTypeDB(Base):
+    """Stream type registry"""
+    __tablename__ = "stream_types"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    name = Column(String(100), unique=True, nullable=False)
+    display_name = Column(String(255), nullable=False)
+    description = Column(Text)
+    icon = Column(String(50))
+    default_config = Column(JSONB, default={})
+    stream_type_metadata = Column('metadata', JSONB, default={})
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# =============================================================================
 # Database Dependency
 # =============================================================================
 

@@ -18,8 +18,11 @@ from models import (
     DeviceMetric, DeviceEvent, DeviceStatus
 )
 from state_manager import state_manager
+from stream_manager import stream_manager
+from redis_client import init_redis, close_redis, get_redis
 from entity_router import router as entity_router
 from routing_router import router as routing_router
+from stream_router import router as stream_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -40,6 +43,7 @@ app.add_middleware(
 # Include routers
 app.include_router(entity_router)
 app.include_router(routing_router)
+app.include_router(stream_router)
 
 
 # =============================================================================
@@ -279,8 +283,19 @@ async def startup_event():
     if not db_ok:
         print("⚠️ Database connection failed - running in degraded mode")
 
+    # Initialize Redis
+    redis_ok = await init_redis()
+    if not redis_ok:
+        print("⚠️ Redis connection failed - streams will be unavailable")
+
     # Initialize state manager (message bus)
     await state_manager.connect()
+
+    # Initialize stream manager (needs NATS from state_manager + Redis)
+    if redis_ok and state_manager.nc:
+        await stream_manager.connect(state_manager.nc, get_redis())
+    else:
+        print("⚠️ Stream Manager not started (requires Redis + NATS)")
 
     print("✅ Fleet Manager ready!")
 
@@ -289,7 +304,9 @@ async def startup_event():
 async def shutdown_event():
     """Cleanup on shutdown"""
     print("👋 Maestra Fleet Manager shutting down...")
+    await stream_manager.disconnect()
     await state_manager.disconnect()
+    await close_redis()
     await close_db()
 
 

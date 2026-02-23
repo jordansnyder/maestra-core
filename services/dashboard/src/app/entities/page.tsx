@@ -4,8 +4,20 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { Entity, EntityType, EntityTreeNode } from '@/lib/types'
 import { entitiesApi, entityTypesApi } from '@/lib/api'
+import { useToast } from '@/components/Toast'
+import { ENTITY_TYPE_ICONS, DEFAULT_ENTITY_ICON, Plus, Search, Pencil, Trash2 } from '@/components/icons'
+import type { LucideIcon } from 'lucide-react'
 
 type ViewMode = 'list' | 'tree'
+
+function getEntityIcon(entityTypes: EntityType[], typeId: string): LucideIcon {
+  const type = entityTypes.find((t) => t.id === typeId)
+  return ENTITY_TYPE_ICONS[type?.name || ''] || DEFAULT_ENTITY_ICON
+}
+
+function getEntityIconByName(typeName?: string): LucideIcon {
+  return ENTITY_TYPE_ICONS[typeName || ''] || DEFAULT_ENTITY_ICON
+}
 
 export default function EntitiesPage() {
   const [entities, setEntities] = useState<Entity[]>([])
@@ -17,6 +29,7 @@ export default function EntitiesPage() {
   const [selectedType, setSelectedType] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const { toast, confirm } = useToast()
 
   const loadData = useCallback(async () => {
     try {
@@ -50,54 +63,60 @@ export default function EntitiesPage() {
   }, [loadData])
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete entity "${name}"? This action cannot be undone.`)) return
+    const ok = await confirm({
+      title: 'Delete Entity',
+      message: `Delete entity "${name}"? This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!ok) return
 
     try {
       await entitiesApi.delete(id)
       loadData()
+      toast({ message: `Entity "${name}" deleted`, type: 'success' })
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete')
+      toast({ message: err instanceof Error ? err.message : 'Failed to delete', type: 'error' })
     }
   }
 
   return (
     <div className="min-h-full bg-gradient-to-br from-slate-900 to-slate-800 text-white">
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-6 py-8">
         {/* Header */}
         <header className="mb-8">
-          <div className="flex items-center gap-4 mb-2">
-            <Link href="/" className="text-slate-400 hover:text-white">
-              ← Dashboard
-            </Link>
-          </div>
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-4xl font-bold mb-2">Entities</h1>
-              <p className="text-slate-400">Manage spaces, rooms, installations, and devices</p>
+              <h1 className="text-2xl font-bold">Entities</h1>
+              <p className="text-sm text-slate-400 mt-1">Manage spaces, rooms, installations, and devices</p>
             </div>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
             >
-              + Create Entity
+              <Plus className="w-4 h-4" />
+              Create Entity
             </button>
           </div>
         </header>
 
         {/* Filters */}
-        <div className="mb-6 flex flex-wrap gap-4">
-          <input
-            type="text"
-            placeholder="Search entities..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:border-blue-500"
-          />
+        <div className="mb-6 flex flex-wrap gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Search entities..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+            />
+          </div>
 
           <select
             value={selectedType}
             onChange={(e) => setSelectedType(e.target.value)}
-            className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:border-blue-500"
+            className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
           >
             <option value="">All Types</option>
             {entityTypes.map((type) => (
@@ -110,13 +129,13 @@ export default function EntitiesPage() {
           <div className="flex bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
             <button
               onClick={() => setViewMode('list')}
-              className={`px-4 py-2 ${viewMode === 'list' ? 'bg-blue-600' : 'hover:bg-slate-700'}`}
+              className={`px-4 py-2 text-sm ${viewMode === 'list' ? 'bg-blue-600' : 'hover:bg-slate-700'}`}
             >
               List
             </button>
             <button
               onClick={() => setViewMode('tree')}
-              className={`px-4 py-2 ${viewMode === 'tree' ? 'bg-blue-600' : 'hover:bg-slate-700'}`}
+              className={`px-4 py-2 text-sm ${viewMode === 'tree' ? 'bg-blue-600' : 'hover:bg-slate-700'}`}
             >
               Tree
             </button>
@@ -125,7 +144,7 @@ export default function EntitiesPage() {
 
         {/* Error */}
         {error && (
-          <div className="mb-6 p-4 bg-red-900/50 border border-red-700 rounded-lg">
+          <div className="mb-6 p-4 bg-red-900/50 border border-red-700 rounded-lg text-sm">
             {error}
           </div>
         )}
@@ -133,7 +152,7 @@ export default function EntitiesPage() {
         {/* Loading */}
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+            <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full" />
           </div>
         )}
 
@@ -159,6 +178,7 @@ export default function EntitiesPage() {
             onCreated={() => {
               setShowCreateModal(false)
               loadData()
+              toast({ message: 'Entity created successfully', type: 'success' })
             }}
           />
         )}
@@ -181,23 +201,6 @@ function EntityList({
     return type?.display_name || 'Unknown'
   }
 
-  const getTypeIcon = (typeId: string) => {
-    const type = entityTypes.find((t) => t.id === typeId)
-    const icons: Record<string, string> = {
-      space: '🏢',
-      room: '🚪',
-      zone: '📍',
-      installation: '✨',
-      device: '💻',
-      sensor: '📡',
-      actuator: '⚡',
-      controller: '🎛️',
-      media: '🖥️',
-      group: '📁',
-    }
-    return icons[type?.name || ''] || '📦'
-  }
-
   if (entities.length === 0) {
     return (
       <div className="text-center py-12 text-slate-400">
@@ -207,68 +210,73 @@ function EntityList({
   }
 
   return (
-    <div className="grid gap-4">
-      {entities.map((entity) => (
-        <div
-          key={entity.id}
-          className="bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-slate-600 transition-colors"
-        >
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">{getTypeIcon(entity.entity_type_id)}</span>
-              <div>
+    <div className="grid gap-3">
+      {entities.map((entity) => {
+        const Icon = getEntityIcon(entityTypes, entity.entity_type_id)
+        return (
+          <div
+            key={entity.id}
+            className="bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-slate-600 transition-colors"
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0 mt-0.5">
+                  <Icon className="w-4.5 h-4.5 text-slate-400" />
+                </div>
+                <div>
+                  <Link
+                    href={`/entities/${entity.id}`}
+                    className="text-lg font-semibold hover:text-blue-400 transition-colors"
+                  >
+                    {entity.name}
+                  </Link>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs px-2 py-0.5 bg-slate-700 rounded">
+                      {getTypeName(entity.entity_type_id)}
+                    </span>
+                    <span className="text-xs text-slate-500 font-mono">{entity.slug}</span>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded ${
+                        entity.status === 'active'
+                          ? 'bg-green-900/50 text-green-400'
+                          : 'bg-slate-700 text-slate-400'
+                      }`}
+                    >
+                      {entity.status}
+                    </span>
+                  </div>
+                  {entity.description && (
+                    <p className="text-sm text-slate-400 mt-2">{entity.description}</p>
+                  )}
+                  {Object.keys(entity.state).length > 0 && (
+                    <div className="mt-2">
+                      <span className="text-xs text-slate-500">State: </span>
+                      <code className="text-xs text-slate-400 font-mono">
+                        {JSON.stringify(entity.state).slice(0, 100)}
+                        {JSON.stringify(entity.state).length > 100 ? '...' : ''}
+                      </code>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
                 <Link
                   href={`/entities/${entity.id}`}
-                  className="text-lg font-semibold hover:text-blue-400 transition-colors"
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
                 >
-                  {entity.name}
+                  <Pencil className="w-4 h-4" />
                 </Link>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs px-2 py-0.5 bg-slate-700 rounded">
-                    {getTypeName(entity.entity_type_id)}
-                  </span>
-                  <span className="text-xs text-slate-500 font-mono">{entity.slug}</span>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded ${
-                      entity.status === 'active'
-                        ? 'bg-green-900/50 text-green-400'
-                        : 'bg-slate-700 text-slate-400'
-                    }`}
-                  >
-                    {entity.status}
-                  </span>
-                </div>
-                {entity.description && (
-                  <p className="text-sm text-slate-400 mt-2">{entity.description}</p>
-                )}
-                {Object.keys(entity.state).length > 0 && (
-                  <div className="mt-2">
-                    <span className="text-xs text-slate-500">State: </span>
-                    <code className="text-xs text-slate-400 font-mono">
-                      {JSON.stringify(entity.state).slice(0, 100)}
-                      {JSON.stringify(entity.state).length > 100 ? '...' : ''}
-                    </code>
-                  </div>
-                )}
+                <button
+                  onClick={() => onDelete(entity.id, entity.name)}
+                  className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href={`/entities/${entity.id}`}
-                className="px-3 py-1 text-sm bg-slate-700 hover:bg-slate-600 rounded transition-colors"
-              >
-                Edit
-              </Link>
-              <button
-                onClick={() => onDelete(entity.id, entity.name)}
-                className="px-3 py-1 text-sm bg-red-900/50 hover:bg-red-800 rounded transition-colors"
-              >
-                Delete
-              </button>
-            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -282,22 +290,6 @@ function EntityTree({
   entityTypes: EntityType[]
   level?: number
 }) {
-  const getTypeIcon = (typeName?: string) => {
-    const icons: Record<string, string> = {
-      space: '🏢',
-      room: '🚪',
-      zone: '📍',
-      installation: '✨',
-      device: '💻',
-      sensor: '📡',
-      actuator: '⚡',
-      controller: '🎛️',
-      media: '🖥️',
-      group: '📁',
-    }
-    return icons[typeName || ''] || '📦'
-  }
-
   if (nodes.length === 0 && level === 0) {
     return (
       <div className="text-center py-12 text-slate-400">
@@ -308,30 +300,33 @@ function EntityTree({
 
   return (
     <div className={level > 0 ? 'ml-6 border-l border-slate-700 pl-4' : ''}>
-      {nodes.map((node) => (
-        <div key={node.id} className="py-2">
-          <Link
-            href={`/entities/${node.id}`}
-            className="flex items-center gap-2 hover:text-blue-400 transition-colors"
-          >
-            <span>{getTypeIcon(node.entity_type_name)}</span>
-            <span className="font-medium">{node.name}</span>
-            <span className="text-xs text-slate-500 font-mono">({node.slug})</span>
-            <span
-              className={`text-xs px-2 py-0.5 rounded ${
-                node.status === 'active'
-                  ? 'bg-green-900/50 text-green-400'
-                  : 'bg-slate-700 text-slate-400'
-              }`}
+      {nodes.map((node) => {
+        const Icon = getEntityIconByName(node.entity_type_name)
+        return (
+          <div key={node.id} className="py-2">
+            <Link
+              href={`/entities/${node.id}`}
+              className="flex items-center gap-2 hover:text-blue-400 transition-colors"
             >
-              {node.status}
-            </span>
-          </Link>
-          {node.children.length > 0 && (
-            <EntityTree nodes={node.children} entityTypes={entityTypes} level={level + 1} />
-          )}
-        </div>
-      ))}
+              <Icon className="w-4 h-4 text-slate-400" />
+              <span className="font-medium">{node.name}</span>
+              <span className="text-xs text-slate-500 font-mono">({node.slug})</span>
+              <span
+                className={`text-xs px-2 py-0.5 rounded ${
+                  node.status === 'active'
+                    ? 'bg-green-900/50 text-green-400'
+                    : 'bg-slate-700 text-slate-400'
+                }`}
+              >
+                {node.status}
+              </span>
+            </Link>
+            {node.children.length > 0 && (
+              <EntityTree nodes={node.children} entityTypes={entityTypes} level={level + 1} />
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -385,12 +380,12 @@ function CreateEntityModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md shadow-2xl">
         <h2 className="text-xl font-bold mb-4">Create Entity</h2>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded text-sm">
+          <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-sm">
             {error}
           </div>
         )}
@@ -403,7 +398,7 @@ function CreateEntityModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
 
@@ -413,7 +408,7 @@ function CreateEntityModal({
               value={typeId}
               onChange={(e) => setTypeId(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
             >
               <option value="">Select type...</option>
               {entityTypes.map((type) => (
@@ -429,7 +424,7 @@ function CreateEntityModal({
             <select
               value={parentId}
               onChange={(e) => setParentId(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
             >
               <option value="">No parent (root entity)</option>
               {entities.map((entity) => (
@@ -446,7 +441,7 @@ function CreateEntityModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
 
@@ -456,7 +451,7 @@ function CreateEntityModal({
               value={initialState}
               onChange={(e) => setInitialState(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded font-mono text-sm focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg font-mono text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
 
@@ -464,14 +459,14 @@ function CreateEntityModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
+              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded transition-colors disabled:opacity-50"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
             >
               {submitting ? 'Creating...' : 'Create'}
             </button>

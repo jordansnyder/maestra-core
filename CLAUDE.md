@@ -138,6 +138,11 @@ Located at `services/fleet-manager/main.py`:
   - 6 endpoints: GET/PUT/POST/DELETE `/entities/{id}/variables/*`
   - Types: string, number, boolean, array, color, vector2, vector3, range, enum, object
   - Features: Direction (input/output), default values, type-specific config, state validation
+- **Streams**: Dynamic stream discovery and direct device-to-device streaming
+  - 13 endpoints under `/streams/*` for advertisement, discovery, negotiation, sessions
+  - Stream types: ndi, audio, video, texture, sensor, osc, midi, data, srt, spout, syphon
+  - Control plane only — data plane flows P2P between devices
+  - Redis ephemeral state (30s TTL), NATS request-reply negotiation, Postgres session history
 - API docs at http://localhost:8080/docs
 
 ### Dashboard (Next.js)
@@ -340,6 +345,65 @@ Maestra includes **8 pre-configured dashboards**:
 
 See [Monitoring Guide](docs/docs/guides/monitoring.md) for complete documentation.
 
+## Stream System
+
+Maestra Streams enable devices to advertise high-bandwidth data streams and other devices to discover and connect to them. The **control plane** (discovery, negotiation, session management) runs through Maestra, while the **data plane** (actual bytes) flows directly peer-to-peer between devices.
+
+### Stream Lifecycle
+
+```
+1. ADVERTISE    Publisher registers stream with Maestra (POST /streams/advertise)
+2. DISCOVER     Consumers browse available streams (GET /streams)
+3. REQUEST      Consumer requests access (POST /streams/{id}/request)
+4. NEGOTIATE    NATS request-reply handshake with publisher (5s timeout)
+5. SESSION      Active streaming session (data flows P2P)
+6. HEARTBEAT    Both sides refresh TTLs every ~10 seconds
+7. WITHDRAW     Publisher removes stream (DELETE /streams/{id})
+```
+
+### NATS Subjects
+
+| Subject | Purpose |
+|---------|---------|
+| `maestra.stream.advertise` | Broadcast when a stream is advertised |
+| `maestra.stream.advertise.{type}` | Type-specific advertisement |
+| `maestra.stream.withdraw.{id}` | Stream withdrawn |
+| `maestra.stream.request.{id}` | Request-reply: consumer → publisher |
+| `maestra.stream.heartbeat.>` | Stream heartbeat |
+| `maestra.stream.session.started` | Session created |
+| `maestra.stream.session.stopped` | Session ended |
+| `maestra.stream.session.heartbeat.>` | Session heartbeat |
+
+### Redis Key Patterns
+
+| Key Pattern | Type | TTL | Purpose |
+|-------------|------|-----|---------|
+| `stream:{id}` | Hash | 30s | Active stream advertisement |
+| `stream:session:{id}` | Hash | 30s | Active streaming session |
+| `streams:index` | Set | — | Set of all active stream IDs |
+| `streams:type:{type}` | Set | — | Stream IDs by type |
+| `stream:sessions:{stream_id}` | Set | — | Session IDs for a stream |
+
+### Key Implementation Files
+
+| File | Purpose |
+|------|---------|
+| `services/fleet-manager/stream_router.py` | 13 API endpoints (FastAPI router) |
+| `services/fleet-manager/stream_manager.py` | StreamManager singleton (Redis + NATS) |
+| `services/fleet-manager/redis_client.py` | Redis connection and helpers |
+| `config/postgres/init/04-streams.sql` | Session history hypertable |
+| `sdks/python/maestra/stream.py` | StreamPublisher/StreamConsumer helpers |
+
+### SDK Stream Support
+
+All 6 SDKs support streams:
+- **Python**: Full async support with `StreamPublisher`/`StreamConsumer` automatic heartbeat helpers
+- **JavaScript/TypeScript**: Promise-based API matching all 13 endpoints
+- **Unity**: Coroutine/callback pattern with `UnityWebRequest`
+- **Unreal Engine**: Async HTTP with `FHttpModule`, Blueprint-exposed events and delegates
+- **TouchDesigner**: Synchronous `urllib.request` methods (manual heartbeat via Timer CHOP)
+- **Arduino**: MQTT-only stream events (advertise, subscribe, heartbeat via pub/sub topics)
+
 ## Configuration
 
 - **Environment**: Copy `.env.example` to `.env` (or `make init`)
@@ -370,8 +434,8 @@ See [Monitoring Guide](docs/docs/guides/monitoring.md) for complete documentatio
 Complete documentation is available at http://localhost:8000 (MkDocs).
 
 **Key Documentation**:
-- [API Reference](docs/docs/api/) - Fleet Manager, Entities, WebSocket, OSC Gateway APIs
-- [User Guides](docs/docs/guides/) - Device registration, MQTT, Node-RED, monitoring
+- [API Reference](docs/docs/api/) - Fleet Manager, Entities, Streams, WebSocket, OSC Gateway APIs
+- [User Guides](docs/docs/guides/) - Device registration, MQTT, Streams, Node-RED, monitoring
 - [SDK Documentation](docs/docs/sdks/) - Web, Python, Arduino, TouchDesigner integrations
 - [Architecture](docs/docs/architecture/) - System design and service architecture
 

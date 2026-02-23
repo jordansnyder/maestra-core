@@ -1,25 +1,16 @@
-import type { Device } from '@/types'
+import type { Device } from '@/lib/types'
 import { StatusBadge } from './StatusBadge'
 import { Card } from './Card'
+import { DEVICE_TYPE_ICONS, DEFAULT_DEVICE_ICON } from './icons'
+import { Trash2 } from './icons'
 
 interface DeviceCardProps {
   device: Device
   onDelete?: (device: Device) => void
 }
 
-const deviceIcons: Record<string, string> = {
-  arduino: '🤖',
-  raspberry_pi: '🥧',
-  esp32: '📡',
-  touchdesigner: '🎨',
-  max_msp: '🎵',
-  unreal_engine: '🎮',
-  web_client: '🌐',
-  mobile_client: '📱',
-}
-
 export function DeviceCard({ device, onDelete }: DeviceCardProps) {
-  const icon = deviceIcons[device.device_type] || '📟'
+  const Icon = DEVICE_TYPE_ICONS[device.device_type] || DEFAULT_DEVICE_ICON
   const lastSeen = device.last_seen
     ? new Date(device.last_seen).toLocaleString()
     : 'Never'
@@ -28,7 +19,9 @@ export function DeviceCard({ device, onDelete }: DeviceCardProps) {
     <Card className="hover:border-slate-600 transition-colors">
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4 flex-1">
-          <div className="text-4xl">{icon}</div>
+          <div className="w-10 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0">
+            <Icon className="w-5 h-5 text-slate-300" />
+          </div>
           <div className="flex-1">
             <h3 className="font-semibold text-lg mb-1">{device.name}</h3>
             <p className="text-sm text-slate-400 mb-2">{device.device_type.replace('_', ' ')}</p>
@@ -38,9 +31,9 @@ export function DeviceCard({ device, onDelete }: DeviceCardProps) {
         {onDelete && (
           <button
             onClick={() => onDelete(device)}
-            className="text-red-400 hover:text-red-300 text-sm px-2 py-1"
+            className="text-red-400 hover:text-red-300 p-1.5 rounded-lg hover:bg-red-900/20 transition-colors"
           >
-            Delete
+            <Trash2 className="w-4 h-4" />
           </button>
         )}
       </div>

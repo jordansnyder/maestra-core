@@ -392,5 +392,5 @@ if response.status_code == 409:
 ## Related Documentation
 
 - [Fleet Manager API](../api/fleet-manager.md) - Complete API reference
-- [Metrics Publishing](../api/fleet-manager.md#metrics) - Publishing device metrics
+- [Fleet Manager API](../api/fleet-manager.md) - Publishing device metrics
 - [MQTT Integration](mqtt.md) - Alternative connectivity via MQTT

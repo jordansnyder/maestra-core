@@ -1,8 +1,10 @@
+import type { LucideIcon } from 'lucide-react'
+
 interface StatsCardProps {
   title: string
   value: string | number
   subtitle?: string
-  icon?: string
+  icon?: LucideIcon
   trend?: {
     value: number
     positive: boolean
@@ -10,19 +12,19 @@ interface StatsCardProps {
   className?: string
 }
 
-export function StatsCard({ title, value, subtitle, icon, trend, className = '' }: StatsCardProps) {
+export function StatsCard({ title, value, subtitle, icon: Icon, trend, className = '' }: StatsCardProps) {
   return (
     <div className={`bg-slate-800 rounded-lg p-6 border border-slate-700 ${className}`}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm text-slate-400">{title}</span>
-        {icon && <span className="text-2xl">{icon}</span>}
+        {Icon && <Icon className="w-5 h-5 text-slate-500" />}
       </div>
       <div className="text-3xl font-bold mb-1">{value}</div>
       {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
       {trend && (
         <div className="mt-2 flex items-center gap-1">
           <span className={trend.positive ? 'text-green-400' : 'text-red-400'}>
-            {trend.positive ? '↑' : '↓'} {Math.abs(trend.value)}%
+            {trend.positive ? '\u2191' : '\u2193'} {Math.abs(trend.value)}%
           </span>
           <span className="text-xs text-slate-500">vs last hour</span>
         </div>

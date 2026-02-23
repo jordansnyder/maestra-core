@@ -5,6 +5,7 @@ import type { Entity, EntityVariables, VariableDefinition, ValidationWarning } f
 import { entitiesApi } from '@/lib/api'
 import { VariableEditor } from './VariableEditor'
 import { VariableList } from './VariableList'
+import { useToast } from './Toast'
 
 interface EntityVariablesPanelProps {
   entity: Entity
@@ -12,6 +13,7 @@ interface EntityVariablesPanelProps {
 }
 
 export function EntityVariablesPanel({ entity, onVariablesChange }: EntityVariablesPanelProps) {
+  const { toast, confirm } = useToast()
   const [variables, setVariables] = useState<EntityVariables>(() => {
     const vars = entity.metadata?.variables as EntityVariables | undefined
     return vars || { inputs: [], outputs: [] }
@@ -65,7 +67,13 @@ export function EntityVariablesPanel({ entity, onVariablesChange }: EntityVariab
   }
 
   const handleDeleteVariable = async (variableName: string) => {
-    if (!confirm(`Delete variable "${variableName}"?`)) return
+    const ok = await confirm({
+      title: 'Delete Variable',
+      message: `Delete variable "${variableName}"?`,
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!ok) return
 
     setLoading(true)
     setError(null)
@@ -77,9 +85,9 @@ export function EntityVariablesPanel({ entity, onVariablesChange }: EntityVariab
       }
       setVariables(newVariables)
       onVariablesChange?.()
+      toast({ message: `Variable "${variableName}" deleted`, type: 'success' })
     } catch (err) {
-      console.error('Failed to delete variable:', err)
-      setError(err instanceof Error ? err.message : 'Failed to delete variable')
+      toast({ message: err instanceof Error ? err.message : 'Failed to delete variable', type: 'error' })
     } finally {
       setLoading(false)
     }

@@ -39,4 +39,20 @@ void loop() {
 }
 ```
 
+## Streams
+
+```cpp
+// Subscribe to stream discovery events
+maestra.subscribeStreamEvents([](const char* id, const char* name,
+                                  const char* type, const char* addr, int port) {
+    Serial.printf("Stream: %s (%s) at %s:%d\n", name, type, addr, port);
+});
+
+// Advertise a sensor data stream
+maestra.advertiseStream("Temp Sensor", "sensor", "udp",
+                         WiFi.localIP().toString().c_str(), 8888);
+```
+
+See [Streams Guide](../guides/streams.md) for more stream examples.
+
 See `sdks/arduino/MaestraClient/README.md` for full documentation.

@@ -40,4 +40,26 @@ public class LightController : MonoBehaviour
 }
 ```
 
+## Streams
+
+```csharp
+// Discover streams
+client.GetStreams("ndi", (streams) => {
+    foreach (var s in streams)
+        Debug.Log($"Stream: {s.Name} at {s.Address}:{s.Port}");
+});
+
+// Advertise a stream
+client.AdvertiseStream(new StreamAdvertiseRequest {
+    Name = "Unity Camera",
+    StreamType = "video",
+    PublisherId = "unity-01",
+    Protocol = "tcp",
+    Address = "192.168.1.80",
+    Port = 9000
+}, (stream) => Debug.Log($"Advertised: {stream.Id}"));
+```
+
+See [Streams Guide](../guides/streams.md) for negotiation and session management.
+
 See `sdks/unity/README.md` for full documentation.

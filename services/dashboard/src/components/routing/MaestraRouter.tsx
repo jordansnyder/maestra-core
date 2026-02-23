@@ -7,6 +7,7 @@ import { MatrixView } from './MatrixView'
 import { RackView } from './RackView'
 import { useRouting } from '@/hooks/useRouting'
 import { checkSignalCompatibility, detectLoop, checkPortCapacity } from './validation'
+import { useToast } from '@/components/Toast'
 import type { RouteCreate } from '@/lib/types'
 
 type ViewId = 'nodes' | 'matrix' | 'rack'
@@ -24,6 +25,7 @@ const STATUS_HINTS: Record<ViewId, string> = {
 }
 
 export function MaestraRouter() {
+  const { confirm } = useToast()
   const [view, setView] = useState<ViewId>('nodes')
   const [showPresets, setShowPresets] = useState(false)
   const [newPresetName, setNewPresetName] = useState('')
@@ -137,6 +139,17 @@ export function MaestraRouter() {
     removeRoute(create)
   }, [removeRoute])
 
+  const handleClearRoutes = async () => {
+    if (routes.length === 0) return
+    const ok = await confirm({
+      title: 'Clear All Routes',
+      message: `Remove all ${routes.length} route${routes.length === 1 ? '' : 's'}? This cannot be undone.`,
+      confirmLabel: 'Clear All',
+      destructive: true,
+    })
+    if (ok) clearRoutes()
+  }
+
   const handleSavePreset = async () => {
     if (!newPresetName.trim()) return
     const preset = await createPreset(newPresetName.trim())
@@ -207,7 +220,7 @@ export function MaestraRouter() {
             Presets
           </button>
           <button
-            onClick={clearRoutes}
+            onClick={handleClearRoutes}
             className="bg-red-950/50 border border-red-900/40 text-red-400 rounded-md px-3 py-1 text-[10px] font-mono cursor-pointer hover:bg-red-900/30 transition-colors"
           >
             Clear All

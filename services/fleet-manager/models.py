@@ -489,6 +489,157 @@ class RoutingState(BaseModel):
     presets: List[RoutePreset]
 
 
+# =============================================================================
+# Stream Models
+# =============================================================================
+
+class StreamType(str, Enum):
+    """Supported stream data types for creative workflows"""
+    NDI = "ndi"
+    AUDIO = "audio"
+    VIDEO = "video"
+    TEXTURE = "texture"
+    SENSOR = "sensor"
+    OSC = "osc"
+    MIDI = "midi"
+    DATA = "data"
+    SRT = "srt"
+    SPOUT = "spout"
+    SYPHON = "syphon"
+
+
+class StreamProtocol(str, Enum):
+    """Transport protocols for data plane"""
+    TCP = "tcp"
+    UDP = "udp"
+    NDI = "ndi"
+    SRT = "srt"
+    WEBRTC = "webrtc"
+    SPOUT = "spout"
+    SYPHON = "syphon"
+    SHARED_MEMORY = "shared_memory"
+
+
+class StreamAdvertise(BaseModel):
+    """Request model for advertising a new stream"""
+    name: str = Field(..., min_length=1, max_length=255)
+    stream_type: StreamType
+    publisher_id: str = Field(..., min_length=1, description="Unique ID of the publishing device/client")
+    protocol: StreamProtocol
+    address: str = Field(..., min_length=1, description="Publisher IP address or hostname")
+    port: int = Field(..., ge=0, le=65535)
+    entity_id: Optional[UUID] = None
+    device_id: Optional[UUID] = None
+    config: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    class Config:
+        use_enum_values = True
+
+
+class StreamInfo(BaseModel):
+    """Full stream information returned from the registry"""
+    id: UUID
+    name: str
+    stream_type: str
+    publisher_id: str
+    protocol: str
+    address: str
+    port: int
+    entity_id: Optional[UUID] = None
+    device_id: Optional[UUID] = None
+    config: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    advertised_at: datetime
+    last_heartbeat: datetime
+    active_sessions: int = 0
+
+
+class StreamRequest(BaseModel):
+    """Request model for consuming a stream"""
+    consumer_id: str = Field(..., min_length=1, description="Unique ID of the consuming device/client")
+    consumer_address: str = Field(..., min_length=1, description="Consumer IP address")
+    consumer_port: Optional[int] = Field(None, ge=0, le=65535, description="Preferred port (0 for any)")
+    config: Dict[str, Any] = Field(default_factory=dict, description="Consumer preferences")
+
+
+class StreamOffer(BaseModel):
+    """Publisher's response to a stream request with connection details"""
+    session_id: UUID
+    stream_id: UUID
+    stream_name: str
+    stream_type: str
+    protocol: str
+    publisher_address: str
+    publisher_port: int
+    transport_config: Dict[str, Any] = Field(default_factory=dict)
+
+
+class StreamSession(BaseModel):
+    """Active streaming session"""
+    session_id: UUID
+    stream_id: UUID
+    stream_name: str
+    stream_type: str
+    publisher_id: str
+    publisher_address: str
+    consumer_id: str
+    consumer_address: str
+    protocol: str
+    transport_config: Dict[str, Any] = Field(default_factory=dict)
+    started_at: datetime
+    status: str = "active"
+
+
+class StreamSessionHistory(BaseModel):
+    """Historical session record from Postgres"""
+    time: datetime
+    session_id: UUID
+    stream_id: UUID
+    stream_name: str
+    stream_type: str
+    publisher_id: str
+    consumer_id: str
+    protocol: str
+    status: str
+    duration_seconds: Optional[float] = None
+    bytes_transferred: int = 0
+    error_message: Optional[str] = None
+
+
+class StreamTypeInfo(BaseModel):
+    """Stream type definition"""
+    id: UUID
+    name: str
+    display_name: str
+    description: Optional[str] = None
+    icon: Optional[str] = None
+    default_config: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class StreamTypeCreate(BaseModel):
+    """Create a custom stream type"""
+    name: str = Field(..., min_length=1, max_length=100)
+    display_name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    icon: Optional[str] = None
+    default_config: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class StreamRegistryState(BaseModel):
+    """Full state response for dashboard"""
+    streams: List[StreamInfo]
+    sessions: List[StreamSession]
+    stream_types: List[StreamTypeInfo]
+
+
 # Enable forward references
 Entity.model_rebuild()
 EntityTreeNode.model_rebuild()

@@ -3,8 +3,5 @@ cmake_minimum_required(VERSION 3.5)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-# BSP component from the Waveshare example repo (auto-discovered from components/)
-# See README for setup instructions.
-
 add_compile_options(-Wno-format)
 project(maestra_dashboard)

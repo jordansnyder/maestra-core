@@ -108,34 +108,30 @@ The MQTT client subscribes to entity state-change topics and maintains a local c
 ## Prerequisites
 
 - **ESP-IDF v5.5+** — [installation guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32p4/get-started/index.html)
-- **Waveshare BSP component** — copied from one of the examples in the [Waveshare ESP32-P4 repo](https://github.com/waveshareteam/ESP32-P4-WIFI6-Touch-LCD-X)
 - A running Maestra stack with entities already created
+
+The Waveshare BSP (`waveshare/esp32_p4_wifi6_touch_lcd_x`) and all other dependencies are fetched automatically by the IDF Component Manager on first build.
 
 ## Building & Flashing
 
 ```bash
 cd examples/waveshare-esp32-dashboard
 
-# 1. Copy the BSP component from the Waveshare example repository.
-#    The BSP lives inside each example — not at the repo root.
-#    Clone it, then copy from one of the display examples (e.g., 08_lvgl_demo_v9):
-git clone https://github.com/waveshareteam/ESP32-P4-WIFI6-Touch-LCD-X.git /tmp/waveshare-p4
-mkdir -p components
-cp -r /tmp/waveshare-p4/examples/esp-idf/08_lvgl_demo_v9/components/esp32_p4_wifi6_touch_lcd_x components/
-
-# 2. Set target to ESP32-P4
+# 1. Set target to ESP32-P4
 idf.py set-target esp32p4
 
-# 3. Configure WiFi, MQTT broker, and entity slugs
+# 2. Configure WiFi, MQTT broker, and entity slugs
 idf.py menuconfig
 #   → Maestra Dashboard Configuration
 #     → WiFi        : set SSID and password
 #     → MQTT        : set broker URI (e.g. mqtt://192.168.1.100:1883)
 #     → Entities    : set 1–4 entity slugs to subscribe to
 
-# 4. Build, flash, and monitor
+# 3. Build, flash, and monitor
 idf.py build flash monitor
 ```
+
+The first build will download the BSP and its transitive dependencies (LVGL, GT911 touch driver, MIPI-DSI LCD drivers, esp_lvgl_adapter, etc.) from the ESP-IDF Component Registry.
 
 ## Configuration
 
@@ -169,18 +165,18 @@ waveshare-esp32-dashboard/
 ├── sdkconfig.defaults        # ESP32-P4 SDK defaults
 ├── partitions.csv            # Flash partition table (8 MB app, 7 MB storage)
 ├── README.md
-├── components/               # (copied from Waveshare repo, not checked in)
-│   └── esp32_p4_wifi6_touch_lcd_x/   # BSP: MIPI-DSI display + GT911 touch
 └── main/
     ├── CMakeLists.txt        # Component registration
     ├── Kconfig.projbuild     # Menuconfig options
-    ├── idf_component.yml     # IDF Component Manager dependencies
+    ├── idf_component.yml     # IDF Component Manager dependencies (BSP, LVGL, WiFi, MQTT)
     ├── main.c                # Entry point — WiFi, BSP, MQTT, LVGL init
     ├── maestra_mqtt.c        # MQTT client — subscribe, parse, cache
     ├── maestra_mqtt.h        # Entity/log types and public API
     ├── dashboard_ui.c        # LVGL v9 UI — 3 swipeable pages
     └── dashboard_ui.h        # UI create/refresh API
 ```
+
+The `managed_components/` directory is created automatically by `idf.py build` when the IDF Component Manager resolves dependencies.
 
 ## Maestra Setup
 
@@ -214,10 +210,10 @@ This dashboard pairs well with the [RTL-SDR example](../rtl-sdr/). Set one of th
 ## Troubleshooting
 
 **Build fails with missing BSP headers (`bsp/esp-bsp.h` not found):**
-You need to copy the `esp32_p4_wifi6_touch_lcd_x` component into `components/`. See the build instructions above — the BSP is not at the repo root, it's inside each example at `examples/esp-idf/08_lvgl_demo_v9/components/esp32_p4_wifi6_touch_lcd_x/`.
+The BSP should be fetched automatically by the IDF Component Manager. Run `idf.py build` and check that `managed_components/waveshare__esp32_p4_wifi6_touch_lcd_x/` was created. If the Component Registry is unreachable, you can manually copy the BSP from the [Waveshare example repo](https://github.com/waveshareteam/ESP32-P4-WIFI6-Touch-LCD-X) — it lives inside each example, e.g., `examples/esp-idf/08_lvgl_demo_v9/components/esp32_p4_wifi6_touch_lcd_x/`. Copy it into a `components/` directory at the project root.
 
 **Display is black / no backlight:**
-The BSP handles all MIPI-DSI and backlight initialization. Ensure the BSP components were copied correctly and that `sdkconfig.defaults` has the correct ESP32-P4 settings. Try a clean build: `idf.py fullclean && idf.py build`.
+The BSP handles all MIPI-DSI and backlight initialization. Ensure `sdkconfig.defaults` has the correct ESP32-P4 settings. Try a clean build: `idf.py fullclean && idf.py build`.
 
 **Touch doesn't respond:**
 The GT911 touch controller is initialized by the BSP via I2C (GPIO7 SDA, GPIO8 SCL). If touch is unresponsive, check serial output for I2C errors. Some board revisions may have different I2C addresses (0x5D or 0x14).

@@ -1,5 +1,9 @@
 ## IDF Component Manager Manifest File
 dependencies:
+  ## Waveshare BSP — display (MIPI-DSI), touch (GT911), audio, etc.
+  waveshare/esp32_p4_wifi6_touch_lcd_x:
+    version: "*"
+
   ## LVGL graphics library
   lvgl/lvgl:
     version: "9.4.*"

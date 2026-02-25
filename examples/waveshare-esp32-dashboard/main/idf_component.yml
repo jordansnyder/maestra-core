@@ -1,7 +1,9 @@
 ## IDF Component Manager Manifest File
 dependencies:
-  ## Waveshare BSP — display (MIPI-DSI), touch (GT911), audio, etc.
-  waveshare/esp32_p4_wifi6_touch_lcd_x:
+  ## Waveshare BSP — display (MIPI-DSI), touch, audio, etc.
+  ## NOTE: the "xc" suffix is for the 3.4C/4C circular displays (800×800 / 720×720).
+  ## The plain "_x" variant is for the larger 7/8/10.1-inch rectangular screens.
+  waveshare/esp32_p4_wifi6_touch_lcd_xc:
     version: "*"
 
   ## LVGL graphics library

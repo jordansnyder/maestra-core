@@ -39,10 +39,8 @@ static SemaphoreHandle_t s_mutex;
 static void log_activity(const char *slug, const char *summary)
 {
     maestra_log_entry_t *e = &s_log[s_log_head];
-    strncpy(e->slug, slug, sizeof(e->slug) - 1);
-    e->slug[sizeof(e->slug) - 1] = '\0';
-    strncpy(e->summary, summary, sizeof(e->summary) - 1);
-    e->summary[sizeof(e->summary) - 1] = '\0';
+    snprintf(e->slug, sizeof(e->slug), "%s", slug);
+    snprintf(e->summary, sizeof(e->summary), "%s", summary);
     e->timestamp = esp_timer_get_time();
     s_log_head = (s_log_head + 1) % MAESTRA_LOG_MAX;
     if (s_log_count < MAESTRA_LOG_MAX) {
@@ -66,8 +64,7 @@ static void json_value_to_str(cJSON *item, char *buf, size_t len)
             snprintf(buf, len, "%.2f", v);
         }
     } else if (cJSON_IsString(item)) {
-        strncpy(buf, item->valuestring, len - 1);
-        buf[len - 1] = '\0';
+        snprintf(buf, len, "%s", item->valuestring);
     } else {
         snprintf(buf, len, "...");
     }
@@ -156,8 +153,7 @@ static void handle_state_message(const char *topic, int topic_len,
         int idx = found >= 0 ? found : ent->kv_count;
         if (idx >= MAESTRA_MAX_STATE_KEYS) continue;
 
-        strncpy(ent->kv[idx].key, item->string, MAESTRA_KEY_LEN - 1);
-        ent->kv[idx].key[MAESTRA_KEY_LEN - 1] = '\0';
+        snprintf(ent->kv[idx].key, MAESTRA_KEY_LEN, "%s", item->string);
         json_value_to_str(item, ent->kv[idx].value, MAESTRA_VAL_LEN);
 
         if (found < 0) ent->kv_count++;
@@ -242,7 +238,7 @@ void maestra_mqtt_init(const char *broker_uri,
     for (int i = 0; i < s_slug_count; i++) {
         s_slugs[i] = slugs[i];
         memset(&s_entities[i], 0, sizeof(maestra_entity_t));
-        strncpy(s_entities[i].slug, slugs[i], MAESTRA_SLUG_LEN - 1);
+        snprintf(s_entities[i].slug, MAESTRA_SLUG_LEN, "%s", slugs[i]);
     }
 
     esp_mqtt_client_config_t cfg = {

@@ -1,0 +1,52 @@
+menu "Maestra Dashboard Configuration"
+
+    menu "WiFi"
+        config MAESTRA_WIFI_SSID
+            string "WiFi SSID"
+            default "your-wifi-ssid"
+            help
+                SSID of the WiFi network to connect to.
+
+        config MAESTRA_WIFI_PASSWORD
+            string "WiFi Password"
+            default "your-wifi-password"
+            help
+                Password for the WiFi network.
+
+        config MAESTRA_WIFI_MAX_RETRY
+            int "Maximum WiFi connect retries"
+            default 10
+            help
+                Number of times to retry WiFi connection before giving up.
+    endmenu
+
+    menu "MQTT"
+        config MAESTRA_MQTT_BROKER_URI
+            string "Maestra MQTT broker URI"
+            default "mqtt://192.168.1.100:1883"
+            help
+                URI of the Mosquitto broker in the Maestra stack.
+                Format: mqtt://host:port
+    endmenu
+
+    menu "Entities"
+        config MAESTRA_ENTITY_SLUG_1
+            string "Entity slug 1"
+            default "entity-one"
+            help
+                Slug of the first Maestra entity to display.
+
+        config MAESTRA_ENTITY_SLUG_2
+            string "Entity slug 2 (leave blank to skip)"
+            default "entity-two"
+
+        config MAESTRA_ENTITY_SLUG_3
+            string "Entity slug 3 (leave blank to skip)"
+            default "entity-three"
+
+        config MAESTRA_ENTITY_SLUG_4
+            string "Entity slug 4 (leave blank to skip)"
+            default "entity-four"
+    endmenu
+
+endmenu

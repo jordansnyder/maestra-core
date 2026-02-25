@@ -1,0 +1,21 @@
+## IDF Component Manager Manifest File
+dependencies:
+  ## LVGL graphics library
+  lvgl/lvgl:
+    version: "9.4.*"
+    public: true
+
+  ## WiFi via ESP32-C6 coprocessor (SDIO hosted)
+  espressif/esp_wifi_remote:
+    version: ">=0.14"
+
+  espressif/esp_hosted:
+    version: ">=1.4"
+
+  ## MQTT client
+  espressif/mqtt:
+    version: "*"
+
+  ## Required IDF version
+  idf:
+    version: ">=5.5.0"

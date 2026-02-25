@@ -108,7 +108,7 @@ The MQTT client subscribes to entity state-change topics and maintains a local c
 ## Prerequisites
 
 - **ESP-IDF v5.5+** — [installation guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32p4/get-started/index.html)
-- **Waveshare BSP components** — cloned from the [Waveshare ESP32-P4 example repo](https://github.com/waveshareteam/ESP32-P4-WIFI6-Touch-LCD-X)
+- **Waveshare BSP component** — copied from one of the examples in the [Waveshare ESP32-P4 repo](https://github.com/waveshareteam/ESP32-P4-WIFI6-Touch-LCD-X)
 - A running Maestra stack with entities already created
 
 ## Building & Flashing
@@ -116,12 +116,12 @@ The MQTT client subscribes to entity state-change topics and maintains a local c
 ```bash
 cd examples/waveshare-esp32-dashboard
 
-# 1. Copy BSP components from the Waveshare example repository
-#    Clone or download: https://github.com/waveshareteam/ESP32-P4-WIFI6-Touch-LCD-X
-#    Then copy the required component directories:
+# 1. Copy the BSP component from the Waveshare example repository.
+#    The BSP lives inside each example — not at the repo root.
+#    Clone it, then copy from one of the display examples (e.g., 08_lvgl_demo_v9):
+git clone https://github.com/waveshareteam/ESP32-P4-WIFI6-Touch-LCD-X.git /tmp/waveshare-p4
 mkdir -p components
-cp -r /path/to/ESP32-P4-WIFI6-Touch-LCD-X/components/bsp_extra components/
-cp -r /path/to/ESP32-P4-WIFI6-Touch-LCD-X/components/esp32_p4_wifi6_touch_lcd_x components/
+cp -r /tmp/waveshare-p4/examples/esp-idf/08_lvgl_demo_v9/components/esp32_p4_wifi6_touch_lcd_x components/
 
 # 2. Set target to ESP32-P4
 idf.py set-target esp32p4
@@ -170,8 +170,7 @@ waveshare-esp32-dashboard/
 ├── partitions.csv            # Flash partition table (8 MB app, 7 MB storage)
 ├── README.md
 ├── components/               # (copied from Waveshare repo, not checked in)
-│   ├── bsp_extra/
-│   └── esp32_p4_wifi6_touch_lcd_x/
+│   └── esp32_p4_wifi6_touch_lcd_x/   # BSP: MIPI-DSI display + GT911 touch
 └── main/
     ├── CMakeLists.txt        # Component registration
     ├── Kconfig.projbuild     # Menuconfig options
@@ -214,8 +213,8 @@ This dashboard pairs well with the [RTL-SDR example](../rtl-sdr/). Set one of th
 
 ## Troubleshooting
 
-**Build fails with missing BSP headers:**
-You need to copy the Waveshare BSP components into `components/`. See the build instructions above. The BSP is not distributed as an IDF Component Manager dependency — it must be copied from the [Waveshare example repo](https://github.com/waveshareteam/ESP32-P4-WIFI6-Touch-LCD-X).
+**Build fails with missing BSP headers (`bsp/esp-bsp.h` not found):**
+You need to copy the `esp32_p4_wifi6_touch_lcd_x` component into `components/`. See the build instructions above — the BSP is not at the repo root, it's inside each example at `examples/esp-idf/08_lvgl_demo_v9/components/esp32_p4_wifi6_touch_lcd_x/`.
 
 **Display is black / no backlight:**
 The BSP handles all MIPI-DSI and backlight initialization. Ensure the BSP components were copied correctly and that `sdkconfig.defaults` has the correct ESP32-P4 settings. Try a clean build: `idf.py fullclean && idf.py build`.

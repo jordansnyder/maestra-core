@@ -19,8 +19,8 @@ CONFIG_SPIRAM_XIP_FROM_PSRAM=y
 CONFIG_CACHE_L2_CACHE_256KB=y
 CONFIG_CACHE_L2_CACHE_LINE_128B=y
 
-# Compiler
-CONFIG_COMPILER_OPTIMIZATION_PERF=y
+# Compiler — optimize for size so the binary fits in the 8 MB app partition
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 
 # FreeRTOS
 CONFIG_FREERTOS_HZ=1000
@@ -46,6 +46,12 @@ CONFIG_LV_FONT_MONTSERRAT_26=y
 
 # WiFi — disable SoftAP (we only use STA via ESP32-C6 coprocessor)
 CONFIG_ESP_WIFI_SOFTAP_SUPPORT=n
+
+# Disable LVGL built-in demos and examples (saves significant flash)
+CONFIG_LV_USE_DEMO_WIDGETS=n
+CONFIG_LV_USE_DEMO_MUSIC=n
+CONFIG_LV_USE_DEMO_STRESS=n
+CONFIG_LV_USE_DEMO_BENCHMARK=n
 
 # Experimental features required for ESP32-P4
 CONFIG_IDF_EXPERIMENTAL_FEATURES=y

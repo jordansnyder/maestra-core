@@ -166,3 +166,5 @@ temp/
 *.tmp
 *.bak
 *.backup
+/examples/waveshare-esp32-dashboard/build
+/examples/waveshare-esp32-dashboard/managed_components

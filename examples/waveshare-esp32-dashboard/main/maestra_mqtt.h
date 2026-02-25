@@ -8,6 +8,7 @@
 #ifndef MAESTRA_MQTT_H
 #define MAESTRA_MQTT_H
 
+#include <stdint.h>
 #include <stdbool.h>
 #include "cJSON.h"
 

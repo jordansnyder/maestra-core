@@ -152,7 +152,7 @@ static void create_overview_row(lv_obj_t *parent, const char *label_text,
     lv_obj_set_style_border_width(left, 0, 0);
     lv_obj_set_style_pad_all(left, 0, 0);
     lv_obj_set_flex_flow(left, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_flex_gap(left, 8, 0);
+    lv_obj_set_style_pad_column(left, 8, 0);
 
     if (out_led) {
         lv_obj_t *led = lv_led_create(left);
@@ -180,7 +180,7 @@ static void create_overview(lv_obj_t *page)
     lv_obj_set_size(card, 560, 380);
     lv_obj_align(card, LV_ALIGN_CENTER, 0, 20);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_flex_gap(card, 4, 0);
+    lv_obj_set_style_pad_row(card, 4, 0);
 
     create_overview_row(card, "WiFi",       &led_wifi, &lbl_wifi_val);
     create_overview_row(card, "MQTT",       &led_mqtt, &lbl_mqtt_val);
@@ -199,7 +199,7 @@ static void create_entity_card(lv_obj_t *parent, int idx, int x, int y)
     lv_obj_set_size(card, 260, 240);
     lv_obj_set_pos(card, x, y);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_flex_gap(card, 4, 0);
+    lv_obj_set_style_pad_row(card, 4, 0);
     entity_cards[idx] = card;
 
     entity_slug_labels[idx] = make_label(card, &lv_font_montserrat_18,
@@ -245,7 +245,7 @@ static void create_activity(lv_obj_t *page)
     lv_obj_set_size(activity_list, 600, 500);
     lv_obj_align(activity_list, LV_ALIGN_CENTER, 0, 30);
     lv_obj_set_flex_flow(activity_list, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_flex_gap(activity_list, 2, 0);
+    lv_obj_set_style_pad_row(activity_list, 2, 0);
     lv_obj_set_style_pad_all(activity_list, 12, 0);
 }
 
@@ -280,7 +280,7 @@ static void create_nav_dots(lv_obj_t *parent)
     lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_flex_gap(cont, 12, 0);
+    lv_obj_set_style_pad_column(cont, 12, 0);
 
     for (int i = 0; i < 3; i++) {
         nav_dots[i] = lv_obj_create(cont);
@@ -454,7 +454,7 @@ void dashboard_ui_refresh(void)
         lv_obj_set_style_pad_ver(row, 6, 0);
         lv_obj_set_style_pad_hor(row, 4, 0);
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-        lv_obj_set_style_flex_gap(row, 12, 0);
+        lv_obj_set_style_pad_column(row, 12, 0);
 
         /* Time ago */
         char time_buf[16];

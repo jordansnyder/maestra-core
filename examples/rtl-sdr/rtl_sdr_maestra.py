@@ -146,6 +146,25 @@ def pack_spectrum_packet(
 
 
 # ---------------------------------------------------------------------------
+# HTTP helpers
+# ---------------------------------------------------------------------------
+
+MAX_RETRIES = 3
+
+async def _http_post(session: aiohttp.ClientSession, url: str, json: dict, retries: int = MAX_RETRIES):
+    """POST with automatic retry on transient connection errors (stale keep-alive, etc.)."""
+    for attempt in range(retries):
+        try:
+            async with session.post(url, json=json) as resp:
+                return resp.status, await resp.text()
+        except (aiohttp.ServerDisconnectedError, aiohttp.ClientOSError) as e:
+            if attempt < retries - 1:
+                await asyncio.sleep(0.5 * (attempt + 1))
+            else:
+                raise
+
+
+# ---------------------------------------------------------------------------
 # Device registration / heartbeat helpers (direct HTTP — not yet in SDK)
 # ---------------------------------------------------------------------------
 
@@ -190,10 +209,9 @@ async def send_heartbeat(session: aiohttp.ClientSession, api_url: str, hardware_
             "uptime_s": int(time.monotonic()),
         },
     }
-    async with session.post(f"{api_url}/devices/heartbeat", json=body) as resp:
-        if resp.status >= 400:
-            text = await resp.text()
-            print(f"Heartbeat failed ({resp.status}): {text}")
+    status, text = await _http_post(session, f"{api_url}/devices/heartbeat", body)
+    if status >= 400:
+        print(f"Heartbeat failed ({status}): {text}")
 
 
 async def submit_metrics(
@@ -212,10 +230,9 @@ async def submit_metrics(
     if cpu_temp is not None:
         metrics.append({"device_id": device_id, "metric_name": "cpu_temperature", "metric_value": cpu_temp, "unit": "celsius", "tags": {}})
 
-    async with session.post(f"{api_url}/metrics/batch", json=metrics) as resp:
-        if resp.status >= 400:
-            text = await resp.text()
-            print(f"Metrics submission failed ({resp.status}): {text}")
+    status, text = await _http_post(session, f"{api_url}/metrics/batch", metrics)
+    if status >= 400:
+        print(f"Metrics submission failed ({status}): {text}")
 
 
 async def submit_event(
@@ -235,10 +252,9 @@ async def submit_event(
         "message": message,
         "data": data,
     }
-    async with session.post(f"{api_url}/events", json=body) as resp:
-        if resp.status >= 400:
-            text = await resp.text()
-            print(f"Event submission failed ({resp.status}): {text}")
+    status, text = await _http_post(session, f"{api_url}/events", body)
+    if status >= 400:
+        print(f"Event submission failed ({status}): {text}")
 
 
 # ---------------------------------------------------------------------------

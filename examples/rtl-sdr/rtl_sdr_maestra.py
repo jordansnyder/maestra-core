@@ -165,6 +165,15 @@ async def register_device(session: aiohttp.ClientSession, api_url: str, hardware
         },
     }
     async with session.post(f"{api_url}/devices/register", json=body) as resp:
+        if resp.status == 409:
+            # Already registered — fetch existing device by hardware_id
+            async with session.get(f"{api_url}/devices") as list_resp:
+                devices = await list_resp.json()
+                for d in devices:
+                    if d.get("hardware_id") == hardware_id:
+                        print(f"Device already registered (id={d['id']}), reusing.")
+                        return d
+            raise RuntimeError("Device 409 conflict but could not find existing device")
         if resp.status >= 400:
             text = await resp.text()
             raise RuntimeError(f"Device registration failed ({resp.status}): {text}")

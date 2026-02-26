@@ -81,7 +81,7 @@ async def record_state_change(
                  state, previous_state, changed_keys, source)
             VALUES
                 (NOW(), :entity_id, :entity_slug, :entity_type, :entity_path,
-                 :state::jsonb, :previous_state::jsonb, :changed_keys, :source)
+                 CAST(:state AS jsonb), CAST(:previous_state AS jsonb), :changed_keys, :source)
         """), {
             "entity_id": entity_id,
             "entity_slug": entity_slug,

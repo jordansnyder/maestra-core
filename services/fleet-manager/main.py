@@ -252,7 +252,7 @@ async def submit_metric(metric: DeviceMetric, db: AsyncSession = Depends(get_db)
 
     await db.execute(text("""
         INSERT INTO device_metrics (time, device_id, metric_name, metric_value, unit, tags)
-        VALUES (NOW(), :device_id, :metric_name, :metric_value, :unit, :tags::jsonb)
+        VALUES (NOW(), :device_id, :metric_name, :metric_value, :unit, CAST(:tags AS jsonb))
     """), {
         "device_id": metric.device_id,
         "metric_name": metric.metric_name,
@@ -274,7 +274,7 @@ async def submit_event(event: DeviceEvent, db: AsyncSession = Depends(get_db)):
 
     await db.execute(text("""
         INSERT INTO device_events (time, device_id, event_type, severity, message, data)
-        VALUES (NOW(), :device_id, :event_type, :severity, :message, :data::jsonb)
+        VALUES (NOW(), :device_id, :event_type, :severity, :message, CAST(:data AS jsonb))
     """), {
         "device_id": event.device_id,
         "event_type": event.event_type,
@@ -299,7 +299,7 @@ async def submit_metrics_batch(
     for metric in metrics:
         await db.execute(text("""
             INSERT INTO device_metrics (time, device_id, metric_name, metric_value, unit, tags)
-            VALUES (NOW(), :device_id, :metric_name, :metric_value, :unit, :tags::jsonb)
+            VALUES (NOW(), :device_id, :metric_name, :metric_value, :unit, CAST(:tags AS jsonb))
         """), {
             "device_id": metric.device_id,
             "metric_name": metric.metric_name,
@@ -324,7 +324,7 @@ async def submit_events_batch(
     for event in events:
         await db.execute(text("""
             INSERT INTO device_events (time, device_id, event_type, severity, message, data)
-            VALUES (NOW(), :device_id, :event_type, :severity, :message, :data::jsonb)
+            VALUES (NOW(), :device_id, :event_type, :severity, :message, CAST(:data AS jsonb))
         """), {
             "device_id": event.device_id,
             "event_type": event.event_type,

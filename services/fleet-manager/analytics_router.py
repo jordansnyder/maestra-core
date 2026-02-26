@@ -119,7 +119,7 @@ async def create_annotation(
     """Create a show annotation (tag a moment like 'opening night', 'peak crowd')"""
     result = await db.execute(text("""
         INSERT INTO show_annotations (time, title, description, category, tags, metadata)
-        VALUES (:time, :title, :description, :category, :tags, :metadata::jsonb)
+        VALUES (:time, :title, :description, :category, :tags, CAST(:metadata AS jsonb))
         RETURNING *
     """), {
         "time": annotation.time or datetime.utcnow(),
@@ -164,7 +164,7 @@ async def update_annotation(
         sets.append("tags = :tags")
         params["tags"] = update.tags
     if update.metadata is not None:
-        sets.append("metadata = :metadata::jsonb")
+        sets.append("metadata = CAST(:metadata AS jsonb)")
         params["metadata"] = json.dumps(update.metadata)
 
     if not sets:
@@ -461,9 +461,9 @@ async def set_collection_config(
 
     result = await db.execute(text("""
         INSERT INTO collection_config (scope_type, scope_id, verbosity, config)
-        VALUES (:scope_type, :scope_id, :verbosity, :config::jsonb)
+        VALUES (:scope_type, :scope_id, :verbosity, CAST(:config AS jsonb))
         ON CONFLICT (scope_type, scope_id)
-        DO UPDATE SET verbosity = :verbosity, config = :config::jsonb
+        DO UPDATE SET verbosity = :verbosity, config = CAST(:config AS jsonb)
         RETURNING *
     """), {
         "scope_type": config.scope_type,

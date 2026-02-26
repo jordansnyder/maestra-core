@@ -1,4 +1,4 @@
 pyrtlsdr>=0.3.0
 numpy>=1.24.0
 aiohttp>=3.9.0
-setuptools>=70.0.0
+setuptools>=70.0.0,<82

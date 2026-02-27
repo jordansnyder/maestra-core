@@ -408,7 +408,7 @@ async def main(args):
     seq = 0
     metrics_interval = 10.0  # seconds between metric submissions
     heartbeat_interval = 15.0  # seconds between heartbeats
-    state_interval = 1.0  # seconds between entity state updates
+    state_interval = 30.0  # seconds between entity state updates
     last_metrics_time = 0.0
     last_heartbeat_time = 0.0
     last_state_time = 0.0

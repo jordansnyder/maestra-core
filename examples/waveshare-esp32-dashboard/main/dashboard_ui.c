@@ -304,7 +304,7 @@ static void create_spectrum(lv_obj_t *page)
 
     /* Initialise with zeros */
     for (int i = 0; i < SPECTRUM_CHART_POINTS; i++) {
-        lv_chart_set_value_by_index(spectrum_chart, spectrum_series, i, -80);
+        lv_chart_set_series_value_by_id(spectrum_chart, spectrum_series, i, -80);
     }
 
     /* Y-axis labels */
@@ -643,8 +643,8 @@ void dashboard_ui_refresh(void)
             int32_t val = (int32_t)max_val;
             if (val < -80) val = -80;
             if (val > 0)   val = 0;
-            lv_chart_set_value_by_index(spectrum_chart, spectrum_series,
-                                        p, val);
+            lv_chart_set_series_value_by_id(spectrum_chart, spectrum_series,
+                                           p, val);
         }
 
         noise_floor /= (float)fft;

@@ -129,6 +129,24 @@ class StreamManager:
                 f"maestra.stream.advertise.{advert['stream_type']}", payload
             )
 
+            # Also publish to MQTT via the NATS→MQTT bridge so embedded/IoT
+            # clients (e.g. ESP32 dashboard) can discover streams.  The bridge
+            # subscribes to "maestra.to_mqtt.>" and strips that prefix, so
+            # "maestra.to_mqtt.maestra.stream.advertise.sensor" becomes
+            # MQTT topic "maestra/stream/advertise/sensor".
+            mqtt_event = {
+                "id": stream_id,
+                "name": advert["name"],
+                "stream_type": advert["stream_type"],
+                "address": advert["address"],
+                "port": advert["port"],
+                "config": advert.get("config", {}),
+            }
+            await self.nc.publish(
+                f"maestra.to_mqtt.maestra.stream.advertise.{advert['stream_type']}",
+                json.dumps(mqtt_event).encode(),
+            )
+
         return self._parse_stream_data(stream_data)
 
     async def withdraw_stream(self, stream_id: str):
@@ -416,7 +434,9 @@ class StreamManager:
     # =========================================================================
 
     async def refresh_stream_ttl(self, stream_id: str) -> bool:
-        """Refresh a stream's TTL in Redis"""
+        """Refresh a stream's TTL in Redis and re-broadcast to MQTT so
+        late-joining IoT/embedded clients (e.g. ESP32 dashboard) can
+        discover active streams."""
         key = STREAM_KEY.format(stream_id=stream_id)
         exists = await self.redis.exists(key)
         if exists:
@@ -424,6 +444,8 @@ class StreamManager:
                 key, "last_heartbeat", datetime.utcnow().isoformat() + "Z"
             )
             await self.redis.expire(key, STREAM_TTL)
+            # Re-broadcast stream info to MQTT for late-joining clients
+            await self._rebroadcast_stream_to_mqtt(stream_id)
             return True
         return False
 
@@ -445,6 +467,34 @@ class StreamManager:
                 await self.refresh_stream_ttl(stream_id)
         except Exception as e:
             logger.warning(f"Stream heartbeat error: {e}")
+
+    async def _rebroadcast_stream_to_mqtt(self, stream_id: str):
+        """Re-publish stream advertisement to MQTT via the NATS→MQTT bridge
+        so embedded/IoT clients that connected after the initial advertisement
+        can still discover active streams."""
+        if not self.nc or self.nc.is_closed:
+            return
+        key = STREAM_KEY.format(stream_id=stream_id)
+        data = await self.redis.hgetall(key)
+        if not data:
+            return
+        stream_type = data.get("stream_type", "sensor")
+        try:
+            port_val = int(data.get("port", 0))
+        except (ValueError, TypeError):
+            port_val = 0
+        mqtt_event = {
+            "id": data.get("id", stream_id),
+            "name": data.get("name", ""),
+            "stream_type": stream_type,
+            "address": data.get("address", ""),
+            "port": port_val,
+            "config": json.loads(data.get("config", "{}")),
+        }
+        await self.nc.publish(
+            f"maestra.to_mqtt.maestra.stream.advertise.{stream_type}",
+            json.dumps(mqtt_event).encode(),
+        )
 
     async def _on_session_heartbeat(self, msg):
         """Handle session heartbeat via NATS"""

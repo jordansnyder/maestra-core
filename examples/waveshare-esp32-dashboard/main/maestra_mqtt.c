@@ -7,6 +7,7 @@
  */
 
 #include "maestra_mqtt.h"
+#include "spectrum_stream.h"
 
 #include <string.h>
 #include "esp_log.h"
@@ -33,6 +34,10 @@ static int                 s_log_head  = 0;
 static int                 s_log_count = 0;
 
 static SemaphoreHandle_t s_mutex;
+
+/* Stream consumer registration state */
+static char     s_local_ip[46]  = "";
+static uint16_t s_stream_port   = 0;
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */
 
@@ -184,6 +189,82 @@ static void handle_state_message(const char *topic, int topic_len,
     ESP_LOGD(TAG, "State update: %s", slug);
 }
 
+/* ── Stream advertisement handler ──────────────────────────────────────── */
+
+/**
+ * Parse an MQTT stream advertisement and update spectrum_stream_info.
+ *
+ * Expected topic:  maestra/stream/advertise/sensor
+ * Expected payload (JSON):
+ *   { "id": "...", "name": "...", "stream_type": "sensor",
+ *     "address": "...", "port": 9900,
+ *     "config": { "fft_size": 1024, "center_frequency_hz": 1e8,
+ *                 "sample_rate_hz": 2.048e6 } }
+ */
+static void handle_stream_advertise(const char *data, int data_len)
+{
+    cJSON *root = cJSON_ParseWithLength(data, data_len);
+    if (!root) return;
+
+    spectrum_stream_info_t info;
+    memset(&info, 0, sizeof(info));
+
+    cJSON *jid   = cJSON_GetObjectItem(root, "id");
+    cJSON *jname = cJSON_GetObjectItem(root, "name");
+    cJSON *jaddr = cJSON_GetObjectItem(root, "address");
+    cJSON *jport = cJSON_GetObjectItem(root, "port");
+
+    if (!cJSON_IsString(jid) || !cJSON_IsString(jaddr)) {
+        cJSON_Delete(root);
+        return;
+    }
+
+    snprintf(info.stream_id, sizeof(info.stream_id), "%s",
+             jid->valuestring);
+    if (cJSON_IsString(jname)) {
+        snprintf(info.name, sizeof(info.name), "%s", jname->valuestring);
+    }
+    snprintf(info.publisher_address, sizeof(info.publisher_address), "%s",
+             jaddr->valuestring);
+    info.publisher_port = cJSON_IsNumber(jport) ? (uint16_t)jport->valuedouble : 0;
+
+    /* Extract stream config */
+    cJSON *cfg = cJSON_GetObjectItem(root, "config");
+    if (cfg) {
+        cJSON *jfft  = cJSON_GetObjectItem(cfg, "fft_size");
+        cJSON *jcf   = cJSON_GetObjectItem(cfg, "center_frequency_hz");
+        cJSON *jsr   = cJSON_GetObjectItem(cfg, "sample_rate_hz");
+        if (cJSON_IsNumber(jfft)) info.fft_size       = (uint32_t)jfft->valuedouble;
+        if (cJSON_IsNumber(jcf))  info.center_freq_hz = jcf->valuedouble;
+        if (cJSON_IsNumber(jsr))  info.sample_rate_hz = jsr->valuedouble;
+    }
+
+    info.discovered = true;
+    spectrum_set_info(&info);
+
+    ESP_LOGI(TAG, "Stream discovered: %s (%s:%u)",
+             info.name, info.publisher_address, info.publisher_port);
+
+    /* Publish consumer registration so the publisher sends us data */
+    if (s_local_ip[0] != '\0' && s_stream_port > 0 && s_client) {
+        char reg_topic[128];
+        snprintf(reg_topic, sizeof(reg_topic),
+                 "maestra/stream/%s/subscribe", info.stream_id);
+
+        char reg_payload[128];
+        snprintf(reg_payload, sizeof(reg_payload),
+                 "{\"address\":\"%s\",\"port\":%u}",
+                 s_local_ip, s_stream_port);
+
+        esp_mqtt_client_publish(s_client, reg_topic, reg_payload,
+                                strlen(reg_payload), 1, 0);
+        ESP_LOGI(TAG, "Consumer registered: %s → %s:%u",
+                 info.stream_id, s_local_ip, s_stream_port);
+    }
+
+    cJSON_Delete(root);
+}
+
 /* ── MQTT event handler ─────────────────────────────────────────────────── */
 
 static void mqtt_event_handler(void *arg, esp_event_base_t base,
@@ -203,6 +284,10 @@ static void mqtt_event_handler(void *arg, esp_event_base_t base,
             esp_mqtt_client_subscribe(s_client, topic, 1);
             ESP_LOGI(TAG, "Subscribed: %s", topic);
         }
+
+        /* Subscribe to sensor stream advertisements */
+        esp_mqtt_client_subscribe(s_client, "maestra/stream/advertise/sensor", 1);
+        ESP_LOGI(TAG, "Subscribed: maestra/stream/advertise/sensor");
         break;
 
     case MQTT_EVENT_DISCONNECTED:
@@ -211,8 +296,14 @@ static void mqtt_event_handler(void *arg, esp_event_base_t base,
         break;
 
     case MQTT_EVENT_DATA:
-        handle_state_message(event->topic, event->topic_len,
-                             event->data, event->data_len);
+        /* Route based on topic prefix */
+        if (event->topic_len > 30 &&
+            memcmp(event->topic, "maestra/stream/advertise/", 25) == 0) {
+            handle_stream_advertise(event->data, event->data_len);
+        } else {
+            handle_state_message(event->topic, event->topic_len,
+                                 event->data, event->data_len);
+        }
         break;
 
     case MQTT_EVENT_ERROR:
@@ -270,4 +361,16 @@ const maestra_log_entry_t *maestra_get_log(int *out_count, int *out_head)
     if (out_count) *out_count = s_log_count;
     if (out_head)  *out_head  = s_log_head;
     return s_log;
+}
+
+void maestra_mqtt_set_local_ip(const char *ip)
+{
+    if (ip) {
+        snprintf(s_local_ip, sizeof(s_local_ip), "%s", ip);
+    }
+}
+
+void maestra_mqtt_set_stream_udp_port(uint16_t port)
+{
+    s_stream_port = port;
 }

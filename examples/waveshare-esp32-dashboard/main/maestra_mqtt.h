@@ -72,6 +72,19 @@ const maestra_entity_t *maestra_get_entities(int *out_count);
 /** Get the activity log (circular buffer, most recent first). */
 const maestra_log_entry_t *maestra_get_log(int *out_count, int *out_head);
 
+/**
+ * Set the local IP address used when publishing stream consumer
+ * registration messages.  Call before maestra_mqtt_init().
+ */
+void maestra_mqtt_set_local_ip(const char *ip);
+
+/**
+ * Set the local UDP port used for spectrum stream reception.
+ * This is included in consumer registration messages so the publisher
+ * knows where to send data.  Call before maestra_mqtt_init().
+ */
+void maestra_mqtt_set_stream_udp_port(uint16_t port);
+
 #ifdef __cplusplus
 }
 #endif

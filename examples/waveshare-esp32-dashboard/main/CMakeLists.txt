@@ -3,6 +3,7 @@ idf_component_register(
         main.c
         maestra_mqtt.c
         dashboard_ui.c
+        spectrum_stream.c
     INCLUDE_DIRS
         .
 )

@@ -29,6 +29,7 @@
 
 #include "maestra_mqtt.h"
 #include "dashboard_ui.h"
+#include "spectrum_stream.h"
 
 static const char *TAG = "maestra_dash";
 
@@ -41,6 +42,7 @@ static const char *TAG = "maestra_dash";
 /* ── MQTT / entity configuration (set via menuconfig) ────────────────────── */
 
 #define MQTT_BROKER_URI    CONFIG_MAESTRA_MQTT_BROKER_URI
+#define STREAM_UDP_PORT    CONFIG_MAESTRA_STREAM_UDP_PORT
 
 /* Entity slugs — up to 4 */
 static const char *entity_slugs[] = {
@@ -169,6 +171,21 @@ void app_main(void)
 
     /* ── WiFi (via ESP32-C6 coprocessor over SDIO) ────────────────────── */
     wifi_init_sta();
+
+    /* ── Spectrum stream receiver ─────────────────────────────────────── */
+    spectrum_stream_init(STREAM_UDP_PORT);
+
+    /* Pass local IP + stream port to MQTT module for consumer registration */
+    {
+        esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        esp_netif_ip_info_t ip_info;
+        if (netif && esp_netif_get_ip_info(netif, &ip_info) == ESP_OK) {
+            char ip_str[16];
+            snprintf(ip_str, sizeof(ip_str), IPSTR, IP2STR(&ip_info.ip));
+            maestra_mqtt_set_local_ip(ip_str);
+        }
+        maestra_mqtt_set_stream_udp_port(STREAM_UDP_PORT);
+    }
 
     /* ── Maestra MQTT ─────────────────────────────────────────────────── */
     maestra_mqtt_init(MQTT_BROKER_URI, entity_slugs, ENTITY_COUNT);

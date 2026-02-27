@@ -7,9 +7,11 @@
 
 #include "dashboard_ui.h"
 #include "maestra_mqtt.h"
+#include "spectrum_stream.h"
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "esp_timer.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
@@ -53,8 +55,21 @@ static lv_obj_t *entity_kv_labels[MAESTRA_MAX_ENTITIES]; /* multiline label */
 /* Activity */
 static lv_obj_t *activity_list;
 
+/* Spectrum */
+static lv_obj_t *spectrum_chart;
+static lv_chart_series_t *spectrum_series;
+static lv_obj_t *lbl_spec_freq;
+static lv_obj_t *lbl_spec_peak;
+static lv_obj_t *lbl_spec_noise;
+static lv_obj_t *lbl_spec_snr;
+static lv_obj_t *lbl_spec_source;
+static lv_obj_t *lbl_spec_status;
+
+#define SPECTRUM_CHART_POINTS  256
+
 /* Nav indicators */
-static lv_obj_t *nav_dots[3];
+#define NUM_TILES  4
+static lv_obj_t *nav_dots[NUM_TILES];
 static lv_obj_t *tileview;
 
 /* Boot timestamp */
@@ -249,11 +264,106 @@ static void create_activity(lv_obj_t *page)
     lv_obj_set_style_pad_all(activity_list, 12, 0);
 }
 
+/* ── Spectrum page ─────────────────────────────────────────────────────── */
+
+static void create_spectrum(lv_obj_t *page)
+{
+    lv_obj_t *title = make_label(page, &lv_font_montserrat_26, COL_ACCENT, "SPECTRUM");
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 60);
+
+    /* Chart card */
+    lv_obj_t *chart_card = lv_obj_create(page);
+    lv_obj_add_style(chart_card, &style_card, 0);
+    lv_obj_set_size(chart_card, 620, 340);
+    lv_obj_align(chart_card, LV_ALIGN_TOP_MID, 0, 100);
+    lv_obj_set_style_pad_all(chart_card, 8, 0);
+
+    /* LVGL chart */
+    spectrum_chart = lv_chart_create(chart_card);
+    lv_obj_set_size(spectrum_chart, 596, 300);
+    lv_obj_center(spectrum_chart);
+    lv_chart_set_type(spectrum_chart, LV_CHART_TYPE_LINE);
+    lv_chart_set_point_count(spectrum_chart, SPECTRUM_CHART_POINTS);
+    lv_chart_set_range(spectrum_chart, LV_CHART_AXIS_PRIMARY_Y, -80, 0);
+    lv_chart_set_div_line_count(spectrum_chart, 4, 0);
+    lv_chart_set_update_mode(spectrum_chart, LV_CHART_UPDATE_MODE_SHIFT);
+
+    /* Chart styling */
+    lv_obj_set_style_bg_color(spectrum_chart, COL_BG, 0);
+    lv_obj_set_style_bg_opa(spectrum_chart, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(spectrum_chart, COL_TEXT_DIM, 0);
+    lv_obj_set_style_border_width(spectrum_chart, 1, 0);
+    lv_obj_set_style_line_color(spectrum_chart, lv_color_hex(0x2A2C32),
+                                LV_PART_MAIN);
+
+    /* Series */
+    spectrum_series = lv_chart_add_series(spectrum_chart, COL_ACCENT,
+                                          LV_CHART_AXIS_PRIMARY_Y);
+    lv_obj_set_style_line_width(spectrum_chart, 2, LV_PART_ITEMS);
+    lv_obj_set_style_size(spectrum_chart, 0, 0, LV_PART_INDICATOR);
+
+    /* Initialise with zeros */
+    for (int i = 0; i < SPECTRUM_CHART_POINTS; i++) {
+        lv_chart_set_value_by_index(spectrum_chart, spectrum_series, i, -80);
+    }
+
+    /* Y-axis labels */
+    make_label(chart_card, &lv_font_montserrat_14, COL_TEXT_DIM, "0 dB");
+    lv_obj_t *lbl_min = make_label(chart_card, &lv_font_montserrat_14,
+                                    COL_TEXT_DIM, "-80 dB");
+    lv_obj_align(lbl_min, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+
+    /* Info row below chart */
+    lv_obj_t *info = lv_obj_create(page);
+    lv_obj_add_style(info, &style_card, 0);
+    lv_obj_set_size(info, 620, 80);
+    lv_obj_align(info, LV_ALIGN_TOP_MID, 0, 452);
+    lv_obj_set_flex_flow(info, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(info, LV_FLEX_ALIGN_SPACE_EVENLY,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_all(info, 8, 0);
+
+    /* Metric columns */
+    const char *labels[] = {"FREQ", "PEAK", "NOISE", "SNR"};
+    lv_obj_t **val_ptrs[] = {&lbl_spec_freq, &lbl_spec_peak,
+                             &lbl_spec_noise, &lbl_spec_snr};
+
+    for (int i = 0; i < 4; i++) {
+        lv_obj_t *col = lv_obj_create(info);
+        lv_obj_set_size(col, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_style_bg_opa(col, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(col, 0, 0);
+        lv_obj_set_style_pad_all(col, 0, 0);
+        lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER,
+                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+        make_label(col, &lv_font_montserrat_14, COL_TEXT_DIM, labels[i]);
+        *val_ptrs[i] = make_label(col, &lv_font_montserrat_18, COL_TEXT, "--");
+    }
+
+    /* Stream source / status bar */
+    lv_obj_t *status_row = lv_obj_create(page);
+    lv_obj_set_size(status_row, 620, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(status_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(status_row, 0, 0);
+    lv_obj_set_style_pad_all(status_row, 0, 0);
+    lv_obj_align(status_row, LV_ALIGN_TOP_MID, 0, 544);
+    lv_obj_set_flex_flow(status_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(status_row, LV_FLEX_ALIGN_SPACE_BETWEEN,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    lbl_spec_source = make_label(status_row, &lv_font_montserrat_14,
+                                  COL_TEXT_DIM, "Scanning for streams...");
+    lbl_spec_status = make_label(status_row, &lv_font_montserrat_14,
+                                  COL_TEXT_DIM, "");
+}
+
 /* ── Navigation dots ────────────────────────────────────────────────────── */
 
 static void update_nav_dots(int active)
 {
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < NUM_TILES; i++) {
         lv_obj_set_style_bg_color(nav_dots[i],
             i == active ? COL_ACCENT : COL_TEXT_DIM, 0);
         lv_obj_set_size(nav_dots[i], i == active ? 14 : 10,
@@ -272,7 +382,7 @@ static void on_tile_changed(lv_event_t *e)
 static void create_nav_dots(lv_obj_t *parent)
 {
     lv_obj_t *cont = lv_obj_create(parent);
-    lv_obj_set_size(cont, 80, 20);
+    lv_obj_set_size(cont, 120, 20);
     lv_obj_set_style_bg_opa(cont, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(cont, 0, 0);
     lv_obj_set_style_pad_all(cont, 0, 0);
@@ -282,7 +392,7 @@ static void create_nav_dots(lv_obj_t *parent)
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(cont, 12, 0);
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < NUM_TILES; i++) {
         nav_dots[i] = lv_obj_create(cont);
         lv_obj_set_size(nav_dots[i], 10, 10);
         lv_obj_set_style_radius(nav_dots[i], LV_RADIUS_CIRCLE, 0);
@@ -304,7 +414,7 @@ void dashboard_ui_create(void)
     lv_obj_t *scr = lv_screen_active();
     lv_obj_add_style(scr, &style_bg, 0);
 
-    /* Tileview for horizontal swipe between 3 pages */
+    /* Tileview for horizontal swipe between 4 pages */
     tileview = lv_tileview_create(scr);
     lv_obj_set_size(tileview, DISP_W, DISP_H);
     lv_obj_set_style_bg_color(tileview, COL_BG, 0);
@@ -313,11 +423,13 @@ void dashboard_ui_create(void)
 
     lv_obj_t *t0 = lv_tileview_add_tile(tileview, 0, 0, LV_DIR_RIGHT);
     lv_obj_t *t1 = lv_tileview_add_tile(tileview, 1, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
-    lv_obj_t *t2 = lv_tileview_add_tile(tileview, 2, 0, LV_DIR_LEFT);
+    lv_obj_t *t2 = lv_tileview_add_tile(tileview, 2, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
+    lv_obj_t *t3 = lv_tileview_add_tile(tileview, 3, 0, LV_DIR_LEFT);
 
     create_overview(t0);
     create_entities(t1);
     create_activity(t2);
+    create_spectrum(t3);
 
     /* Nav dots overlay on top of tileview */
     create_nav_dots(scr);
@@ -438,7 +550,6 @@ void dashboard_ui_refresh(void)
                                    COL_TEXT_DIM, "No activity yet");
         lv_obj_set_width(lbl, lv_pct(100));
         lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-        return;
     }
 
     int max_visible = 12;
@@ -466,5 +577,103 @@ void dashboard_ui_refresh(void)
 
         /* Changed keys */
         make_label(row, &lv_font_montserrat_14, COL_TEXT, entry->summary);
+    }
+
+    /* ── Spectrum ──────────────────────────────────────────────────────── */
+
+    const spectrum_data_t *spec = spectrum_get_data();
+    const spectrum_stream_info_t *sinfo = spectrum_get_info();
+
+    /* Stream source info */
+    if (sinfo->discovered) {
+        snprintf(buf, sizeof(buf), "%s  %s:%u",
+                 sinfo->name, sinfo->publisher_address, sinfo->publisher_port);
+        lv_label_set_text(lbl_spec_source, buf);
+        lv_obj_set_style_text_color(lbl_spec_source, COL_TEXT_DIM, 0);
+    } else {
+        lv_label_set_text(lbl_spec_source, "Scanning for streams...");
+        lv_obj_set_style_text_color(lbl_spec_source, COL_TEXT_DIM, 0);
+    }
+
+    if (spec->valid) {
+        bool receiving = spectrum_is_receiving();
+
+        /* Status indicator */
+        if (receiving) {
+            snprintf(buf, sizeof(buf), "LIVE  seq %lu",
+                     (unsigned long)spec->seq);
+            lv_label_set_text(lbl_spec_status, buf);
+            lv_obj_set_style_text_color(lbl_spec_status, COL_GREEN, 0);
+        } else {
+            lv_label_set_text(lbl_spec_status, "SIGNAL LOST");
+            lv_obj_set_style_text_color(lbl_spec_status, COL_RED, 0);
+        }
+
+        /* Downsample power_db into chart points.
+         * Group source bins and take the max of each group for a
+         * peak-hold style display. */
+        uint32_t fft = spec->fft_size;
+        int bins_per_point = (int)(fft / SPECTRUM_CHART_POINTS);
+        if (bins_per_point < 1) bins_per_point = 1;
+
+        float noise_floor = 0.0f;
+        float peak_power  = -200.0f;
+        float peak_freq   = 0.0f;
+
+        for (int p = 0; p < SPECTRUM_CHART_POINTS; p++) {
+            int start = p * bins_per_point;
+            int end   = start + bins_per_point;
+            if (end > (int)fft) end = (int)fft;
+
+            float max_val = -200.0f;
+            for (int b = start; b < end; b++) {
+                if (spec->power_db[b] > max_val)
+                    max_val = spec->power_db[b];
+                noise_floor += spec->power_db[b];
+                if (spec->power_db[b] > peak_power) {
+                    peak_power = spec->power_db[b];
+                    /* Convert bin index to frequency */
+                    float freq_res = (float)(spec->sample_rate / fft);
+                    peak_freq = (float)(spec->center_freq
+                                - spec->sample_rate / 2.0
+                                + b * freq_res);
+                }
+            }
+            /* Clamp to chart range */
+            int32_t val = (int32_t)max_val;
+            if (val < -80) val = -80;
+            if (val > 0)   val = 0;
+            lv_chart_set_value_by_index(spectrum_chart, spectrum_series,
+                                        p, val);
+        }
+
+        noise_floor /= (float)fft;
+        float snr = peak_power - noise_floor;
+
+        lv_chart_refresh(spectrum_chart);
+
+        /* Metric labels */
+        snprintf(buf, sizeof(buf), "%.3f MHz",
+                 spec->center_freq / 1e6);
+        lv_label_set_text(lbl_spec_freq, buf);
+
+        snprintf(buf, sizeof(buf), "%.1f dB", peak_power);
+        lv_label_set_text(lbl_spec_peak, buf);
+        lv_obj_set_style_text_color(lbl_spec_peak,
+            peak_power > -20.0f ? COL_GREEN : COL_TEXT, 0);
+
+        snprintf(buf, sizeof(buf), "%.1f dB", noise_floor);
+        lv_label_set_text(lbl_spec_noise, buf);
+
+        snprintf(buf, sizeof(buf), "%.1f dB", snr);
+        lv_label_set_text(lbl_spec_snr, buf);
+        lv_obj_set_style_text_color(lbl_spec_snr,
+            snr > 20.0f ? COL_GREEN : snr > 10.0f ? COL_YELLOW : COL_TEXT, 0);
+    } else {
+        lv_label_set_text(lbl_spec_status, "");
+        lv_label_set_text(lbl_spec_freq,  "--");
+        lv_label_set_text(lbl_spec_peak,  "--");
+        lv_label_set_text(lbl_spec_noise, "--");
+        lv_label_set_text(lbl_spec_snr,   "--");
     }
 }

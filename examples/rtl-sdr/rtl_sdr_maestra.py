@@ -350,6 +350,49 @@ async def main(args):
         # Create a UDP socket for sending spectrum packets
         udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+        # ── NATS-based consumer auto-registration ─────────────────────────
+        # When devices (e.g. ESP32 dashboard) discover this stream via MQTT,
+        # they publish a consumer registration message.  The MQTT-NATS bridge
+        # routes it to NATS so we can pick it up here automatically.
+        if client._nats:
+            subscribe_subject = f"maestra.mqtt.maestra.stream.{stream.id}.subscribe"
+            unsubscribe_subject = f"maestra.mqtt.maestra.stream.{stream.id}.unsubscribe"
+
+            async def on_consumer_subscribe(msg):
+                try:
+                    envelope = json.loads(msg.data.decode())
+                    # The bridge wraps the payload in an envelope
+                    payload = envelope.get("data", envelope)
+                    addr = payload.get("address")
+                    port = payload.get("port")
+                    if addr and port:
+                        dest = (addr, int(port))
+                        if dest not in consumers:
+                            consumers.append(dest)
+                            print(f"  >> Consumer registered: {addr}:{port}")
+                except Exception as e:
+                    print(f"  Consumer registration parse error: {e}")
+
+            async def on_consumer_unsubscribe(msg):
+                try:
+                    envelope = json.loads(msg.data.decode())
+                    payload = envelope.get("data", envelope)
+                    addr = payload.get("address")
+                    port = payload.get("port")
+                    if addr and port:
+                        dest = (addr, int(port))
+                        if dest in consumers:
+                            consumers.remove(dest)
+                            print(f"  << Consumer unregistered: {addr}:{port}")
+                except Exception as e:
+                    print(f"  Consumer unregistration parse error: {e}")
+
+            await client._nats.subscribe(subscribe_subject, cb=on_consumer_subscribe)
+            await client._nats.subscribe(unsubscribe_subject, cb=on_consumer_unsubscribe)
+            print(f"Listening for consumer registrations via NATS bridge")
+        else:
+            print("Note: NATS not connected — use --nats-url for auto consumer discovery, or --stream-dest for manual")
+
     # ── Graceful shutdown ──────────────────────────────────────────────────
     shutdown = asyncio.Event()
 

@@ -29,6 +29,15 @@ menu "Maestra Dashboard Configuration"
                 Format: mqtt://host:port
     endmenu
 
+    menu "Streams"
+        config MAESTRA_STREAM_UDP_PORT
+            int "UDP port for spectrum stream data"
+            default 9900
+            help
+                Local UDP port to listen for SDRF spectrum stream packets
+                from an RTL-SDR or compatible publisher.
+    endmenu
+
     menu "Entities"
         config MAESTRA_ENTITY_SLUG_1
             string "Entity slug 1"

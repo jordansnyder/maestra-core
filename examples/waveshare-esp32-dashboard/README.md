@@ -1,6 +1,6 @@
 # Waveshare ESP32-P4 Touchscreen Dashboard for Maestra
 
-A standalone touchscreen dashboard built with ESP-IDF and LVGL v9 for the [Waveshare ESP32-P4-WIFI6-Touch-LCD-3.4C](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-3.4C). Connects to Maestra via MQTT and displays live entity state on an 800×800 round IPS display. Swipe horizontally or tap the navigation dots to cycle between three views.
+A standalone touchscreen dashboard built with ESP-IDF and LVGL v9 for the [Waveshare ESP32-P4-WIFI6-Touch-LCD-3.4C](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-3.4C). Connects to Maestra via MQTT and displays live entity state and spectrum stream data on an 800×800 round IPS display. Swipe horizontally or tap the navigation dots to cycle between four views.
 
 ## Dashboard Views
 
@@ -20,7 +20,7 @@ System health at a glance — WiFi/MQTT connection status with colour-coded LEDs
     │     Free RAM 142 KB                   │
     │     Activity 37 events                │
     │                                       │
-    │              ● ○ ○                    │
+    │              ● ○ ○ ○                  │
      ╲                                   ╱
        ╲                               ╱
          ╰───────────────────────────╯
@@ -44,7 +44,7 @@ Real-time state cards for up to 4 subscribed entities in a 2×2 grid. Each card 
     │  │ temp.   22.5 │ │ locked  true │ │
     │  │ humid.   61  │ │ battery  87% │ │
     │  └──────────────┘ └──────────────┘ │
-    │              ○ ● ○                  │
+    │              ○ ● ○ ○                │
      ╲                                 ╱
        ╲                             ╱
          ╰─────────────────────────╯
@@ -66,7 +66,31 @@ Scrolling feed of recent entity state changes, most recent first. Shows time ela
     │  1m   door-lock     locked          │
     │  2m   lobby-light   color, active   │
     │                                     │
-    │              ○ ○ ●                  │
+    │              ○ ○ ● ○                │
+     ╲                                 ╱
+       ╲                             ╱
+         ╰─────────────────────────╯
+```
+
+### 4. Spectrum
+
+Live FFT power spectrum from a Maestra Stream source (e.g. the RTL-SDR example). The dashboard discovers streams via MQTT, automatically registers as a consumer, and receives SDRF binary UDP packets for real-time display.
+
+```
+         ╭───────────────────────────╮
+       ╱                               ╲
+     ╱           SPECTRUM                ╲
+    │  ┌─────────────────────────────┐   │
+    │  │ ╱╲  ╱╲      ╱╲             │   │
+    │  │╱  ╲╱  ╲  ╱╲╱  ╲  ╱╲       │   │
+    │  │        ╲╱     ╲╱  ╲╱╲╱    │   │
+    │  └─────────────────────────────┘   │
+    │                                     │
+    │  FREQ       PEAK    NOISE    SNR    │
+    │  100.0 MHz  -18 dB  -42 dB  24 dB  │
+    │                                     │
+    │  RTL-SDR Spectrum    LIVE seq 1042  │
+    │              ○ ○ ○ ●                │
      ╲                                 ╱
        ╲                             ╱
          ╰─────────────────────────╯
@@ -84,26 +108,28 @@ Scrolling feed of recent entity state changes, most recent first. Shows time ela
 ## Architecture
 
 ```
-┌───────────────────────────────┐
-│  app_main()                   │
-│  ├─ NVS init                  │
-│  ├─ BSP display + touch init  │  ← bsp_display_start_with_config()
-│  ├─ dashboard_ui_create()     │  ← LVGL v9 tileview
-│  ├─ wifi_init_sta()           │  ← esp_wifi → ESP32-C6 via SDIO
-│  ├─ maestra_mqtt_init()       │  ← ESP-MQTT client
-│  └─ LVGL refresh timer (2s)   │
-└───────────────────────────────┘
-         │ MQTT subscribe
-         ▼
-  maestra/entity/state/+/<slug>
-         │
-         ▼
-  ┌────────────────────┐
-  │ Maestra (Mosquitto) │
-  └────────────────────┘
+┌──────────────────────────────────┐
+│  app_main()                      │
+│  ├─ NVS init                     │
+│  ├─ BSP display + touch init     │  ← bsp_display_start_with_config()
+│  ├─ dashboard_ui_create()        │  ← LVGL v9 tileview (4 pages)
+│  ├─ wifi_init_sta()              │  ← esp_wifi → ESP32-C6 via SDIO
+│  ├─ spectrum_stream_init()       │  ← UDP listener task (port 9900)
+│  ├─ maestra_mqtt_init()          │  ← ESP-MQTT client
+│  └─ LVGL refresh timer (2s)      │
+└──────────────────────────────────┘
+         │ MQTT subscribe               │ UDP receive
+         ▼                              ▼
+  maestra/entity/state/+/<slug>    SDRF binary packets
+  maestra/stream/advertise/sensor  (port 9900)
+         │                              │
+         ▼                              ▼
+  ┌────────────────────┐   ┌────────────────────────┐
+  │ Maestra (Mosquitto) │   │ RTL-SDR Publisher (Pi) │
+  └────────────────────┘   └────────────────────────┘
 ```
 
-The MQTT client subscribes to entity state-change topics and maintains a local cache. The LVGL UI reads from this cache every 2 seconds to update all three views.
+The MQTT client subscribes to entity state-change topics and stream advertisement topics. When a sensor stream is discovered, the dashboard publishes a consumer registration message so the publisher (e.g. RTL-SDR) can send SDRF spectrum data directly via UDP. The LVGL UI reads from the local caches every 2 seconds to update all four views.
 
 ## Prerequisites
 
@@ -143,6 +169,7 @@ All configuration is done through `idf.py menuconfig` under **Maestra Dashboard 
 | WiFi Password | `your-wifi-password` | Network password |
 | WiFi Max Retry | `10` | Connection retry attempts |
 | MQTT Broker URI | `mqtt://192.168.1.100:1883` | Maestra Mosquitto broker |
+| Stream UDP Port | `9900` | Local UDP port for SDRF spectrum stream data |
 | Entity Slug 1–4 | `entity-one` … `entity-four` | Maestra entity slugs to display |
 
 The entity slugs must match entities that already exist in Maestra. The dashboard subscribes to MQTT state-change events for each slug and updates the display in real time.
@@ -155,7 +182,7 @@ The entity slugs must match entities that already exist in Maestra. The dashboar
 | Swipe right | Previous view |
 | Navigation dots | Show current position (bottom centre) |
 
-The display uses an LVGL `lv_tileview` with three horizontally arranged tiles. The GT911 capacitive touch controller provides native swipe gestures.
+The display uses an LVGL `lv_tileview` with four horizontally arranged tiles. The GT911 capacitive touch controller provides native swipe gestures.
 
 ## Project Structure
 
@@ -170,9 +197,11 @@ waveshare-esp32-dashboard/
     ├── Kconfig.projbuild     # Menuconfig options
     ├── idf_component.yml     # IDF Component Manager dependencies (BSP, LVGL, WiFi, MQTT)
     ├── main.c                # Entry point — WiFi, BSP, MQTT, LVGL init
-    ├── maestra_mqtt.c        # MQTT client — subscribe, parse, cache
+    ├── maestra_mqtt.c        # MQTT client — subscribe, parse, cache, stream discovery
     ├── maestra_mqtt.h        # Entity/log types and public API
-    ├── dashboard_ui.c        # LVGL v9 UI — 3 swipeable pages
+    ├── spectrum_stream.c     # UDP receiver for SDRF spectrum packets
+    ├── spectrum_stream.h     # Spectrum data types and API
+    ├── dashboard_ui.c        # LVGL v9 UI — 4 swipeable pages
     └── dashboard_ui.h        # UI create/refresh API
 ```
 
@@ -206,6 +235,28 @@ State changes from any source (API, other MQTT devices, Node-RED flows, OSC gate
 ## Pairing with the RTL-SDR Example
 
 This dashboard pairs well with the [RTL-SDR example](../rtl-sdr/). Set one of the entity slugs to the same slug used by the RTL-SDR script, and the Entities view will show live signal metrics (SNR, noise floor, peak frequency) updating in real time. The Activity view will log every state change as it arrives.
+
+### Spectrum Streaming
+
+The Spectrum view displays live FFT power spectrum from the RTL-SDR. There are two ways to set this up:
+
+**Automatic (via Maestra Streams + NATS bridge):**
+
+```bash
+# RTL-SDR advertises a stream; ESP32 discovers it and auto-registers as a consumer
+python rtl_sdr_maestra.py --entity-slug my-sdr --stream --nats-url nats://<maestra-host>:4222
+```
+
+The RTL-SDR advertises a sensor stream via Maestra. The ESP32 discovers it through MQTT (`maestra/stream/advertise/sensor`), publishes a consumer registration, and the MQTT-NATS bridge routes it back to the RTL-SDR which starts sending SDRF packets.
+
+**Manual (direct UDP):**
+
+```bash
+# Point the RTL-SDR directly at the ESP32's IP and configured stream port
+python rtl_sdr_maestra.py --entity-slug my-sdr --stream --stream-dest <esp32-ip>:9900
+```
+
+The ESP32 listens on UDP port 9900 (configurable in menuconfig) and displays whatever SDRF packets it receives.
 
 ## Troubleshooting
 

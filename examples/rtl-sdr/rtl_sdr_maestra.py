@@ -127,9 +127,12 @@ def pack_spectrum_packet(
       [4:8]   uint32  sequence    monotonic counter
       [8:16]  float64 center_freq Hz
       [16:24] float64 sample_rate Hz
-      [24:28] uint32  fft_size    number of bins
-      [28:32] uint32  reserved    (zero)
-      [32:]   float32[] power_db  one float per bin
+      [24:32] float64 reserved    (zero)
+      [32:36] uint32  fft_size    number of bins
+      [36:]   float32[] power_db  one float per bin
+
+    Total header size: 36 bytes.  With 1024 bins the packet is 4132 bytes,
+    which exceeds the typical 1500-byte MTU and will be IP-fragmented.
     """
     fft_size = len(power_db)
     header = struct.pack(

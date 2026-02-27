@@ -114,6 +114,8 @@ static void spectrum_udp_task(void *arg)
     /* Static buffer — lives for the lifetime of the task */
     static uint8_t rx_buf[UDP_BUF_SIZE];
 
+    bool first_packet = true;
+
     while (1) {
         struct sockaddr_in src_addr;
         socklen_t src_len = sizeof(src_addr);
@@ -127,10 +129,28 @@ static void spectrum_udp_task(void *arg)
             continue;
         }
 
+        if (first_packet) {
+            char addr_str[INET_ADDRSTRLEN];
+            inet_ntoa_r(src_addr.sin_addr, addr_str, sizeof(addr_str));
+            ESP_LOGI(TAG, "First UDP packet received: %d bytes from %s:%d",
+                     n, addr_str, ntohs(src_addr.sin_port));
+            first_packet = false;
+        }
+
         if (parse_sdrf_packet(rx_buf, n)) {
-            ESP_LOGD(TAG, "SDRF seq=%lu fft=%lu",
-                     (unsigned long)s_data.seq,
-                     (unsigned long)s_data.fft_size);
+            if (s_data.seq % 100 == 1) {
+                ESP_LOGI(TAG, "SDRF seq=%lu fft=%lu cf=%.1fMHz",
+                         (unsigned long)s_data.seq,
+                         (unsigned long)s_data.fft_size,
+                         s_data.center_freq / 1e6);
+            }
+        } else {
+            /* Log why parsing failed for the first few bad packets */
+            uint32_t magic = 0;
+            if (n >= 4) memcpy(&magic, rx_buf, 4);
+            ESP_LOGW(TAG, "SDRF parse failed: %d bytes, magic=0x%08lX "
+                     "(expected 0x%08X, hdr=%d)",
+                     n, (unsigned long)magic, SDRF_MAGIC, SDRF_HEADER_SIZE);
         }
     }
 
@@ -148,7 +168,7 @@ void spectrum_stream_init(uint16_t udp_port)
     memset(&s_data, 0, sizeof(s_data));
     memset(&s_info, 0, sizeof(s_info));
 
-    xTaskCreate(spectrum_udp_task, "spectrum_udp", 4096, NULL, 5, NULL);
+    xTaskCreate(spectrum_udp_task, "spectrum_udp", 6144, NULL, 5, NULL);
     ESP_LOGI(TAG, "Spectrum stream receiver initialised (port %u)", udp_port);
 }
 

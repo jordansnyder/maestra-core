@@ -67,6 +67,27 @@ static lv_obj_t *lbl_spec_status;
 
 #define SPECTRUM_CHART_POINTS  256
 
+/* ── Visualization modes ──────────────────────────────────────────────── */
+
+typedef enum { VIZ_LINE = 0, VIZ_WATERFALL, VIZ_RADIAL, VIZ_MODE_COUNT } viz_mode_t;
+static viz_mode_t       s_viz_mode = VIZ_LINE;
+static lv_obj_t        *lbl_viz_mode;
+
+/* Waterfall spectrogram canvas */
+#define WF_W   256
+#define WF_H   200
+static lv_obj_t        *waterfall_canvas;
+static lv_draw_buf_t   *waterfall_buf;
+
+/* Radial / polar canvas */
+#define RAD_W  400
+#define RAD_H  400
+static lv_obj_t        *radial_canvas;
+static lv_draw_buf_t   *radial_buf;
+
+/* Inferno-style colormap: 256 entries stored as RGB565 */
+static uint16_t s_colormap[256];
+
 /* Nav indicators */
 #define NUM_TILES  4
 static lv_obj_t *nav_dots[NUM_TILES];
@@ -264,6 +285,69 @@ static void create_activity(lv_obj_t *page)
     lv_obj_set_style_pad_all(activity_list, 12, 0);
 }
 
+/* ── Inferno-style colormap initialisation ────────────────────────────── */
+
+static inline uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b)
+{
+    return (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+}
+
+static uint8_t lerp8(uint8_t a, uint8_t b, float t)
+{
+    return (uint8_t)(a + t * (b - a));
+}
+
+static void init_colormap(void)
+{
+    /* 4-stop Inferno-inspired gradient:
+     *   0 : black        (0, 0, 0)
+     *  64 : deep purple  (50, 0, 130)
+     * 128 : red/magenta  (190, 20, 60)
+     * 192 : orange/amber (255, 170, 0)
+     * 255 : bright white (255, 255, 220)
+     */
+    static const uint8_t stops[][3] = {
+        {  0,   0,   0},
+        { 50,   0, 130},
+        {190,  20,  60},
+        {255, 170,   0},
+        {255, 255, 220},
+    };
+    for (int i = 0; i < 256; i++) {
+        int seg  = i / 64;
+        if (seg > 3) seg = 3;
+        float t  = (float)(i - seg * 64) / 64.0f;
+        uint8_t r = lerp8(stops[seg][0], stops[seg + 1][0], t);
+        uint8_t g = lerp8(stops[seg][1], stops[seg + 1][1], t);
+        uint8_t b = lerp8(stops[seg][2], stops[seg + 1][2], t);
+        s_colormap[i] = rgb565(r, g, b);
+    }
+}
+
+/* ── Viz mode tap handler ─────────────────────────────────────────────── */
+
+static void on_viz_mode_tap(lv_event_t *e)
+{
+    (void)e;
+    s_viz_mode = (viz_mode_t)((s_viz_mode + 1) % VIZ_MODE_COUNT);
+
+    /* Hide all visualisation widgets */
+    lv_obj_add_flag(spectrum_chart,    LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(waterfall_canvas,  LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(radial_canvas,     LV_OBJ_FLAG_HIDDEN);
+
+    /* Show the active one */
+    switch (s_viz_mode) {
+        case VIZ_LINE:      lv_obj_remove_flag(spectrum_chart,   LV_OBJ_FLAG_HIDDEN); break;
+        case VIZ_WATERFALL: lv_obj_remove_flag(waterfall_canvas, LV_OBJ_FLAG_HIDDEN); break;
+        case VIZ_RADIAL:    lv_obj_remove_flag(radial_canvas,    LV_OBJ_FLAG_HIDDEN); break;
+        default: break;
+    }
+
+    static const char *names[] = {"LINE", "WATERFALL", "RADIAL"};
+    lv_label_set_text(lbl_viz_mode, names[s_viz_mode]);
+}
+
 /* ── Spectrum page ─────────────────────────────────────────────────────── */
 
 static void create_spectrum(lv_obj_t *page)
@@ -312,6 +396,35 @@ static void create_spectrum(lv_obj_t *page)
     lv_obj_t *lbl_min = make_label(chart_card, &lv_font_montserrat_14,
                                     COL_TEXT_DIM, "-80 dB");
     lv_obj_align(lbl_min, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+
+    /* ── Waterfall canvas (hidden by default) ──────────────────────── */
+    init_colormap();
+    waterfall_buf = lv_draw_buf_create(WF_W, WF_H, LV_COLOR_FORMAT_RGB565, 0);
+    waterfall_canvas = lv_canvas_create(chart_card);
+    lv_canvas_set_draw_buf(waterfall_canvas, waterfall_buf);
+    lv_canvas_fill_bg(waterfall_canvas, lv_color_hex(0x000000), LV_OPA_COVER);
+    lv_obj_set_size(waterfall_canvas, 596, 300);
+    lv_image_set_inner_align(waterfall_canvas, LV_IMAGE_ALIGN_STRETCH);
+    lv_obj_center(waterfall_canvas);
+    lv_obj_add_flag(waterfall_canvas, LV_OBJ_FLAG_HIDDEN);
+
+    /* ── Radial canvas (hidden by default) ─────────────────────────── */
+    radial_buf = lv_draw_buf_create(RAD_W, RAD_H, LV_COLOR_FORMAT_RGB565, 0);
+    radial_canvas = lv_canvas_create(chart_card);
+    lv_canvas_set_draw_buf(radial_canvas, radial_buf);
+    lv_canvas_fill_bg(radial_canvas, lv_color_hex(0x000000), LV_OPA_COVER);
+    lv_obj_set_size(radial_canvas, 300, 300);
+    lv_image_set_inner_align(radial_canvas, LV_IMAGE_ALIGN_STRETCH);
+    lv_obj_center(radial_canvas);
+    lv_obj_add_flag(radial_canvas, LV_OBJ_FLAG_HIDDEN);
+
+    /* ── Mode label + tap-to-cycle ─────────────────────────────────── */
+    lbl_viz_mode = make_label(chart_card, &lv_font_montserrat_14,
+                              COL_TEXT_DIM, "LINE");
+    lv_obj_align(lbl_viz_mode, LV_ALIGN_TOP_RIGHT, -8, 4);
+
+    lv_obj_add_flag(chart_card, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(chart_card, on_viz_mode_tap, LV_EVENT_CLICKED, NULL);
 
     /* Info row below chart */
     lv_obj_t *info = lv_obj_create(page);
@@ -401,6 +514,224 @@ static void create_nav_dots(lv_obj_t *parent)
         lv_obj_set_style_border_width(nav_dots[i], 0, 0);
     }
     update_nav_dots(0);
+}
+
+/* ── Spectrum visualisation update helpers ──────────────────────────────── */
+
+/**
+ * Compute common spectrum metrics from the raw power_db array.
+ * Writes back peak_power, noise_floor, snr, peak_freq.
+ */
+static void compute_spectrum_metrics(const spectrum_data_t *spec,
+                                     float *out_peak, float *out_noise,
+                                     float *out_snr,  float *out_peak_freq)
+{
+    float noise_sum  = 0.0f;
+    float peak_power = -200.0f;
+    float peak_freq  = 0.0f;
+
+    for (uint32_t b = 0; b < spec->fft_size; b++) {
+        noise_sum += spec->power_db[b];
+        if (spec->power_db[b] > peak_power) {
+            peak_power = spec->power_db[b];
+            float freq_res = (float)(spec->sample_rate / spec->fft_size);
+            peak_freq = (float)(spec->center_freq
+                        - spec->sample_rate / 2.0
+                        + b * freq_res);
+        }
+    }
+
+    *out_peak      = peak_power;
+    *out_noise     = (spec->fft_size > 0) ? noise_sum / (float)spec->fft_size : -80.0f;
+    *out_snr       = peak_power - *out_noise;
+    *out_peak_freq = peak_freq;
+}
+
+/* ── LINE chart update ──────────────────────────────────────────────────── */
+
+static void update_line_chart(const spectrum_data_t *spec)
+{
+    uint32_t fft = spec->fft_size;
+    int bins_per_point = (int)(fft / SPECTRUM_CHART_POINTS);
+    if (bins_per_point < 1) bins_per_point = 1;
+
+    for (int p = 0; p < SPECTRUM_CHART_POINTS; p++) {
+        int start = p * bins_per_point;
+        int end   = start + bins_per_point;
+        if (end > (int)fft) end = (int)fft;
+
+        float max_val = -200.0f;
+        for (int b = start; b < end; b++) {
+            if (spec->power_db[b] > max_val)
+                max_val = spec->power_db[b];
+        }
+        int32_t val = (int32_t)max_val;
+        if (val < -80) val = -80;
+        if (val > 0)   val = 0;
+        lv_chart_set_series_value_by_id(spectrum_chart, spectrum_series, p, val);
+    }
+    lv_chart_refresh(spectrum_chart);
+}
+
+/* ── WATERFALL spectrogram update ───────────────────────────────────────── */
+
+static void update_waterfall(const spectrum_data_t *spec)
+{
+    uint16_t *px = (uint16_t *)waterfall_buf->data;
+
+    /* Scroll all existing rows down by one (newest row at top) */
+    memmove(px + WF_W, px, (size_t)WF_W * (WF_H - 1) * sizeof(uint16_t));
+
+    /* Draw new top row from spectrum data */
+    int bins_per_col = (int)(spec->fft_size / WF_W);
+    if (bins_per_col < 1) bins_per_col = 1;
+
+    for (int x = 0; x < WF_W; x++) {
+        int start = x * bins_per_col;
+        float max_val = -200.0f;
+        for (int b = start; b < start + bins_per_col && b < (int)spec->fft_size; b++) {
+            if (spec->power_db[b] > max_val)
+                max_val = spec->power_db[b];
+        }
+        /* Map -80 … 0 dB  →  colormap index 0 … 255 */
+        int idx = (int)((max_val + 80.0f) * (255.0f / 80.0f));
+        if (idx < 0)   idx = 0;
+        if (idx > 255) idx = 255;
+        px[x] = s_colormap[idx];
+    }
+
+    lv_obj_invalidate(waterfall_canvas);
+}
+
+/* ── RADIAL / polar spectrum update ─────────────────────────────────────── */
+
+static void update_radial(const spectrum_data_t *spec)
+{
+    /* Clear to black */
+    lv_canvas_fill_bg(radial_canvas, lv_color_hex(0x000000), LV_OPA_COVER);
+
+    lv_layer_t layer;
+    lv_canvas_init_layer(radial_canvas, &layer);
+
+    const float cx = RAD_W / 2.0f;
+    const float cy = RAD_H / 2.0f;
+    const float inner_r = 30.0f;
+    const float max_r   = cx - 10.0f;
+
+    int num_lines = 180;  /* one radial line every 2° */
+    int bins_per_line = (int)(spec->fft_size / num_lines);
+    if (bins_per_line < 1) bins_per_line = 1;
+
+    for (int i = 0; i < num_lines; i++) {
+        float angle = (float)i * (2.0f * 3.14159265f / (float)num_lines);
+
+        /* Peak-hold for this angular segment */
+        int start = i * bins_per_line;
+        float max_val = -200.0f;
+        for (int b = start; b < start + bins_per_line && b < (int)spec->fft_size; b++) {
+            if (spec->power_db[b] > max_val)
+                max_val = spec->power_db[b];
+        }
+
+        /* Normalise 0 … 1 */
+        float norm = (max_val + 80.0f) / 80.0f;
+        if (norm < 0.0f) norm = 0.0f;
+        if (norm > 1.0f) norm = 1.0f;
+
+        float outer_r = inner_r + norm * (max_r - inner_r);
+
+        /* Colour from the colormap */
+        int cidx = (int)(norm * 255.0f);
+        if (cidx > 255) cidx = 255;
+        uint16_t c565 = s_colormap[cidx];
+        uint8_t r = (uint8_t)((c565 >> 11) << 3);
+        uint8_t g = (uint8_t)(((c565 >> 5) & 0x3F) << 2);
+        uint8_t b = (uint8_t)((c565 & 0x1F) << 3);
+
+        float cos_a = cosf(angle);
+        float sin_a = sinf(angle);
+
+        lv_draw_line_dsc_t dsc;
+        lv_draw_line_dsc_init(&dsc);
+        dsc.color     = lv_color_make(r, g, b);
+        dsc.width     = 3;
+        dsc.opa       = LV_OPA_COVER;
+        dsc.round_end = 1;
+        dsc.p1 = (lv_point_precise_t){ (int32_t)(cx + inner_r * cos_a),
+                                       (int32_t)(cy + inner_r * sin_a) };
+        dsc.p2 = (lv_point_precise_t){ (int32_t)(cx + outer_r * cos_a),
+                                       (int32_t)(cy + outer_r * sin_a) };
+        lv_draw_line(&layer, &dsc);
+    }
+
+    lv_canvas_finish_layer(radial_canvas, &layer);
+}
+
+/* ── Public: spectrum fast-path refresh (10 Hz) ────────────────────────── */
+
+void dashboard_spectrum_refresh(void)
+{
+    char buf[64];
+    const spectrum_data_t *spec        = spectrum_get_data();
+    const spectrum_stream_info_t *sinfo = spectrum_get_info();
+
+    /* Stream source info */
+    if (sinfo->discovered) {
+        snprintf(buf, sizeof(buf), "%s  %s:%u",
+                 sinfo->name, sinfo->publisher_address, sinfo->publisher_port);
+        lv_label_set_text(lbl_spec_source, buf);
+        lv_obj_set_style_text_color(lbl_spec_source, COL_TEXT_DIM, 0);
+    } else {
+        lv_label_set_text(lbl_spec_source, "Scanning for streams...");
+        lv_obj_set_style_text_color(lbl_spec_source, COL_TEXT_DIM, 0);
+    }
+
+    if (!spec->valid) {
+        lv_label_set_text(lbl_spec_status, "");
+        lv_label_set_text(lbl_spec_freq,  "--");
+        lv_label_set_text(lbl_spec_peak,  "--");
+        lv_label_set_text(lbl_spec_noise, "--");
+        lv_label_set_text(lbl_spec_snr,   "--");
+        return;
+    }
+
+    bool receiving = spectrum_is_receiving();
+    if (receiving) {
+        snprintf(buf, sizeof(buf), "LIVE  seq %lu", (unsigned long)spec->seq);
+        lv_label_set_text(lbl_spec_status, buf);
+        lv_obj_set_style_text_color(lbl_spec_status, COL_GREEN, 0);
+    } else {
+        lv_label_set_text(lbl_spec_status, "SIGNAL LOST");
+        lv_obj_set_style_text_color(lbl_spec_status, COL_RED, 0);
+    }
+
+    /* Dispatch to active visualisation */
+    switch (s_viz_mode) {
+        case VIZ_LINE:      update_line_chart(spec); break;
+        case VIZ_WATERFALL: update_waterfall(spec);  break;
+        case VIZ_RADIAL:    update_radial(spec);     break;
+        default: break;
+    }
+
+    /* Metric labels */
+    float peak, noise, snr, peak_freq;
+    compute_spectrum_metrics(spec, &peak, &noise, &snr, &peak_freq);
+
+    snprintf(buf, sizeof(buf), "%.3f MHz", spec->center_freq / 1e6);
+    lv_label_set_text(lbl_spec_freq, buf);
+
+    snprintf(buf, sizeof(buf), "%.1f dB", peak);
+    lv_label_set_text(lbl_spec_peak, buf);
+    lv_obj_set_style_text_color(lbl_spec_peak,
+        peak > -20.0f ? COL_GREEN : COL_TEXT, 0);
+
+    snprintf(buf, sizeof(buf), "%.1f dB", noise);
+    lv_label_set_text(lbl_spec_noise, buf);
+
+    snprintf(buf, sizeof(buf), "%.1f dB", snr);
+    lv_label_set_text(lbl_spec_snr, buf);
+    lv_obj_set_style_text_color(lbl_spec_snr,
+        snr > 20.0f ? COL_GREEN : snr > 10.0f ? COL_YELLOW : COL_TEXT, 0);
 }
 
 /* ── Public: create ─────────────────────────────────────────────────────── */
@@ -579,101 +910,5 @@ void dashboard_ui_refresh(void)
         make_label(row, &lv_font_montserrat_14, COL_TEXT, entry->summary);
     }
 
-    /* ── Spectrum ──────────────────────────────────────────────────────── */
-
-    const spectrum_data_t *spec = spectrum_get_data();
-    const spectrum_stream_info_t *sinfo = spectrum_get_info();
-
-    /* Stream source info */
-    if (sinfo->discovered) {
-        snprintf(buf, sizeof(buf), "%s  %s:%u",
-                 sinfo->name, sinfo->publisher_address, sinfo->publisher_port);
-        lv_label_set_text(lbl_spec_source, buf);
-        lv_obj_set_style_text_color(lbl_spec_source, COL_TEXT_DIM, 0);
-    } else {
-        lv_label_set_text(lbl_spec_source, "Scanning for streams...");
-        lv_obj_set_style_text_color(lbl_spec_source, COL_TEXT_DIM, 0);
-    }
-
-    if (spec->valid) {
-        bool receiving = spectrum_is_receiving();
-
-        /* Status indicator */
-        if (receiving) {
-            snprintf(buf, sizeof(buf), "LIVE  seq %lu",
-                     (unsigned long)spec->seq);
-            lv_label_set_text(lbl_spec_status, buf);
-            lv_obj_set_style_text_color(lbl_spec_status, COL_GREEN, 0);
-        } else {
-            lv_label_set_text(lbl_spec_status, "SIGNAL LOST");
-            lv_obj_set_style_text_color(lbl_spec_status, COL_RED, 0);
-        }
-
-        /* Downsample power_db into chart points.
-         * Group source bins and take the max of each group for a
-         * peak-hold style display. */
-        uint32_t fft = spec->fft_size;
-        int bins_per_point = (int)(fft / SPECTRUM_CHART_POINTS);
-        if (bins_per_point < 1) bins_per_point = 1;
-
-        float noise_floor = 0.0f;
-        float peak_power  = -200.0f;
-        float peak_freq   = 0.0f;
-
-        for (int p = 0; p < SPECTRUM_CHART_POINTS; p++) {
-            int start = p * bins_per_point;
-            int end   = start + bins_per_point;
-            if (end > (int)fft) end = (int)fft;
-
-            float max_val = -200.0f;
-            for (int b = start; b < end; b++) {
-                if (spec->power_db[b] > max_val)
-                    max_val = spec->power_db[b];
-                noise_floor += spec->power_db[b];
-                if (spec->power_db[b] > peak_power) {
-                    peak_power = spec->power_db[b];
-                    /* Convert bin index to frequency */
-                    float freq_res = (float)(spec->sample_rate / fft);
-                    peak_freq = (float)(spec->center_freq
-                                - spec->sample_rate / 2.0
-                                + b * freq_res);
-                }
-            }
-            /* Clamp to chart range */
-            int32_t val = (int32_t)max_val;
-            if (val < -80) val = -80;
-            if (val > 0)   val = 0;
-            lv_chart_set_series_value_by_id(spectrum_chart, spectrum_series,
-                                           p, val);
-        }
-
-        noise_floor /= (float)fft;
-        float snr = peak_power - noise_floor;
-
-        lv_chart_refresh(spectrum_chart);
-
-        /* Metric labels */
-        snprintf(buf, sizeof(buf), "%.3f MHz",
-                 spec->center_freq / 1e6);
-        lv_label_set_text(lbl_spec_freq, buf);
-
-        snprintf(buf, sizeof(buf), "%.1f dB", peak_power);
-        lv_label_set_text(lbl_spec_peak, buf);
-        lv_obj_set_style_text_color(lbl_spec_peak,
-            peak_power > -20.0f ? COL_GREEN : COL_TEXT, 0);
-
-        snprintf(buf, sizeof(buf), "%.1f dB", noise_floor);
-        lv_label_set_text(lbl_spec_noise, buf);
-
-        snprintf(buf, sizeof(buf), "%.1f dB", snr);
-        lv_label_set_text(lbl_spec_snr, buf);
-        lv_obj_set_style_text_color(lbl_spec_snr,
-            snr > 20.0f ? COL_GREEN : snr > 10.0f ? COL_YELLOW : COL_TEXT, 0);
-    } else {
-        lv_label_set_text(lbl_spec_status, "");
-        lv_label_set_text(lbl_spec_freq,  "--");
-        lv_label_set_text(lbl_spec_peak,  "--");
-        lv_label_set_text(lbl_spec_noise, "--");
-        lv_label_set_text(lbl_spec_snr,   "--");
-    }
+    /* Spectrum is handled by the fast-path dashboard_spectrum_refresh() */
 }

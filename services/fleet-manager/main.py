@@ -24,6 +24,7 @@ from redis_client import init_redis, close_redis, get_redis
 from entity_router import router as entity_router
 from routing_router import router as routing_router
 from stream_router import router as stream_router
+from stream_preview import router as stream_preview_router
 from analytics_router import router as analytics_router
 
 # Initialize FastAPI app
@@ -46,6 +47,7 @@ app.add_middleware(
 app.include_router(entity_router)
 app.include_router(routing_router)
 app.include_router(stream_router)
+app.include_router(stream_preview_router)
 app.include_router(analytics_router)
 
 

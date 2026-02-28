@@ -1,3 +1,5 @@
 export { StreamMonitor } from './StreamMonitor'
 export { StreamRegistry } from './StreamRegistry'
 export { SessionList } from './SessionList'
+export { StreamDetail } from './StreamDetail'
+export { StreamPreview } from './previews'

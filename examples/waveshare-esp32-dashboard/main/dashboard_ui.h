@@ -22,6 +22,9 @@ void dashboard_ui_create(void);
 /** Refresh data-driven content (call periodically from a timer). */
 void dashboard_ui_refresh(void);
 
+/** Fast-path spectrum-only refresh (call at ~100 ms for smooth animation). */
+void dashboard_spectrum_refresh(void);
+
 #ifdef __cplusplus
 }
 #endif

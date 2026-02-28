@@ -136,6 +136,12 @@ static void ui_refresh_cb(lv_timer_t *timer)
     dashboard_ui_refresh();
 }
 
+static void spectrum_refresh_cb(lv_timer_t *timer)
+{
+    (void)timer;
+    dashboard_spectrum_refresh();
+}
+
 /* ── Main ────────────────────────────────────────────────────────────────── */
 
 void app_main(void)
@@ -190,9 +196,10 @@ void app_main(void)
     /* ── Maestra MQTT ─────────────────────────────────────────────────── */
     maestra_mqtt_init(MQTT_BROKER_URI, entity_slugs, ENTITY_COUNT);
 
-    /* ── Periodic UI refresh (every 2 s) ──────────────────────────────── */
+    /* ── Periodic UI refresh ─────────────────────────────────────────── */
     bsp_display_lock(-1);
-    lv_timer_create(ui_refresh_cb, 2000, NULL);
+    lv_timer_create(ui_refresh_cb, 2000, NULL);       /* Overview/entities/activity */
+    lv_timer_create(spectrum_refresh_cb, 100, NULL);   /* Spectrum: 10 Hz */
     bsp_display_unlock();
 
     ESP_LOGI(TAG, "Maestra dashboard running");

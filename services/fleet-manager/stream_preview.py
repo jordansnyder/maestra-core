@@ -14,6 +14,7 @@ return connection info only — the user connects with a dedicated tool.
 import asyncio
 import json
 import logging
+import os
 import socket
 import struct
 from datetime import datetime
@@ -24,6 +25,21 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from stream_manager import stream_manager
+
+# Host LAN IP — used to tell publishers where to send UDP data.
+# Inside Docker, the container's own IP is a Docker-internal address that
+# external devices (Raspberry Pi, etc.) can't reach.  We need the Docker
+# host's LAN IP so publishers route to the host, which forwards via the
+# exposed port range (19000-19004/udp) in docker-compose.yml.
+HOST_IP = os.getenv("HOST_IP", "")
+
+# Exposed UDP port range for preview proxies.  docker-compose.yml maps
+# 19000-19004/udp on the host to the same ports inside the container.
+PREVIEW_PORT_START = 19000
+PREVIEW_PORT_END = 19004
+
+# Track which preview ports are currently in use
+_used_preview_ports: set[int] = set()
 
 logger = logging.getLogger(__name__)
 
@@ -244,42 +260,99 @@ async def _proxy_generator(
     """
     Main proxy generator:
     1. Bind a UDP socket
-    2. Negotiate with publisher via NATS request-reply
+    2. Register as a consumer via MQTT bridge (same path the ESP32 uses)
     3. Receive data, decode, yield as SSE events
+    4. Unregister on disconnect
+
+    The RTL-SDR publisher (and others using the SDK pattern) listen for
+    consumer registrations on the NATS subject:
+        maestra.mqtt.maestra.stream.{stream_id}.subscribe
+    which is the MQTT bridge path for:
+        maestra/stream/{stream_id}/subscribe
+
+    We publish our address/port to the NATS→MQTT bridge subject:
+        maestra.to_mqtt.maestra.stream.{stream_id}.subscribe
+    which the bridge delivers to MQTT topic:
+        maestra/stream/{stream_id}/subscribe
+    The publisher picks this up and starts sending UDP data to us.
     """
     stream_type = stream_data.get("stream_type", "")
     decoder = get_decoder(stream_type)
     sock = None
     local_port = 0
+    local_ip = HOST_IP or _get_local_ip()
+    registered = False
 
     try:
-        # Bind an ephemeral UDP socket
+        # Bind to a port in the exposed preview range (19000-19004/udp).
+        # This range is forwarded from the Docker host, so external devices
+        # can reach us via HOST_IP:port.
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(("0.0.0.0", 0))
+
+        # Find a free port in the exposed range
+        bound = False
+        for port in range(PREVIEW_PORT_START, PREVIEW_PORT_END + 1):
+            if port in _used_preview_ports:
+                continue
+            try:
+                sock.bind(("0.0.0.0", port))
+                local_port = port
+                _used_preview_ports.add(port)
+                bound = True
+                break
+            except OSError:
+                continue
+
+        if not bound:
+            # Fallback to ephemeral port (works when running outside Docker)
+            sock.bind(("0.0.0.0", 0))
+            local_port = sock.getsockname()[1]
+            logger.warning(
+                "Preview proxy: no exposed ports available, using ephemeral port %d",
+                local_port,
+            )
+
         sock.setblocking(False)
-        local_port = sock.getsockname()[1]
 
         logger.info(
-            "Preview proxy: bound UDP port %d for stream %s (%s)",
-            local_port, stream_id, stream_type,
+            "Preview proxy: bound UDP port %d for stream %s (%s), advertised IP: %s",
+            local_port, stream_id, stream_type, local_ip,
         )
 
-        # Get our local IP (best effort for the publisher to reach us)
-        local_ip = _get_local_ip()
-
-        # Negotiate with publisher via NATS request-reply
-        consumer_id = f"dashboard-preview-{stream_id[:8]}"
-        try:
-            offer = await stream_manager.request_stream(
-                stream_id=stream_id,
-                consumer_id=consumer_id,
-                consumer_address=local_ip,
-                consumer_port=local_port,
-            )
-        except (ValueError, TimeoutError, RuntimeError) as e:
-            yield sse_event("error", {"message": str(e)})
+        # Register as a consumer via the MQTT bridge path.
+        # The publisher subscribes to the NATS bridge subject and adds us
+        # to its consumer list, then starts sending UDP data to our port.
+        nc = stream_manager.nc
+        if not nc or nc.is_closed:
+            yield sse_event("error", {"message": "NATS not connected"})
             return
+
+        subscribe_payload = json.dumps({
+            "address": local_ip,
+            "port": local_port,
+        }).encode()
+
+        # Publish via NATS→MQTT bridge so the publisher picks it up
+        subscribe_subject = f"maestra.to_mqtt.maestra.stream.{stream_id}.subscribe"
+        await nc.publish(subscribe_subject, subscribe_payload)
+
+        # Also publish directly on the NATS bridge inbound path in case
+        # the publisher subscribes to the NATS-side subject directly
+        direct_subject = f"maestra.mqtt.maestra.stream.{stream_id}.subscribe"
+        bridge_envelope = json.dumps({
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "source": "mqtt",
+            "topic": f"maestra/stream/{stream_id}/subscribe",
+            "data": {"address": local_ip, "port": local_port},
+        }).encode()
+        await nc.publish(direct_subject, bridge_envelope)
+
+        registered = True
+        logger.info(
+            "Preview proxy: registered as consumer at %s:%d for stream %s",
+            local_ip, local_port, stream_id,
+        )
 
         # Send initial info event
         yield sse_event("info", {
@@ -288,16 +361,14 @@ async def _proxy_generator(
             "stream_type": stream_type,
             "protocol": stream_data.get("protocol", ""),
             "publisher_id": stream_data.get("publisher_id", ""),
-            "publisher_address": offer.get("publisher_address", ""),
-            "publisher_port": offer.get("publisher_port", 0),
+            "publisher_address": stream_data.get("address", ""),
+            "publisher_port": stream_data.get("port", 0),
             "local_port": local_port,
-            "session_id": offer.get("session_id", ""),
         })
 
         # Receive loop — read UDP packets, decode, yield SSE
         loop = asyncio.get_event_loop()
         seq = 0
-        last_heartbeat = asyncio.get_event_loop().time()
 
         while True:
             try:
@@ -307,15 +378,7 @@ async def _proxy_generator(
                     timeout=5.0,
                 )
             except asyncio.TimeoutError:
-                # No data for 5s — send keepalive, check if stream still exists
-                now = asyncio.get_event_loop().time()
-                if now - last_heartbeat > 10:
-                    # Refresh the stream's session heartbeat
-                    session_id = offer.get("session_id")
-                    if session_id:
-                        await stream_manager.refresh_session_ttl(session_id)
-                    last_heartbeat = now
-
+                # No data for 5s — send keepalive
                 yield sse_event("heartbeat", {
                     "time": datetime.utcnow().isoformat(),
                     "seq": seq,
@@ -335,14 +398,6 @@ async def _proxy_generator(
 
             yield sse_event("preview", decoded)
 
-            # Periodic session heartbeat
-            now = asyncio.get_event_loop().time()
-            if now - last_heartbeat > 10:
-                session_id = offer.get("session_id")
-                if session_id:
-                    await stream_manager.refresh_session_ttl(session_id)
-                last_heartbeat = now
-
     except asyncio.CancelledError:
         logger.info("Preview proxy cancelled for stream %s", stream_id)
     except Exception as e:
@@ -352,12 +407,38 @@ async def _proxy_generator(
         except Exception:
             pass
     finally:
-        # Cleanup
+        # Unregister as consumer so the publisher stops sending to us
+        if registered:
+            try:
+                nc = stream_manager.nc
+                if nc and not nc.is_closed:
+                    unsubscribe_payload = json.dumps({
+                        "address": local_ip,
+                        "port": local_port,
+                    }).encode()
+                    unsub_subject = f"maestra.to_mqtt.maestra.stream.{stream_id}.unsubscribe"
+                    await nc.publish(unsub_subject, unsubscribe_payload)
+
+                    # Also publish on the direct NATS bridge path
+                    direct_unsub = f"maestra.mqtt.maestra.stream.{stream_id}.unsubscribe"
+                    unsub_envelope = json.dumps({
+                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                        "source": "mqtt",
+                        "topic": f"maestra/stream/{stream_id}/unsubscribe",
+                        "data": {"address": local_ip, "port": local_port},
+                    }).encode()
+                    await nc.publish(direct_unsub, unsub_envelope)
+                    logger.info("Preview proxy: unregistered consumer %s:%d", local_ip, local_port)
+            except Exception as e:
+                logger.warning("Failed to unregister consumer: %s", e)
+
+        # Close the UDP socket and release the preview port
         if sock:
             try:
                 sock.close()
             except Exception:
                 pass
+        _used_preview_ports.discard(local_port)
         logger.info("Preview proxy closed for stream %s (port %d)", stream_id, local_port)
 
 

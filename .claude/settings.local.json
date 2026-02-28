@@ -52,7 +52,9 @@
       "Bash(npx tsc:*)",
       "Bash(./node_modules/.bin/tsc:*)",
       "Bash(node:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(# First, get the current stream ID curl -s http://localhost:8080/streams)",
+      "Bash(# Check if the stream came back after a few seconds sleep 5 && curl -s http://localhost:8080/streams)"
     ]
   }
 }

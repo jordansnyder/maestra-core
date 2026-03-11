@@ -7,6 +7,7 @@ import { Entity, EntityType, EntityUpdate } from '@/lib/types'
 import { entitiesApi, entityTypesApi } from '@/lib/api'
 import { EntityVariablesPanel } from '@/components/EntityVariablesPanel'
 import { StateTestPanel } from '@/components/StateTestPanel'
+import { EntityStateOverview } from '@/components/EntityStateOverview'
 import { useToast } from '@/components/Toast'
 import { ENTITY_TYPE_ICONS, DEFAULT_ENTITY_ICON, Pencil, Trash2, ChevronRight } from '@/components/icons'
 import type { LucideIcon } from 'lucide-react'
@@ -255,6 +256,13 @@ export default function EntityDetailPage() {
             </div>
           </div>
         </header>
+
+        {/* State Overview - Primary view */}
+        {Object.keys(entity.state).length > 0 && (
+          <div className="mb-8">
+            <EntityStateOverview entity={entity} onStateChange={loadData} />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Left Column - Metadata */}

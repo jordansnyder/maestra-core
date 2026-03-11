@@ -31,6 +31,7 @@ nav:
       - WebSocket Gateway: api/websocket.md
       - OSC Gateway: api/osc.md
   - Guides:
+      - Choose Your SDK: guides/choose-your-sdk.md
       - Device Registration: guides/device-registration.md
       - MQTT Integration: guides/mqtt.md
       - Streams: guides/streams.md

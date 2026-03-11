@@ -6,6 +6,8 @@ import { useActivityFeed, type ActivityItem, type ActivityCategory } from '@/hoo
 import { StatsCard } from '@/components/StatsCard'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Card } from '@/components/Card'
+import { WelcomeBanner } from '@/components/WelcomeBanner'
+import { GettingStartedChecklist } from '@/components/GettingStartedChecklist'
 import {
   Activity,
   CheckCircle2,
@@ -46,6 +48,9 @@ export default function Home() {
             </span>
           </div>
         </div>
+
+        <WelcomeBanner />
+        <GettingStartedChecklist />
 
         {/* Fleet stats bar */}
         <div className="grid grid-cols-4 gap-3">

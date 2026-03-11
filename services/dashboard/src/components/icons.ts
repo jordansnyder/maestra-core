@@ -89,6 +89,7 @@ export {
   RefreshCw,
   Settings,
   ChevronDown,
+  BookOpen,
 } from 'lucide-react'
 
 // Device type icon lookup

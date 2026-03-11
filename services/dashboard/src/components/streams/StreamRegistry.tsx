@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import type { StreamInfo, StreamTypeInfo } from '@/lib/types'
-import { STREAM_TYPE_ICONS, DEFAULT_STREAM_ICON } from '@/components/icons'
+import { STREAM_TYPE_ICONS, DEFAULT_STREAM_ICON, Radio } from '@/components/icons'
+import { EmptyState } from '@/components/EmptyState'
 
 // Protocol badge colors
 const PROTOCOL_COLORS: Record<string, string> = {
@@ -35,14 +36,12 @@ interface StreamRegistryProps {
 export function StreamRegistry({ streams, streamTypes }: StreamRegistryProps) {
   if (streams.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-3">
-        <div className="text-4xl opacity-30">&#9737;</div>
-        <p className="text-sm">No active streams</p>
-        <p className="text-xs text-slate-600 max-w-sm text-center">
-          Devices can advertise streams via POST /streams/advertise or through the Python SDK.
-          Streams appear here automatically and expire after 30 seconds without a heartbeat.
-        </p>
-      </div>
+      <EmptyState
+        icon={Radio}
+        title="No active streams"
+        description="Streams let devices share live data — sensor readings, audio, video feeds. Advertise a stream from any connected device to see it here."
+        secondaryAction={{ label: 'Stream Guide', href: 'http://localhost:8000/guides/streams/' }}
+      />
     )
   }
 

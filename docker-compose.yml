@@ -133,8 +133,11 @@ services:
       - REDIS_URL=redis://redis:6379
       - NATS_URL=nats://nats:4222
       - MQTT_BROKER=mosquitto
+      - HOST_IP=${HOST_IP:-10.0.0.199}
+      - DEMO_MODE=${DEMO_MODE:-true}
     ports:
       - "8080:8080"
+      - "19000-19004:19000-19004/udp"
     volumes:
       - ./services/fleet-manager:/app
     networks:
@@ -161,10 +164,10 @@ services:
       dockerfile: Dockerfile
     container_name: maestra-dashboard
     environment:
-      - NEXT_PUBLIC_API_URL=http://192.168.128.115:8080
-      - NEXT_PUBLIC_NODERED_URL=http://192.168.128.115:1880
-      - NEXT_PUBLIC_GRAFANA_URL=http://192.168.128.115:3000
-      - NEXT_PUBLIC_MQTT_WS_URL=ws://192.168.128.115:9001
+      - NEXT_PUBLIC_API_URL=http://10.0.0.199:8080
+      - NEXT_PUBLIC_NODERED_URL=http://10.0.0.199:1880
+      - NEXT_PUBLIC_GRAFANA_URL=http://10.0.0.199:3000
+      - NEXT_PUBLIC_MQTT_WS_URL=ws://10.0.0.199:9001
     ports:
       - "3001:3000"
     volumes:

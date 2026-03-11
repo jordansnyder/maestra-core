@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { Entity, EntityType, EntityTreeNode } from '@/lib/types'
 import { entitiesApi, entityTypesApi } from '@/lib/api'
 import { useToast } from '@/components/Toast'
-import { ENTITY_TYPE_ICONS, DEFAULT_ENTITY_ICON, Plus, Search, Pencil, Trash2 } from '@/components/icons'
+import { ENTITY_TYPE_ICONS, DEFAULT_ENTITY_ICON, Plus, Search, Pencil, Trash2, Boxes } from '@/components/icons'
+import { EmptyState } from '@/components/EmptyState'
 import type { LucideIcon } from 'lucide-react'
 
 type ViewMode = 'list' | 'tree'
@@ -162,6 +163,7 @@ export default function EntitiesPage() {
             entities={entities}
             entityTypes={entityTypes}
             onDelete={handleDelete}
+            onCreateEntity={() => setShowCreateModal(true)}
           />
         )}
 
@@ -191,10 +193,12 @@ function EntityList({
   entities,
   entityTypes,
   onDelete,
+  onCreateEntity,
 }: {
   entities: Entity[]
   entityTypes: EntityType[]
   onDelete: (id: string, name: string) => void
+  onCreateEntity: () => void
 }) {
   const getTypeName = (typeId: string) => {
     const type = entityTypes.find((t) => t.id === typeId)
@@ -203,9 +207,13 @@ function EntityList({
 
   if (entities.length === 0) {
     return (
-      <div className="text-center py-12 text-slate-400">
-        No entities found. Create your first entity to get started.
-      </div>
+      <EmptyState
+        icon={Boxes}
+        title="No entities yet"
+        description="Entities represent the things in your experience — rooms, lights, sensors, projectors. Create your first entity to start building."
+        action={{ label: 'Create Entity', onClick: onCreateEntity }}
+        secondaryAction={{ label: 'Learn about Entities', href: 'http://localhost:8000/api/entities/' }}
+      />
     )
   }
 
@@ -292,9 +300,12 @@ function EntityTree({
 }) {
   if (nodes.length === 0 && level === 0) {
     return (
-      <div className="text-center py-12 text-slate-400">
-        No entities found. Create your first entity to get started.
-      </div>
+      <EmptyState
+        icon={Boxes}
+        title="No entities yet"
+        description="Entities represent the things in your experience — rooms, lights, sensors, projectors. Create your first entity to start building."
+        secondaryAction={{ label: 'Learn about Entities', href: 'http://localhost:8000/api/entities/' }}
+      />
     )
   }
 

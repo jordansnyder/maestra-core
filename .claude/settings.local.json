@@ -54,7 +54,9 @@
       "Bash(node:*)",
       "Bash(chmod:*)",
       "Bash(# First, get the current stream ID curl -s http://localhost:8080/streams)",
-      "Bash(# Check if the stream came back after a few seconds sleep 5 && curl -s http://localhost:8080/streams)"
+      "Bash(# Check if the stream came back after a few seconds sleep 5 && curl -s http://localhost:8080/streams)",
+      "Bash(DEMO_MODE=true docker compose up -d fleet-manager)",
+      "Bash(make health)"
     ]
   }
 }

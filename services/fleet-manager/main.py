@@ -20,6 +20,7 @@ from models import (
 )
 from state_manager import state_manager
 from stream_manager import stream_manager
+from demo_simulator import demo_simulator
 from redis_client import init_redis, close_redis, get_redis
 from entity_router import router as entity_router
 from routing_router import router as routing_router
@@ -370,6 +371,11 @@ async def startup_event():
     else:
         print("⚠️ Stream Manager not started (requires Redis + NATS)")
 
+    # Start demo simulator if DEMO_MODE is enabled
+    if os.getenv("DEMO_MODE", "").lower() == "true" and state_manager.nc:
+        await demo_simulator.start(state_manager.nc)
+        print("🎭 Demo simulator active — generating live sample data")
+
     print("✅ Fleet Manager ready!")
 
 
@@ -377,6 +383,7 @@ async def startup_event():
 async def shutdown_event():
     """Cleanup on shutdown"""
     print("👋 Maestra Fleet Manager shutting down...")
+    await demo_simulator.stop()
     await stream_manager.disconnect()
     await state_manager.disconnect()
     await close_redis()

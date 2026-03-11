@@ -1,7 +1,7 @@
 # Maestra Infrastructure Makefile
 # Convenience commands for managing Docker services
 
-.PHONY: help up down restart logs ps clean build health init
+.PHONY: help up down restart logs ps clean build health init demo seed-demo
 
 # Default target
 .DEFAULT_GOAL := help
@@ -24,7 +24,14 @@ init: ## Initialize environment (copy .env.example to .env)
 
 up: ## Start all services
 	$(DOCKER_COMPOSE) up -d
-	@echo "✅ All services started. Run 'make logs' to view logs."
+	@echo ""
+	@echo "✅ All services started."
+	@echo ""
+	@echo "  🌐 Dashboard      http://localhost:3001"
+	@echo "  🔧 Node-RED       http://localhost:1880"
+	@echo "  📊 Grafana        http://localhost:3000"
+	@echo "  📡 API Docs       http://localhost:8080/docs"
+	@echo ""
 
 down: ## Stop all services
 	$(DOCKER_COMPOSE) down
@@ -48,15 +55,19 @@ ps: ## Show status of all services
 	$(DOCKER_COMPOSE) ps
 
 health: ## Check health of all services
-	@echo "Checking service health..."
 	@echo ""
-	@curl -s http://localhost:8080/health | jq . || echo "❌ Fleet Manager (port 8080) not responding"
+	@echo "  Maestra Service Health"
+	@echo "  ━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
-	@curl -s http://localhost:8222 > /dev/null && echo "✅ NATS (port 8222) is healthy" || echo "❌ NATS not responding"
+	@printf "  %-20s " "Fleet Manager" && (curl -sf http://localhost:8080/health > /dev/null 2>&1 && echo "✅ healthy" || echo "❌ not responding")
+	@printf "  %-20s " "Dashboard" && (curl -sf http://localhost:3001 > /dev/null 2>&1 && echo "✅ healthy" || echo "❌ not responding")
+	@printf "  %-20s " "NATS" && (curl -sf http://localhost:8222 > /dev/null 2>&1 && echo "✅ healthy" || echo "❌ not responding")
+	@printf "  %-20s " "Node-RED" && (curl -sf http://localhost:1880 > /dev/null 2>&1 && echo "✅ healthy" || echo "❌ not responding")
+	@printf "  %-20s " "Grafana" && (curl -sf http://localhost:3000/api/health > /dev/null 2>&1 && echo "✅ healthy" || echo "❌ not responding")
+	@printf "  %-20s " "MQTT" && ($(DOCKER_COMPOSE) exec -T mosquitto mosquitto_sub -t '$$SYS/broker/uptime' -C 1 -W 2 > /dev/null 2>&1 && echo "✅ healthy" || echo "❌ not responding")
+	@printf "  %-20s " "Redis" && ($(DOCKER_COMPOSE) exec -T redis redis-cli ping > /dev/null 2>&1 && echo "✅ healthy" || echo "❌ not responding")
+	@printf "  %-20s " "PostgreSQL" && ($(DOCKER_COMPOSE) exec -T postgres pg_isready > /dev/null 2>&1 && echo "✅ healthy" || echo "❌ not responding")
 	@echo ""
-	@curl -s http://localhost:1880 > /dev/null && echo "✅ Node-RED (port 1880) is healthy" || echo "❌ Node-RED not responding"
-	@echo ""
-	@curl -s http://localhost:3000 > /dev/null && echo "✅ Grafana (port 3000) is healthy" || echo "❌ Grafana not responding"
 
 build: ## Rebuild all custom services
 	$(DOCKER_COMPOSE) build
@@ -94,6 +105,31 @@ dev-db: ## Start only database services
 dev-core: ## Start core services (bus, db, fleet-manager, nodered)
 	$(DOCKER_COMPOSE) up -d nats mosquitto redis postgres fleet-manager nodered
 	@echo "✅ Core services started."
+
+demo: ## Start Maestra with demo data (recommended for first-time users)
+	@echo ""
+	@echo "🎭 Starting Maestra with demo data..."
+	@echo ""
+	@DEMO_MODE=true $(DOCKER_COMPOSE) up -d
+	@echo ""
+	@echo "⏳ Waiting for services to initialize..."
+	@sleep 8
+	@echo ""
+	@echo "✅ Maestra is ready!"
+	@echo ""
+	@echo "  🌐 Dashboard      http://localhost:3001"
+	@echo "  🔧 Node-RED       http://localhost:1880"
+	@echo "  📊 Grafana        http://localhost:3000  (admin / admin)"
+	@echo "  📡 API Docs       http://localhost:8080/docs"
+	@echo "  📖 Documentation  http://localhost:8000"
+	@echo ""
+	@echo "  Demo data is pre-loaded. Open the Dashboard to start exploring!"
+	@echo ""
+
+seed-demo: ## Seed demo data into an existing database
+	@echo "🌱 Seeding demo data..."
+	@$(DOCKER_COMPOSE) exec -T postgres psql -U $${POSTGRES_USER:-maestra} -d $${POSTGRES_DB:-maestra} < config/postgres/init/06-demo-data.sql
+	@echo "✅ Demo data loaded."
 
 shell-postgres: ## Open PostgreSQL shell
 	$(DOCKER_COMPOSE) exec postgres psql -U maestra -d maestra

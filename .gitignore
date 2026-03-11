@@ -134,6 +134,7 @@ dist
 data/
 *.sql
 !config/postgres/init/*.sql
+!config/postgres/migrations/*.sql
 backups/
 
 # Python
@@ -168,3 +169,4 @@ temp/
 *.backup
 /examples/waveshare-esp32-dashboard/build
 /examples/waveshare-esp32-dashboard/managed_components
+/.claude/worktrees

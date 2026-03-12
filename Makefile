@@ -176,6 +176,42 @@ test-mqtt-state: ## Test MQTT entity state update (requires SLUG=entity-slug)
 		-m '{"state": {"test_value": 42, "source_test": true}, "source": "make-test"}'
 	@echo "✅ State update published for entity: $(SLUG)"
 
+# =============================================================================
+# DMX / ART-NET GATEWAY
+# =============================================================================
+
+up-dmx: ## Start full stack including the DMX gateway (requires DMX hardware)
+	$(DOCKER_COMPOSE) --profile dmx up -d
+	@echo ""
+	@echo "✅ Maestra + DMX gateway started."
+	@echo ""
+	@echo "  Art-Net packets are being sent to the configured node IP."
+	@echo "  Edit config/dmx/patch.yaml to configure your venue."
+	@echo ""
+
+dev-dmx: ## Start core services + DMX gateway for development
+	$(DOCKER_COMPOSE) --profile dmx up -d nats redis postgres fleet-manager dmx-gateway
+	@echo "✅ Core services + DMX gateway started."
+
+logs-dmx: ## View DMX gateway logs
+	$(DOCKER_COMPOSE) logs -f dmx-gateway
+
+build-dmx: ## Rebuild the DMX gateway image
+	$(DOCKER_COMPOSE) build dmx-gateway
+
+test-dmx: ## Send a test entity state to par_l1 (intensity 80%, full red)
+	@echo "📡 Publishing test entity state: venue.stage.par_l1 → intensity=0.8 red=1.0"
+	$(DOCKER_COMPOSE) exec nats nats pub maestra.entity.state.venue.stage.par_l1 \
+	  '{"entity_path":"venue.stage.par_l1","state":{"intensity":0.8,"red":1.0,"green":0.0,"blue":0.0}}'
+	@echo "✅ Test state published. Check DMX gateway logs: make logs-dmx"
+
+bootstrap-venue: ## Create venue entities in Maestra from config/dmx/patch.yaml
+	python3 scripts/bootstrap_venue.py --patch config/dmx/patch.yaml --api http://localhost:8080
+
+bootstrap-venue-dry: ## Preview venue bootstrap without creating anything
+	python3 scripts/bootstrap_venue.py --patch config/dmx/patch.yaml --dry-run
+
+
 watch: ## Watch service logs in real-time (requires watch command)
 	watch -n 2 '$(DOCKER_COMPOSE) ps'
 
@@ -232,3 +268,4 @@ logs-prod: ## View production environment logs
 .PHONY: migrate migrate-status migrate-dry-run
 .PHONY: backup-db restore-db test-mqtt test-mqtt-state watch stats update
 .PHONY: deploy-test deploy-prod stop-test stop-prod logs-test logs-prod
+.PHONY: up-dmx dev-dmx logs-dmx build-dmx test-dmx bootstrap-venue bootstrap-venue-dry

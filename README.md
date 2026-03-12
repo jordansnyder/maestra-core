@@ -26,7 +26,7 @@ make up         # Start all services
 +-----------------------------------------------------------------+
                               |
 +-----------------------------------------------------------------+
-|  GATEWAYS: OSC Gateway | WebSocket Gateway | MQTT Broker        |
+|  GATEWAYS: OSC | WebSocket | MQTT | DMX/Art-Net (opt-in)       |
 +-----------------------------------------------------------------+
                               |
 +-----------------------------------------------------------------+
@@ -65,6 +65,7 @@ Not sure which SDK to use? See the [Choose Your SDK](docs/docs/guides/choose-you
 - **Peer-to-Peer Streaming** -- Advertise and discover live data streams (sensor feeds, audio, video, NDI, texture) with control-plane negotiation and direct P2P data delivery.
 - **Signal Routing** -- Patch inputs and outputs between devices like a virtual signal flow -- connect a sensor's output to a light's input without writing code.
 - **Visual Programming** -- Use Node-RED's flow-based editor to build automation, orchestration, and show control logic with drag-and-drop nodes.
+- **DMX / Art-Net Gateway** -- Control physical DMX lighting fixtures from any Maestra client via Art-Net. A venue patch map (YAML) translates entity state variables to DMX channel values. Opt-in Docker Compose profile, no code changes required between venues.
 - **Monitoring** -- Eight pre-built Grafana dashboards give you real-time visibility into device health, message throughput, entity state history, and system performance.
 
 ## Services
@@ -90,6 +91,12 @@ make logs            # View live logs
 make health          # Check all service health
 make ps              # Show service status
 make test-mqtt       # Publish a test MQTT message
+
+# DMX / Art-Net (requires DMX hardware)
+make up-dmx          # Start full stack + DMX gateway
+make bootstrap-venue # Create venue entities from config/dmx/patch.yaml
+make test-dmx        # Send test state to a fixture
+make logs-dmx        # View DMX gateway logs
 ```
 
 ## Documentation

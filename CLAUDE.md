@@ -14,7 +14,7 @@ Maestra is an immersive experience infrastructure platform for creatives. It's a
 └─────────────────────────────────────────────────────────────┘
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  GATEWAY LAYER: OSC Gateway│WebSocket Gateway│MQTT Broker  │
+│  GATEWAY LAYER: OSC│WebSocket│MQTT│DMX/Art-Net (opt-in)    │
 └─────────────────────────────────────────────────────────────┘
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
@@ -45,6 +45,7 @@ Maestra is an immersive experience infrastructure platform for creatives. It's a
 | OSC Gateway | 57120/UDP | Bridges OSC to NATS |
 | WebSocket Gateway | 8765 | Bridges browser clients to NATS |
 | MQTT-NATS Bridge | internal | Bidirectional MQTT↔NATS routing |
+| DMX Gateway | 6454/UDP (out) | Art-Net bridge to physical DMX fixtures (opt-in, `dmx` profile) |
 
 ### Gateway Layer Details
 
@@ -54,6 +55,7 @@ Maestra is an immersive experience infrastructure platform for creatives. It's a
 | WebSocket Gateway | 8765 | Browser clients, web apps | WebSocket + JSON | [WebSocket API](docs/docs/api/websocket.md) |
 | MQTT Broker | 1883 (TCP), 9001 (WS) | IoT devices, embedded systems | MQTT 3.1.1 | [MQTT Guide](docs/docs/guides/mqtt.md) |
 | MQTT-NATS Bridge | internal | Bidirectional message routing | MQTT ↔ NATS | Built into stack |
+| DMX Gateway *(opt-in)* | 6454/UDP (out) | Physical DMX fixtures via Art-Net | Art-Net ArtDMX | [DMX Guide](docs/docs/guides/dmx-gateway.md) |
 
 **Message transformations:**
 - OSC `"/device/temp"` → NATS `"maestra.osc.device.temp"`
@@ -61,6 +63,8 @@ Maestra is an immersive experience infrastructure platform for creatives. It's a
 - WebSocket publishes directly to NATS subjects
 - NATS `"maestra.to_osc.*"` → OSC output
 - NATS `"maestra.to_mqtt.*"` → MQTT output
+- NATS `"maestra.entity.state.>"` → DMX channel values via Art-Net UDP (DMX gateway)
+- NATS `"maestra.to_artnet.universe.*"` → raw 512-channel universe bypass (DMX gateway)
 
 ### Message Flow Patterns
 
@@ -83,6 +87,7 @@ Maestra is an immersive experience infrastructure platform for creatives. It's a
 - MQTT → NATS: `maestra/x/y` becomes `maestra.mqtt.maestra.x.y`
 - NATS → MQTT: `maestra.to_mqtt.x.y` becomes `x/y`
 - NATS → OSC: Subscribe to `maestra.to_osc.*`
+- NATS entity state → DMX: `maestra.entity.state.>` resolved via `config/dmx/patch.yaml` → Art-Net UDP
 
 ## Common Commands
 
@@ -358,6 +363,7 @@ DELETE FROM entity_states WHERE time < NOW() - INTERVAL '1 year';
 9000/9443 - Portainer
 9001    - MQTT WebSocket
 57120/57121 - OSC (UDP in/out)
+6454        - Art-Net / DMX gateway (UDP out to node, opt-in)
 ```
 
 ## Monitoring & Observability

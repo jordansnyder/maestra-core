@@ -133,8 +133,8 @@ services:
       - REDIS_URL=redis://redis:6379
       - NATS_URL=nats://nats:4222
       - MQTT_BROKER=mosquitto
-      - HOST_IP=${HOST_IP:-10.0.0.199}
-      - DEMO_MODE=${DEMO_MODE:-true}
+      - HOST_IP=${HOST_IP:-localhost}
+      - DEMO_MODE=${DEMO_MODE:-false}
     ports:
       - "8080:8080"
       - "19000-19004:19000-19004/udp"
@@ -164,10 +164,10 @@ services:
       dockerfile: Dockerfile
     container_name: maestra-dashboard
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8080
-      - NEXT_PUBLIC_NODERED_URL=http://localhost:1880
-      - NEXT_PUBLIC_GRAFANA_URL=http://localhost:3000
-      - NEXT_PUBLIC_MQTT_WS_URL=ws://localhost:9001
+      - NEXT_PUBLIC_API_URL=http://${HOST_IP:-localhost}:8080
+      - NEXT_PUBLIC_NODERED_URL=http://${HOST_IP:-localhost}:1880
+      - NEXT_PUBLIC_GRAFANA_URL=http://${HOST_IP:-localhost}:3000
+      - NEXT_PUBLIC_MQTT_WS_URL=ws://${HOST_IP:-localhost}:9001
     ports:
       - "3001:3000"
     volumes:
@@ -330,16 +330,36 @@ services:
     container_name: maestra-discovery
     network_mode: host  # Required for mDNS multicast on the local network
     environment:
-      - FLEET_MANAGER_URL=http://localhost:8080
-      - HOST_IP=${HOST_IP:-10.0.0.199}
-      - NATS_URL=nats://localhost:4222
-      - MQTT_BROKER=${HOST_IP:-10.0.0.199}
+      - FLEET_MANAGER_URL=http://${HOST_IP:-localhost}:8080
+      - HOST_IP=${HOST_IP:-localhost}
+      - NATS_URL=nats://${HOST_IP:-localhost}:4222
+      - MQTT_BROKER=${HOST_IP:-localhost}
       - MQTT_PORT=1883
-      - API_URL=http://${HOST_IP:-10.0.0.199}:8080
-      - WS_URL=ws://${HOST_IP:-10.0.0.199}:8765
+      - API_URL=http://${HOST_IP:-localhost}:8080
+      - WS_URL=ws://${HOST_IP:-localhost}:8765
     depends_on:
       fleet-manager:
         condition: service_healthy
+    restart: unless-stopped
+
+  # DMX / Art-Net Gateway - Bridges NATS entity state to physical DMX fixtures via Art-Net UDP
+  # Opt-in service: requires DMX hardware. Enable with: make up-dmx  or  docker compose --profile dmx up -d
+  dmx-gateway:
+    build:
+      context: ./services/dmx-gateway
+      dockerfile: Dockerfile
+    profiles: ["dmx"]
+    container_name: maestra-dmx-gateway
+    environment:
+      - NATS_URL=nats://nats:4222
+      - PATCH_MAP_PATH=/config/patch.yaml
+      - LOG_LEVEL=${DMX_LOG_LEVEL:-INFO}
+    volumes:
+      - ./config/dmx:/config:ro
+    networks:
+      - maestra-network
+    depends_on:
+      - nats
     restart: unless-stopped
 
 # =============================================================================

@@ -1,0 +1,232 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Maestra DMX Gateway — Relay Santa Fe Venue Patch Map
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# IMPORTANT: Channel maps for the Eliminator Stealth Spot and Eliminator
+# Stealth Zoom Wash are based on typical profiles and MUST be verified
+# against the physical fixture manuals before use in production.
+#
+# The Chauvet SlimPAR T12BT (7ch mode) and Chauvet DMX-4 Dimmer channel
+# maps are standard and reliable.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+venue: relay-santa-fe
+
+node:
+  ip: 192.168.1.50
+  port: 6454
+  universe_offset: 0
+  keepalive_hz: 4
+  mode: unicast
+
+universes:
+  - id: 1
+    artnet_universe: 0
+    port: 1
+
+fixtures:
+
+  # ── Moving Spots (Eliminator Stealth Spot) ───────────────────────────────
+  # VERIFY: Channel map against Eliminator Stealth Spot manual before use
+  # Typical 15ch mode layout assumed below
+
+  - id: spot_l1
+    label: Moving Spot 1
+    model: Eliminator Stealth Spot
+    entity_path: venue.stage.spot_l1
+    universe: 1
+    start_channel: 1
+    mode: 15ch
+    channel_map:
+      intensity:   { offset: 1,  type: range }
+      shutter:     { offset: 2,  type: range }
+      color:       { offset: 3,  type: enum,
+                     enum_dmx_values: { white: 0, red: 10, blue: 30, green: 50, amber: 70, uv: 90 } }
+      gobo:        { offset: 5,  type: enum,
+                     enum_dmx_values: { open: 0, gobo1: 16, gobo2: 32, gobo3: 48 } }
+      pan:         { offset: 8,  type: range }
+      pan_fine:    { offset: 9,  type: range }
+      tilt:        { offset: 10, type: range }
+      tilt_fine:   { offset: 11, type: range }
+      speed:       { offset: 12, type: range }
+      lamp:        { offset: 15, type: boolean }
+
+  - id: spot_l2
+    label: Moving Spot 2
+    model: Eliminator Stealth Spot
+    entity_path: venue.stage.spot_l2
+    universe: 1
+    start_channel: 17
+    mode: 15ch
+    channel_map:
+      intensity:   { offset: 1,  type: range }
+      shutter:     { offset: 2,  type: range }
+      color:       { offset: 3,  type: enum,
+                     enum_dmx_values: { white: 0, red: 10, blue: 30, green: 50, amber: 70, uv: 90 } }
+      gobo:        { offset: 5,  type: enum,
+                     enum_dmx_values: { open: 0, gobo1: 16, gobo2: 32, gobo3: 48 } }
+      pan:         { offset: 8,  type: range }
+      pan_fine:    { offset: 9,  type: range }
+      tilt:        { offset: 10, type: range }
+      tilt_fine:   { offset: 11, type: range }
+      speed:       { offset: 12, type: range }
+      lamp:        { offset: 15, type: boolean }
+
+  # ── Moving Zoom Washes (Eliminator Stealth Zoom Wash) ────────────────────
+  # VERIFY: Channel map against Eliminator Stealth Zoom Wash manual before use
+  # Typical 16ch mode layout assumed below
+
+  - id: wash_l1
+    label: Moving Zoom Wash 1
+    model: Eliminator Stealth Zoom Wash
+    entity_path: venue.stage.wash_l1
+    universe: 1
+    start_channel: 33
+    mode: 16ch
+    channel_map:
+      intensity:   { offset: 1,  type: range }
+      red:         { offset: 2,  type: range }
+      green:       { offset: 3,  type: range }
+      blue:        { offset: 4,  type: range }
+      white:       { offset: 5,  type: range }
+      color:       { offset: 6,  type: range }
+      zoom:        { offset: 7,  type: range }
+      pan:         { offset: 9,  type: range }
+      pan_fine:    { offset: 10, type: range }
+      tilt:        { offset: 11, type: range }
+      tilt_fine:   { offset: 12, type: range }
+      speed:       { offset: 13, type: range }
+
+  - id: wash_l2
+    label: Moving Zoom Wash 2
+    model: Eliminator Stealth Zoom Wash
+    entity_path: venue.stage.wash_l2
+    universe: 1
+    start_channel: 49
+    mode: 16ch
+    channel_map:
+      intensity:   { offset: 1,  type: range }
+      red:         { offset: 2,  type: range }
+      green:       { offset: 3,  type: range }
+      blue:        { offset: 4,  type: range }
+      white:       { offset: 5,  type: range }
+      color:       { offset: 6,  type: range }
+      zoom:        { offset: 7,  type: range }
+      pan:         { offset: 9,  type: range }
+      pan_fine:    { offset: 10, type: range }
+      tilt:        { offset: 11, type: range }
+      tilt_fine:   { offset: 12, type: range }
+      speed:       { offset: 13, type: range }
+
+  # ── SlimPARs (Chauvet SlimPAR T12BT, 7ch mode) ──────────────────────────
+  # Standard 7ch mode: Dimmer / R / G / B / Amber / White / UV
+
+  - id: par_l1
+    label: SlimPAR 1
+    model: Chauvet SlimPAR T12BT
+    entity_path: venue.stage.par_l1
+    universe: 1
+    start_channel: 65
+    mode: 7ch
+    channel_map:
+      intensity:   { offset: 1, type: range }
+      red:         { offset: 2, type: range }
+      green:       { offset: 3, type: range }
+      blue:        { offset: 4, type: range }
+      amber:       { offset: 5, type: range }
+      white:       { offset: 6, type: range }
+      uv:          { offset: 7, type: range }
+
+  - id: par_l2
+    label: SlimPAR 2
+    model: Chauvet SlimPAR T12BT
+    entity_path: venue.stage.par_l2
+    universe: 1
+    start_channel: 72
+    mode: 7ch
+    channel_map:
+      intensity:   { offset: 1, type: range }
+      red:         { offset: 2, type: range }
+      green:       { offset: 3, type: range }
+      blue:        { offset: 4, type: range }
+      amber:       { offset: 5, type: range }
+      white:       { offset: 6, type: range }
+      uv:          { offset: 7, type: range }
+
+  - id: par_l3
+    label: SlimPAR 3
+    model: Chauvet SlimPAR T12BT
+    entity_path: venue.stage.par_l3
+    universe: 1
+    start_channel: 79
+    mode: 7ch
+    channel_map:
+      intensity:   { offset: 1, type: range }
+      red:         { offset: 2, type: range }
+      green:       { offset: 3, type: range }
+      blue:        { offset: 4, type: range }
+      amber:       { offset: 5, type: range }
+      white:       { offset: 6, type: range }
+      uv:          { offset: 7, type: range }
+
+  - id: par_l4
+    label: SlimPAR 4
+    model: Chauvet SlimPAR T12BT
+    entity_path: venue.stage.par_l4
+    universe: 1
+    start_channel: 86
+    mode: 7ch
+    channel_map:
+      intensity:   { offset: 1, type: range }
+      red:         { offset: 2, type: range }
+      green:       { offset: 3, type: range }
+      blue:        { offset: 4, type: range }
+      amber:       { offset: 5, type: range }
+      white:       { offset: 6, type: range }
+      uv:          { offset: 7, type: range }
+
+  # ── 4-Channel Dimmer (Chauvet DMX-4) ────────────────────────────────────
+  # VERIFY: Confirm channel layout and dimmer curve mode before use.
+  # All four outputs share the same start_channel block starting at channel 100.
+  # Each output maps to a consecutive offset within the 4ch block.
+
+  - id: dimmer_ch1
+    label: Dimmer Channel 1
+    model: Chauvet DMX-4 Dimmer
+    entity_path: venue.stage.dimmer_rack.ch1
+    universe: 1
+    start_channel: 100
+    mode: 4ch
+    channel_map:
+      intensity:   { offset: 1, type: range }
+
+  - id: dimmer_ch2
+    label: Dimmer Channel 2
+    model: Chauvet DMX-4 Dimmer
+    entity_path: venue.stage.dimmer_rack.ch2
+    universe: 1
+    start_channel: 100
+    mode: 4ch
+    channel_map:
+      intensity:   { offset: 2, type: range }
+
+  - id: dimmer_ch3
+    label: Dimmer Channel 3
+    model: Chauvet DMX-4 Dimmer
+    entity_path: venue.stage.dimmer_rack.ch3
+    universe: 1
+    start_channel: 100
+    mode: 4ch
+    channel_map:
+      intensity:   { offset: 3, type: range }
+
+  - id: dimmer_ch4
+    label: Dimmer Channel 4
+    model: Chauvet DMX-4 Dimmer
+    entity_path: venue.stage.dimmer_rack.ch4
+    universe: 1
+    start_channel: 100
+    mode: 4ch
+    channel_map:
+      intensity:   { offset: 4, type: range }

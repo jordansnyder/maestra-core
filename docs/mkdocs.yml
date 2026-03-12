@@ -36,6 +36,7 @@ nav:
       - MQTT Integration: guides/mqtt.md
       - Streams: guides/streams.md
       - Node-RED: guides/nodered.md
+      - DMX / Art-Net Gateway: guides/dmx-gateway.md
       - Monitoring: guides/monitoring.md
   - Infrastructure:
       - Docker: infrastructure/docker.md

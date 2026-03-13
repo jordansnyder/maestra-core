@@ -72,6 +72,11 @@ export {
   Heart,
 } from 'lucide-react'
 
+// Cloud
+export {
+  Cloud,
+} from 'lucide-react'
+
 // Toast / UI
 export {
   XCircle,

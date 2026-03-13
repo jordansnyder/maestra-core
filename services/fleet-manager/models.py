@@ -717,6 +717,69 @@ class CollectionConfig(BaseModel):
     updated_at: datetime
 
 
+# =============================================================================
+# Cloud Gateway Models
+# =============================================================================
+
+class CloudConfig(BaseModel):
+    """Current cloud gateway configuration"""
+    gateway_url: Optional[str] = None
+    site_id: Optional[str] = None
+    site_slug: Optional[str] = None
+    status: str = "disconnected"  # disconnected, connecting, connected, error
+
+
+class CloudConfigUpdate(BaseModel):
+    """Update cloud gateway URL"""
+    gateway_url: str = Field(..., min_length=1)
+
+
+class CloudSiteRegister(BaseModel):
+    """Register this site with a cloud gateway"""
+    gateway_url: str
+    name: str = Field(..., min_length=1, max_length=255)
+    slug: str = Field(..., min_length=1, max_length=255, pattern=r"^[a-z0-9][a-z0-9-]*[a-z0-9]$")
+    description: Optional[str] = None
+    region: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+
+
+class CloudPolicy(BaseModel):
+    """A routing policy for cloud message forwarding"""
+    subject_pattern: str = Field(..., min_length=1, max_length=500)
+    direction: str = Field(..., pattern=r"^(outbound|inbound)$")
+    enabled: bool = True
+    description: Optional[str] = None
+
+
+class CloudPoliciesUpdate(BaseModel):
+    """Update cloud routing policies"""
+    policies: List[CloudPolicy]
+
+
+class CloudStatus(BaseModel):
+    """Full cloud gateway connection status"""
+    configured: bool = False
+    gateway_url: Optional[str] = None
+    site_id: Optional[str] = None
+    site_slug: Optional[str] = None
+    agent_running: bool = False
+    agent_connected: bool = False
+    last_heartbeat: Optional[str] = None
+    messages_sent: int = 0
+    messages_received: int = 0
+    active_policies: int = 0
+    error: Optional[str] = None
+
+
+class CloudTestResult(BaseModel):
+    """Result of an end-to-end cloud connection test"""
+    success: bool
+    latency_ms: Optional[float] = None
+    error: Optional[str] = None
+    checks: Dict[str, bool] = Field(default_factory=dict)
+
+
 # Enable forward references
 Entity.model_rebuild()
 EntityTreeNode.model_rebuild()

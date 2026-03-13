@@ -27,6 +27,8 @@ from routing_router import router as routing_router
 from stream_router import router as stream_router
 from stream_preview import router as stream_preview_router
 from analytics_router import router as analytics_router
+from cloud_router import router as cloud_router
+from cloud_manager import cloud_manager
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -50,6 +52,7 @@ app.include_router(routing_router)
 app.include_router(stream_router)
 app.include_router(stream_preview_router)
 app.include_router(analytics_router)
+app.include_router(cloud_router)
 
 
 # =============================================================================
@@ -371,6 +374,12 @@ async def startup_event():
     else:
         print("⚠️ Stream Manager not started (requires Redis + NATS)")
 
+    # Initialize cloud manager (needs Redis)
+    if redis_ok:
+        await cloud_manager.connect(get_redis())
+    else:
+        print("⚠️ Cloud Manager not started (requires Redis)")
+
     # Start demo simulator if DEMO_MODE is enabled
     if os.getenv("DEMO_MODE", "").lower() == "true" and state_manager.nc:
         await demo_simulator.start(state_manager.nc)
@@ -384,6 +393,7 @@ async def shutdown_event():
     """Cleanup on shutdown"""
     print("👋 Maestra Fleet Manager shutting down...")
     await demo_simulator.stop()
+    await cloud_manager.disconnect()
     await stream_manager.disconnect()
     await state_manager.disconnect()
     await close_redis()

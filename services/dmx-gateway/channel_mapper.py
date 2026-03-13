@@ -1,50 +1,45 @@
 """
 Entity state → DMX channel value translator.
 
-Given an entity path and a state dict from a Maestra entity state change,
-resolves which DMX channels need to be updated and to what values.
+Updated to work with API-loaded config (DMXConfig, APIFixture, APINode)
+instead of the YAML-based PatchMap.
 """
 
 import logging
-from patch_loader import PatchMap, Fixture, ChannelMapping
+from api_loader import DMXConfig, APIFixture, APINode, ChannelMapping
 
 logger = logging.getLogger(__name__)
 
 
+# ─── Type Converters ──────────────────────────────────────────────────────────
+
 def _convert_range(value: float) -> int:
-    """Convert a 0.0-1.0 range value to DMX 0-255."""
+    """Convert a 0.0–1.0 range value to DMX 0–255."""
     return max(0, min(255, round(float(value) * 255)))
 
 
 def _convert_number(value: float) -> int:
-    """Convert a 0-100 percentage to DMX 0-255."""
+    """Convert a 0–100 percentage to DMX 0–255."""
     return max(0, min(255, round((float(value) / 100.0) * 255)))
 
 
 def _convert_boolean(value) -> int:
-    """Convert a boolean to DMX 0 or 255."""
     return 255 if value else 0
 
 
 def _convert_enum(value: str, mapping: ChannelMapping) -> int:
-    """Look up an enum label in the fixture's enum_dmx_values table."""
     if mapping.enum_dmx_values is None:
         logger.warning("Enum channel has no enum_dmx_values, defaulting to 0")
         return 0
     result = mapping.enum_dmx_values.get(str(value))
     if result is None:
-        logger.warning(
-            f"Enum value '{value}' not found in enum_dmx_values "
-            f"{list(mapping.enum_dmx_values.keys())}, defaulting to 0"
-        )
+        logger.warning(f"Enum value '{value}' not found, defaulting to 0")
         return 0
     return max(0, min(255, result))
 
 
 def _resolve_channel_value(variable_value, mapping: ChannelMapping) -> int:
-    """Convert a single entity variable value to a DMX byte (0-255)."""
     t = mapping.type
-
     if t == 'range':
         return _convert_range(variable_value)
     elif t == 'number':
@@ -54,71 +49,85 @@ def _resolve_channel_value(variable_value, mapping: ChannelMapping) -> int:
     elif t == 'enum':
         return _convert_enum(variable_value, mapping)
     elif t == 'color':
-        # color type uses separate per-channel variables (red/green/blue/etc.)
-        # handled at the caller level; treat as range if used directly
+        # color channels are mapped per-component (r/g/b) as range values
         return _convert_range(variable_value)
     else:
         logger.warning(f"Unknown channel type '{t}', defaulting to 0")
         return 0
 
 
+# ─── Mapper ───────────────────────────────────────────────────────────────────
+
 class ChannelMapper:
     """
-    Translates entity state dicts into DMX channel update maps.
+    Translates entity state dicts into per-node DMX channel update maps.
 
-    Maintains a per-fixture index keyed by entity_path for O(1) lookups.
+    Maintains an index of entity_path → [(fixture, node)] for O(1) lookups.
+    Returns updates keyed by node_id so the caller can route to the correct
+    Art-Net sender.
     """
 
-    def __init__(self, patch: PatchMap):
-        self._patch = patch
-        # Build lookup index: entity_path → Fixture
-        self._index: dict[str, Fixture] = {
-            fixture.entity_path: fixture
-            for fixture in patch.fixtures
-        }
-        logger.info(f"ChannelMapper initialized with {len(self._index)} fixtures")
+    def __init__(self, config: DMXConfig):
+        self._config = config
+        # entity_path -> list of (fixture, node)
+        self._index: dict[str, list[tuple[APIFixture, APINode]]] = {}
+
+        for fixture in config.fixtures:
+            if not fixture.entity_path:
+                continue
+            node = config.node_by_id.get(fixture.node_id)
+            if not node:
+                logger.warning(
+                    f"Fixture '{fixture.name}' references unknown node {fixture.node_id}, skipping"
+                )
+                continue
+            self._index.setdefault(fixture.entity_path, []).append((fixture, node))
+
+        logger.info(f"ChannelMapper initialized with {len(self._index)} entity path(s)")
 
     def resolve(
         self,
         entity_path: str,
-        state: dict
-    ) -> dict[int, dict[int, int]]:
+        state: dict,
+    ) -> dict[str, dict[int, dict[int, int]]]:
         """
         Resolve entity state changes to DMX channel updates.
 
         Args:
             entity_path: Maestra entity path (e.g. 'venue.stage.par_l1')
-            state: Dict of variable_name → value from the entity state message
+            state: Dict of variable_name → value
 
         Returns:
-            Nested dict: {universe_id: {channel_number: dmx_value}}
-            Empty dict if entity_path is not in the patch map.
+            {node_id: {artnet_universe: {channel_number: dmx_value}}}
+            Empty dict if entity_path has no mapped fixtures.
         """
-        fixture = self._index.get(entity_path)
-        if fixture is None:
+        entries = self._index.get(entity_path)
+        if not entries:
             return {}
 
-        updates: dict[int, dict[int, int]] = {}
+        updates: dict[str, dict[int, dict[int, int]]] = {}
 
-        for var_name, value in state.items():
-            mapping = fixture.channel_map.get(var_name)
-            if mapping is None:
-                continue
+        for fixture, node in entries:
+            for var_name, value in state.items():
+                mapping = fixture.channel_map.get(var_name)
+                if mapping is None:
+                    continue
 
-            absolute_channel = fixture.start_channel + mapping.offset - 1
-            dmx_value = _resolve_channel_value(value, mapping)
+                absolute_channel = fixture.start_channel + mapping.offset - 1
+                dmx_value = _resolve_channel_value(value, mapping)
+                artnet_universe = node.artnet_universe_for(fixture.universe)
 
-            if fixture.universe not in updates:
-                updates[fixture.universe] = {}
-            updates[fixture.universe][absolute_channel] = dmx_value
+                node_updates = updates.setdefault(node.id, {})
+                universe_updates = node_updates.setdefault(artnet_universe, {})
+                universe_updates[absolute_channel] = dmx_value
 
-            logger.debug(
-                f"{entity_path}.{var_name}={value} "
-                f"→ universe={fixture.universe} ch={absolute_channel} dmx={dmx_value}"
-            )
+                logger.debug(
+                    f"{entity_path}.{var_name}={value} "
+                    f"→ {node.ip_address} artnet_u={artnet_universe} "
+                    f"ch={absolute_channel} dmx={dmx_value}"
+                )
 
         return updates
 
     def fixture_paths(self) -> list[str]:
-        """Return all entity paths in the patch map."""
         return list(self._index.keys())

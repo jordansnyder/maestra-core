@@ -95,6 +95,9 @@ export {
   Settings,
   ChevronDown,
   BookOpen,
+  Network,
+  Layers,
+  Copy,
 } from 'lucide-react'
 
 // Device type icon lookup

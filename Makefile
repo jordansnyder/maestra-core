@@ -185,8 +185,8 @@ up-dmx: ## Start full stack including the DMX gateway (requires DMX hardware)
 	@echo ""
 	@echo "✅ Maestra + DMX gateway started."
 	@echo ""
-	@echo "  Art-Net packets are being sent to the configured node IP."
-	@echo "  Edit config/dmx/patch.yaml to configure your venue."
+	@echo "  Configure Art-Net nodes and fixtures via the Dashboard → DMX Lighting."
+	@echo "  The gateway loads config from the database automatically."
 	@echo ""
 
 dev-dmx: ## Start core services + DMX gateway for development
@@ -199,10 +199,10 @@ logs-dmx: ## View DMX gateway logs
 build-dmx: ## Rebuild the DMX gateway image
 	$(DOCKER_COMPOSE) build dmx-gateway
 
-test-dmx: ## Send a test entity state to par_l1 (intensity 80%, full red)
-	@echo "📡 Publishing test entity state: venue.stage.par_l1 → intensity=0.8 red=1.0"
-	$(DOCKER_COMPOSE) exec nats nats pub maestra.entity.state.venue.stage.par_l1 \
-	  '{"entity_path":"venue.stage.par_l1","state":{"intensity":0.8,"red":1.0,"green":0.0,"blue":0.0}}'
+test-dmx: ## Send a test entity state change via NATS
+	@echo "📡 Publishing test entity state to NATS..."
+	$(DOCKER_COMPOSE) exec nats nats pub maestra.entity.state.test \
+	  '{"entity_path":"test.fixture","state":{"intensity":0.8,"red":1.0,"green":0.0,"blue":0.0}}'
 	@echo "✅ Test state published. Check DMX gateway logs: make logs-dmx"
 
 bootstrap-venue: ## Create venue entities in Maestra from config/dmx/patch.yaml
@@ -210,7 +210,6 @@ bootstrap-venue: ## Create venue entities in Maestra from config/dmx/patch.yaml
 
 bootstrap-venue-dry: ## Preview venue bootstrap without creating anything
 	python3 scripts/bootstrap_venue.py --patch config/dmx/patch.yaml --dry-run
-
 
 watch: ## Watch service logs in real-time (requires watch command)
 	watch -n 2 '$(DOCKER_COMPOSE) ps'
@@ -268,4 +267,4 @@ logs-prod: ## View production environment logs
 .PHONY: migrate migrate-status migrate-dry-run
 .PHONY: backup-db restore-db test-mqtt test-mqtt-state watch stats update
 .PHONY: deploy-test deploy-prod stop-test stop-prod logs-test logs-prod
-.PHONY: up-dmx dev-dmx logs-dmx build-dmx test-dmx bootstrap-venue bootstrap-venue-dry
+.PHONY: up-dmx dev-dmx logs-dmx build-dmx test-dmx

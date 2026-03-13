@@ -17,6 +17,7 @@ import {
   BookOpen,
   Settings,
   Cloud,
+  Zap
 } from '@/components/icons'
 import { useSystemHealth } from '@/hooks/useSystemHealth'
 import { useEffect, useState } from 'react'
@@ -35,6 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/routing', label: 'Routing', icon: GitFork },
   { href: '/streams', label: 'Streams', icon: Cast },
   { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/dmx', label: 'DMX Lighting', icon: Zap },
 ]
 
 const GETTING_STARTED_ITEM: NavItem = { href: '/#getting-started', label: 'Getting Started', icon: Sparkles }

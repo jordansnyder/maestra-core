@@ -73,6 +73,14 @@ rc_mod.close_redis = None
 rc_mod.get_redis = lambda: None
 sys.modules["redis_client"] = rc_mod
 
+# demo_simulator.py — depends on nats which is not installed in CI
+ds_mod = types.ModuleType("demo_simulator")
+ds_mod.demo_simulator = type("DS", (), {
+    "start": lambda s, *a, **kw: None,
+    "stop": lambda s, *a, **kw: None,
+})()
+sys.modules["demo_simulator"] = ds_mod
+
 # ---------------------------------------------------------------------------
 # Import the app and dump the spec.
 # ---------------------------------------------------------------------------

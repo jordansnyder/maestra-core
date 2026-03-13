@@ -206,7 +206,7 @@ MQTT_USERNAME=maestra
 MQTT_PASSWORD=maestra_password
 ```
 
-For a full list of environment variables, see [Configuration](../../infrastructure/configuration.md).
+For a full list of environment variables, see [Configuration](../infrastructure/configuration.md).
 
 ## What to Do Next
 

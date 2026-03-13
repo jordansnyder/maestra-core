@@ -2,13 +2,12 @@
 Maestra DMX / Art-Net Gateway
 
 Bridges the NATS message bus to physical DMX lighting fixtures via the
-Art-Net protocol. Follows the identical async pattern used by the OSC
-gateway and MQTT-NATS bridge.
+Art-Net protocol. Configuration is loaded dynamically from the Fleet Manager
+REST API — no YAML patch file required.
 
 Supported NATS subjects:
-  IN  maestra.entity.state.>          Entity state changes (patch-map mode)
-  IN  maestra.to_artnet.universe.*    Raw 512-channel universe array (bypass mode)
-  OUT maestra.artnet.universe.{n}     Art-Net feedback received from node
+  IN  maestra.entity.state.>          Entity state changes
+  IN  maestra.to_artnet.universe.*    Raw 512-channel universe array (bypass)
   OUT maestra.dmx.fixture.{path}      Resolved channel values per fixture (debug)
 """
 
@@ -23,14 +22,16 @@ from nats.aio.client import Client as NATS
 
 from artnet_sender import ArtNetSender
 from channel_mapper import ChannelMapper
-from patch_loader import PatchMap, load_patch
+from api_loader import DMXConfig, load_from_api
 from universe_buffer import UniverseBufferSet
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
-NATS_URL = os.getenv('NATS_URL', 'nats://nats:4222')
-PATCH_MAP_PATH = os.getenv('PATCH_MAP_PATH', '/config/patch.yaml')
-LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()
+NATS_URL                = os.getenv('NATS_URL', 'nats://nats:4222')
+FLEET_MANAGER_URL       = os.getenv('FLEET_MANAGER_URL', 'http://fleet-manager:8080')
+LOG_LEVEL               = os.getenv('LOG_LEVEL', 'INFO').upper()
+CONFIG_REFRESH_INTERVAL = float(os.getenv('CONFIG_REFRESH_INTERVAL', '30'))
+KEEPALIVE_HZ            = float(os.getenv('KEEPALIVE_HZ', '4'))
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
@@ -41,24 +42,78 @@ logger = logging.getLogger('dmx-gateway')
 # ─── Globals ──────────────────────────────────────────────────────────────────
 
 nc: NATS = None
-patch: PatchMap = None
+config: DMXConfig = None
 mapper: ChannelMapper = None
-sender: ArtNetSender = None
-buffers: UniverseBufferSet = None
+senders: dict[str, ArtNetSender] = {}       # node_id -> ArtNetSender
+buffers: dict[str, UniverseBufferSet] = {}  # node_id -> UniverseBufferSet
+
+
+# ─── Config Management ────────────────────────────────────────────────────────
+
+async def fetch_config_with_retry() -> DMXConfig:
+    """Load DMX config from Fleet Manager API, retrying until successful."""
+    while True:
+        try:
+            return await load_from_api(FLEET_MANAGER_URL)
+        except Exception as e:
+            logger.warning(f"Config load failed ({e}), retrying in 10s...")
+            await asyncio.sleep(10)
+
+
+def rebuild_components(new_config: DMXConfig) -> None:
+    """Rebuild senders, buffers, and mapper from updated config."""
+    global config, mapper, senders, buffers
+
+    config = new_config
+
+    # Create one ArtNetSender per node; reuse existing if node already known
+    old_senders = dict(senders)
+    senders = {}
+    for node in config.nodes:
+        if node.id in old_senders:
+            senders[node.id] = old_senders.pop(node.id)
+        else:
+            senders[node.id] = ArtNetSender(
+                node_ip=node.ip_address,
+                node_port=node.artnet_port,
+            )
+
+    # Close senders for nodes that no longer exist
+    for s in old_senders.values():
+        s.close()
+
+    # Ensure buffers exist for each node
+    for node in config.nodes:
+        if node.id not in buffers:
+            buffers[node.id] = UniverseBufferSet()
+
+    # Pre-create universe buffers for all configured fixture universes
+    # so the keep-alive loop starts sending black frames immediately
+    for fixture in config.fixtures:
+        node = config.node_by_id.get(fixture.node_id)
+        if node and fixture.node_id in buffers:
+            artnet_universe = node.artnet_universe_for(fixture.universe)
+            buffers[fixture.node_id].get(artnet_universe)  # creates if missing
+
+    mapper = ChannelMapper(config)
+
+
+async def config_refresh_loop() -> None:
+    """Periodically reload config from the API to pick up new fixtures."""
+    while True:
+        await asyncio.sleep(CONFIG_REFRESH_INTERVAL)
+        try:
+            new_config = await load_from_api(FLEET_MANAGER_URL)
+            rebuild_components(new_config)
+            logger.info("DMX config refreshed from API")
+        except Exception as e:
+            logger.warning(f"Config refresh failed: {e}")
 
 
 # ─── NATS Message Handlers ────────────────────────────────────────────────────
 
 async def on_entity_state(msg):
-    """
-    Handle entity state change messages from any Maestra client.
-
-    Expects:
-      {
-        "entity_path": "venue.stage.par_l1",
-        "state": {"intensity": 0.8, "red": 1.0, "green": 0.0, "blue": 0.0}
-      }
-    """
+    """Handle entity state change messages from any Maestra client."""
     try:
         data = json.loads(msg.data.decode())
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
@@ -68,29 +123,30 @@ async def on_entity_state(msg):
     entity_path = data.get('entity_path') or data.get('path')
     state = data.get('state', {})
 
-    if not entity_path or not state:
+    if not entity_path or not state or mapper is None:
         return
 
     updates = mapper.resolve(entity_path, state)
     if not updates:
-        return  # entity not in patch map
+        return
 
-    for universe_id, channel_updates in updates.items():
-        buffers.apply(universe_id, channel_updates)
-        sender.send(universe_id, buffers.get(universe_id))
+    for node_id, universe_updates in updates.items():
+        sender = senders.get(node_id)
+        node_buffers = buffers.get(node_id)
+        if not sender or not node_buffers:
+            continue
+        for artnet_universe, channel_updates in universe_updates.items():
+            node_buffers.apply(artnet_universe, channel_updates)
+            sender.send(artnet_universe, node_buffers.get(artnet_universe))
 
-    # Publish debug message with resolved channel values
     await _publish_fixture_debug(entity_path, updates)
 
 
 async def on_raw_universe(msg):
     """
     Handle raw universe bypass messages.
-
-    Expects:
-      { "channels": [0, 255, 128, ...] }  (up to 512 values)
-
     Subject format: maestra.to_artnet.universe.{n}
+    Sends the raw channel array to all configured nodes for that universe.
     """
     try:
         data = json.loads(msg.data.decode())
@@ -99,84 +155,85 @@ async def on_raw_universe(msg):
         return
 
     try:
-        universe_id = int(msg.subject.split('.')[-1])
+        artnet_universe = int(msg.subject.split('.')[-1])
     except (ValueError, IndexError):
-        logger.warning(f"Could not parse universe id from subject: {msg.subject}")
+        logger.warning(f"Could not parse universe from subject: {msg.subject}")
         return
 
     channels = data.get('channels', [])
     if not isinstance(channels, list):
-        logger.warning(f"Raw universe message 'channels' must be a list")
         return
 
-    buffers.set(universe_id, channels)
-    sender.send(universe_id, buffers.get(universe_id))
-    logger.debug(f"Raw universe {universe_id} sent via bypass mode")
+    for node_id, sender in senders.items():
+        node_buffers = buffers.get(node_id)
+        if node_buffers:
+            node_buffers.set(artnet_universe, channels)
+            sender.send(artnet_universe, node_buffers.get(artnet_universe))
+
+    logger.debug(f"Raw bypass: artnet_universe={artnet_universe} → {len(senders)} node(s)")
 
 
-async def _publish_fixture_debug(entity_path: str, updates: dict[int, dict[int, int]]) -> None:
-    """Publish resolved DMX channel values to NATS for monitoring/debug."""
+async def _publish_fixture_debug(entity_path: str, updates: dict) -> None:
     if nc is None:
         return
-
     subject = f"maestra.dmx.fixture.{entity_path.replace('.', '_')}"
     payload = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "entity_path": entity_path,
         "dmx_updates": {
-            str(universe): channels
-            for universe, channels in updates.items()
-        }
+            node_id: {str(u): chs for u, chs in u_updates.items()}
+            for node_id, u_updates in updates.items()
+        },
     }
     try:
         await nc.publish(subject, json.dumps(payload).encode())
     except Exception as e:
-        logger.error(f"Failed to publish fixture debug message: {e}")
+        logger.error(f"Failed to publish fixture debug: {e}")
 
 
 # ─── Keep-Alive Loop ─────────────────────────────────────────────────────────
 
 async def keepalive_loop(hz: float) -> None:
     """
-    Send all known universe buffers at a fixed rate to keep the Art-Net node
-    from timing out and going dark between state changes.
+    Send all universe buffers at a fixed rate to prevent Art-Net nodes
+    from timing out between entity state changes.
     """
     interval = 1.0 / hz
-    logger.info(f"Keep-alive loop started at {hz} Hz (every {interval:.3f}s)")
-
+    logger.info(f"Keep-alive loop at {hz} Hz (every {interval:.3f}s)")
     while True:
         await asyncio.sleep(interval)
-        for universe_id in buffers.all_universe_ids():
-            try:
-                sender.send(universe_id, buffers.get(universe_id))
-            except Exception as e:
-                logger.error(f"Keep-alive send failed for universe {universe_id}: {e}")
+        for node_id, sender in senders.items():
+            node_buffers = buffers.get(node_id)
+            if not node_buffers:
+                continue
+            for universe_id in node_buffers.all_universe_ids():
+                try:
+                    sender.send(universe_id, node_buffers.get(universe_id))
+                except Exception as e:
+                    logger.error(
+                        f"Keep-alive failed node={node_id} universe={universe_id}: {e}"
+                    )
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 async def main():
-    global nc, patch, mapper, sender, buffers
+    global nc
 
     logger.info("=" * 60)
     logger.info("Starting Maestra DMX / Art-Net Gateway")
+    logger.info(f"  Fleet Manager: {FLEET_MANAGER_URL}")
     logger.info("=" * 60)
 
-    # Load and validate patch map — exits with a clear error if invalid
-    patch = load_patch(PATCH_MAP_PATH)
+    # Load initial config from API (with retry until Fleet Manager is ready)
+    initial_config = await fetch_config_with_retry()
+    rebuild_components(initial_config)
 
-    # Initialize components
-    mapper = ChannelMapper(patch)
-    sender = ArtNetSender(
-        node_ip=patch.node.ip,
-        node_port=patch.node.port,
-        universe_offset=patch.node.universe_offset,
-    )
-    buffers = UniverseBufferSet()
-
-    # Pre-create universe buffers so keep-alive starts immediately
-    for universe in patch.universes:
-        buffers.get(universe.id)
+    if initial_config.is_empty():
+        logger.warning(
+            "No nodes or fixtures configured yet. "
+            "Add nodes/fixtures via the dashboard; gateway will pick them up automatically."
+        )
 
     # Connect to NATS
     logger.info(f"Connecting to NATS at {NATS_URL}...")
@@ -186,28 +243,21 @@ async def main():
         disconnected_cb=_on_nats_disconnect,
         error_cb=_on_nats_error,
     )
-    logger.info(f"Connected to NATS at {NATS_URL}")
+    logger.info("Connected to NATS")
 
-    # Subscribe to entity state changes and raw universe bypass
     await nc.subscribe('maestra.entity.state.>', cb=on_entity_state)
-    logger.info("Subscribed to NATS: maestra.entity.state.>")
-
     await nc.subscribe('maestra.to_artnet.universe.*', cb=on_raw_universe)
-    logger.info("Subscribed to NATS: maestra.to_artnet.universe.*")
+    logger.info("Subscribed to NATS subjects")
 
-    # Start keep-alive loop
-    asyncio.create_task(keepalive_loop(hz=patch.node.keepalive_hz))
+    asyncio.create_task(keepalive_loop(hz=KEEPALIVE_HZ))
+    asyncio.create_task(config_refresh_loop())
 
     logger.info("=" * 60)
     logger.info("DMX Gateway ready")
-    logger.info(f"  Venue:     {patch.venue}")
-    logger.info(f"  Art-Net:   {patch.node.ip}:{patch.node.port}")
-    logger.info(f"  Universes: {patch.universe_ids()}")
-    logger.info(f"  Fixtures:  {len(patch.fixtures)}")
-    logger.info(f"  Keep-alive: {patch.node.keepalive_hz} Hz")
-    logger.info("")
-    logger.info("  Listening for entity state changes → DMX channel updates")
-    logger.info("  Publish to maestra.to_artnet.universe.{n} for raw bypass")
+    logger.info(f"  Nodes:    {initial_config.node_count()}")
+    logger.info(f"  Fixtures: {initial_config.fixture_count()}")
+    logger.info(f"  Routable: {len(initial_config.routable_fixtures())}")
+    logger.info(f"  Refresh:  every {CONFIG_REFRESH_INTERVAL}s")
     logger.info("=" * 60)
 
     try:
@@ -217,17 +267,17 @@ async def main():
     finally:
         if nc:
             await nc.close()
-        if sender:
-            sender.close()
+        for s in senders.values():
+            s.close()
         logger.info("DMX Gateway stopped")
 
 
 async def _on_nats_reconnect(nc):
-    logger.info("NATS reconnected — universe buffer state preserved, resuming sends")
+    logger.info("NATS reconnected — resuming sends")
 
 
 async def _on_nats_disconnect(nc):
-    logger.warning("NATS disconnected — keep-alive continues sending to Art-Net node")
+    logger.warning("NATS disconnected — keep-alive continues")
 
 
 async def _on_nats_error(e):

@@ -87,7 +87,7 @@ Maestra is an immersive experience infrastructure platform for creatives. It's a
 - MQTT → NATS: `maestra/x/y` becomes `maestra.mqtt.maestra.x.y`
 - NATS → MQTT: `maestra.to_mqtt.x.y` becomes `x/y`
 - NATS → OSC: Subscribe to `maestra.to_osc.*`
-- NATS entity state → DMX: `maestra.entity.state.>` resolved via `config/dmx/patch.yaml` → Art-Net UDP
+- NATS entity state → DMX: `maestra.entity.state.>` resolved via database fixtures (Fleet Manager API) → Art-Net UDP
 
 ## Common Commands
 

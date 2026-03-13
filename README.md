@@ -94,7 +94,7 @@ make test-mqtt       # Publish a test MQTT message
 
 # DMX / Art-Net (requires DMX hardware)
 make up-dmx          # Start full stack + DMX gateway
-make bootstrap-venue # Create venue entities from config/dmx/patch.yaml
+make up-dmx          # Start full stack + DMX gateway
 make test-dmx        # Send test state to a fixture
 make logs-dmx        # View DMX gateway logs
 ```

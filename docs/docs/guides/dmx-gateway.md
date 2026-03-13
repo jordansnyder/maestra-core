@@ -2,6 +2,8 @@
 
 The DMX Gateway bridges the Maestra NATS message bus to physical DMX lighting fixtures via the **Art-Net** protocol. It enables any Maestra client — TouchDesigner, Node-RED, Unreal Engine, a browser, or a custom script — to control real lights in real time by publishing entity state changes.
 
+Configuration is **database-driven**: all Art-Net nodes and fixture assignments are managed through the Dashboard → DMX Lighting interface (or the Fleet Manager REST API). No YAML files required.
+
 ## How It Works
 
 ```
@@ -13,9 +15,10 @@ Maestra Client (any SDK or tool)
         ▼
   DMX Gateway
   ├── subscribes to entity state changes
-  ├── looks up fixture in patch.yaml by entity_path
+  ├── loads fixture config from Fleet Manager API (/dmx/nodes, /dmx/fixtures)
+  ├── resolves entity_id → entity path
   ├── converts variable values → DMX channel bytes
-  └── sends Art-Net ArtDMX UDP packets to node
+  └── sends Art-Net ArtDMX UDP packets to the configured node
         │
         ▼  UDP port 6454
   Art-Net Node (e.g. Enttec ODE, Pathway, etc.)
@@ -24,47 +27,25 @@ Maestra Client (any SDK or tool)
   Physical Fixtures
 ```
 
-The gateway is **hardware-agnostic** — it works with any Art-Net node on the network. Only the `patch.yaml` configuration changes between venue deployments.
+The gateway is **hardware-agnostic** — it works with any Art-Net node on the network. Configuration changes between venues via the Dashboard, not file edits.
 
 ## Prerequisites
 
 - An Art-Net node connected to your network with a known static IP address
 - DMX fixtures patched to the node's output ports
-- Maestra running with NATS available
+- Maestra running with NATS and Fleet Manager available
 
 ## Quick Start
 
-### 1. Configure your patch map
+### 1. Configure via the Dashboard
 
-Copy the example patch map and edit it for your venue:
+Open the Dashboard → **DMX Lighting** and:
 
-```bash
-cp config/dmx/patch.example.yaml config/dmx/patch.yaml
-```
+1. Add an **Art-Net Node** (hardware device): enter IP address, port, manufacturer, and universe assignments
+2. Add **DMX Fixtures**: select the node, universe, start channel, and channel count
+3. Optionally link each fixture to a Maestra **Entity** — the gateway will then respond to entity state changes for that fixture automatically
 
-Edit `config/dmx/patch.yaml` and set:
-
-- `node.ip` — your Art-Net node's IP address
-- `universes` — which Art-Net universes you're using
-- `fixtures` — one entry per fixture with its entity path and DMX address
-
-See [Patch Map Reference](#patch-map-reference) below for the full schema.
-
-### 2. Bootstrap venue entities
-
-Create the entity types and entities in Maestra that correspond to your fixtures:
-
-```bash
-# Preview what will be created (no changes made)
-make bootstrap-venue-dry
-
-# Create entity types and entities
-make bootstrap-venue
-```
-
-This reads your `patch.yaml` and calls the Fleet Manager API to create the entities. Run it once per venue.
-
-### 3. Start the DMX gateway
+### 2. Start the DMX gateway
 
 The DMX gateway is an opt-in service — it is not started by `make up`. Enable it with:
 
@@ -73,25 +54,26 @@ make up-dmx          # Full stack + DMX gateway
 make dev-dmx         # Core services + DMX gateway (lighter)
 ```
 
-### 4. Control a fixture
+The gateway connects to the Fleet Manager API on startup and loads all nodes and fixtures. It refreshes configuration every 30 seconds automatically, so new fixtures added via the Dashboard are picked up without a restart.
 
-Use any Maestra client to send an entity state change. The gateway translates it to DMX automatically.
+### 3. Control a fixture
+
+Link a fixture to a Maestra entity (via the DMX Lighting → fixture detail view), then publish a state change using any Maestra client:
 
 **Via curl:**
 
 ```bash
-curl -X PATCH http://localhost:8080/entities/venue-stage-par-l1/state \
+curl -X PATCH http://localhost:8080/entities/{entity-slug}/state \
   -H "Content-Type: application/json" \
-  -d '{"intensity": 0.8, "red": 1.0, "green": 0.0, "blue": 0.0}'
+  -d '{"state": {"intensity": 0.8, "red": 1.0, "green": 0.0, "blue": 0.0}}'
 ```
 
 **Via Node-RED:** Use an HTTP request node targeting `PATCH /entities/{slug}/state`.
 
-**Via the test target:**
+**Via raw bypass (any universe):**
 
 ```bash
-make test-dmx
-# Publishes intensity=0.8, red=1.0 to par_l1
+nats pub maestra.to_artnet.universe.1 '{"channels": [255, 0, 0, 0, 0, 0, 0]}'
 ```
 
 ## NATS Topics
@@ -100,66 +82,65 @@ make test-dmx
 |---------|-----------|-------------|
 | `maestra.entity.state.>` | Inbound | Entity state changes (normal mode) |
 | `maestra.to_artnet.universe.{n}` | Inbound | Raw 512-channel universe array (bypass mode) |
-| `maestra.artnet.universe.{n}` | Outbound | Art-Net feedback from node (future) |
 | `maestra.dmx.fixture.{path}` | Outbound | Resolved DMX channel values per fixture (debug) |
 
 ### Raw Universe Bypass
 
-For direct low-level DMX control (e.g. from a lighting console or a pre-computed array), publish a full universe array directly:
+For direct low-level DMX control (e.g. from a lighting console or pre-computed array), publish a full universe channel array:
 
 ```json
-{
-  "channels": [0, 255, 128, 64, 0, 0, 0, ...]
-}
+{ "channels": [0, 255, 128, 64, 0, 0, 0, ...] }
 ```
 
 ```bash
-# Publish raw universe array to universe 1
 nats pub maestra.to_artnet.universe.1 '{"channels": [255, 0, 0, 0, 0, 0, 0]}'
 ```
 
 ### Debug Channel Values
 
-The gateway publishes resolved channel values to `maestra.dmx.fixture.{entity_path}` after every state change. Subscribe to monitor what DMX bytes are actually being sent:
+The gateway publishes resolved channel values after every state change. Subscribe to monitor what DMX bytes are being sent:
 
 ```bash
 nats sub 'maestra.dmx.fixture.>'
 ```
 
-## Patch Map Reference
+## REST API Reference
 
-The patch map (`config/dmx/patch.yaml`) is the only file that changes between venues.
+All DMX configuration is managed via the Fleet Manager API. Full interactive docs at `http://localhost:8080/docs`.
 
-### Top-Level Structure
+### Art-Net Nodes (`/dmx/nodes`)
 
-```yaml
-venue: relay-santa-fe        # Venue identifier for logging
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/dmx/nodes` | List all configured Art-Net nodes |
+| `POST` | `/dmx/nodes` | Register a new Art-Net node |
+| `GET` | `/dmx/nodes/{id}` | Get a single node |
+| `PUT` | `/dmx/nodes/{id}` | Update node configuration |
+| `DELETE` | `/dmx/nodes/{id}` | Remove a node (fails if fixtures are assigned) |
 
-node:
-  ip: 192.168.1.50           # Art-Net node IP (set via static DHCP lease)
-  port: 6454                  # Art-Net UDP port (standard, rarely changes)
-  universe_offset: 0          # Subtracted from Maestra universe → Art-Net universe
-                               # 0 = Maestra universe 1 = Art-Net universe 1
-  keepalive_hz: 4             # Resend rate when no changes occur
-  mode: unicast               # unicast (direct to IP) or broadcast
+### DMX Fixtures (`/dmx/fixtures`)
 
-universes:
-  - id: 1                     # Maestra universe number (used in fixtures)
-    artnet_universe: 0        # Art-Net universe on the node
-    port: 1                   # Physical DMX port on the node
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/dmx/fixtures` | List all fixtures (optional `?node_id=` filter) |
+| `POST` | `/dmx/fixtures` | Create a new fixture |
+| `GET` | `/dmx/fixtures/{id}` | Get a single fixture |
+| `PUT` | `/dmx/fixtures/{id}` | Update fixture config, position, or channel map |
+| `DELETE` | `/dmx/fixtures/{id}` | Remove a fixture |
+| `PUT` | `/dmx/fixtures/positions/bulk` | Bulk update canvas positions |
 
-fixtures:
-  - id: par_l1
-    label: SlimPAR 1
-    model: Chauvet SlimPAR T12BT
-    entity_path: venue.stage.par_l1   # Must match an entity in Maestra
-    universe: 1
-    start_channel: 65
-    mode: 7ch
-    channel_map:
-      intensity: { offset: 1, type: range }
-      red:       { offset: 2, type: range }
-      ...
+## Channel Map Reference
+
+Each fixture has a `channel_map` that maps variable names to DMX channel offsets:
+
+```json
+{
+  "intensity": { "offset": 1, "type": "range" },
+  "red":       { "offset": 2, "type": "range" },
+  "green":     { "offset": 3, "type": "range" },
+  "blue":      { "offset": 4, "type": "range" },
+  "color":     { "offset": 5, "type": "enum", "enum_dmx_values": { "white": 0, "red": 10, "blue": 30 } }
+}
 ```
 
 ### Channel Types
@@ -172,60 +153,6 @@ fixtures:
 | `enum` | string label | lookup value | Color wheels, gobos |
 | `color` | `0.0` – `1.0` | `0` – `255` | Per-component (red, green, blue) |
 
-### Enum Channel Example
-
-```yaml
-color:
-  offset: 3
-  type: enum
-  enum_dmx_values:
-    white: 0
-    red: 10
-    blue: 30
-    green: 50
-    amber: 70
-    uv: 90
-```
-
-Send `"color": "amber"` in the entity state and the gateway outputs DMX value `70` on that channel.
-
-## Entity Types
-
-The bootstrap script creates four DMX entity types in Maestra:
-
-| Entity Type | Variables |
-|-------------|-----------|
-| `dmx_moving_spot` | `intensity`, `shutter`, `color`, `gobo`, `pan`, `pan_fine`, `tilt`, `tilt_fine`, `speed`, `lamp` |
-| `dmx_moving_wash` | `intensity`, `red`, `green`, `blue`, `white`, `color`, `zoom`, `pan`, `pan_fine`, `tilt`, `tilt_fine`, `speed` |
-| `dmx_par` | `intensity`, `red`, `green`, `blue`, `amber`, `white`, `uv` |
-| `dmx_dimmer_channel` | `intensity` |
-
-All variables have direction `input` (values flow Maestra → DMX).
-
-## Venue Bootstrap Script
-
-`scripts/bootstrap_venue.py` reads your `patch.yaml` and creates entity types and entities via the Fleet Manager API.
-
-```bash
-# Preview (dry run)
-python3 scripts/bootstrap_venue.py --dry-run
-
-# Run against default API (localhost:8080) and default patch map
-python3 scripts/bootstrap_venue.py
-
-# Custom paths
-python3 scripts/bootstrap_venue.py \
-  --patch config/dmx/my-venue.yaml \
-  --api http://192.168.1.10:8080
-```
-
-The script:
-
-1. Creates DMX entity types if they don't exist
-2. Creates entity variables for each type
-3. Creates the full entity hierarchy from the patch map (parent containers first)
-4. Skips entities and types that already exist (safe to re-run)
-
 ## Make Targets
 
 | Command | Description |
@@ -234,9 +161,7 @@ The script:
 | `make dev-dmx` | Start core services + DMX gateway |
 | `make logs-dmx` | Tail DMX gateway logs |
 | `make build-dmx` | Rebuild the DMX gateway image |
-| `make test-dmx` | Publish test state to par_l1 |
-| `make bootstrap-venue` | Create venue entities from patch.yaml |
-| `make bootstrap-venue-dry` | Preview bootstrap without changes |
+| `make test-dmx` | Publish a test entity state via NATS |
 
 ## Art-Net Packet Format
 
@@ -254,17 +179,17 @@ Bytes  Field
 18–529 channels[0..511] 512 DMX channel values
 ```
 
-Total packet size: 530 bytes. Sent as UDP unicast to `node.ip:node.port`.
+Total packet size: 530 bytes. Sent as UDP unicast to the configured node IP.
 
 ## Send Strategy
 
 - **On-change:** A full 512-channel universe packet is sent immediately whenever any channel in that universe changes.
-- **Keep-alive:** All universes are resent at `keepalive_hz` (default: 4 Hz) regardless of changes. This prevents the Art-Net node from timing out and turning fixtures off.
-- **Universe zero-offset:** Maestra uses 1-indexed universe numbers by convention. Set `node.universe_offset: 1` if your Art-Net node uses zero-based universe numbering.
+- **Keep-alive:** All universes are resent at 4 Hz (configurable via `KEEPALIVE_HZ`) regardless of changes. This prevents the Art-Net node from timing out and turning fixtures off.
+- **Config refresh:** The gateway reloads its node/fixture configuration from the Fleet Manager API every 30 seconds (configurable via `CONFIG_REFRESH_INTERVAL`), picking up any changes made via the Dashboard.
 
 ## NATS Reconnection
 
-The keep-alive loop runs independently of the NATS connection. If NATS disconnects, the gateway continues sending its last known universe state to the Art-Net node so fixtures hold their current values. On NATS reconnect, entity state updates resume normally without losing the universe buffer state.
+The keep-alive loop runs independently of the NATS connection. If NATS disconnects, the gateway continues sending its last known universe state to the Art-Net node so fixtures hold their current values.
 
 ## Logs
 
@@ -272,39 +197,54 @@ The keep-alive loop runs independently of the NATS connection. If NATS disconnec
 make logs-dmx
 ```
 
-Startup output includes a patch summary:
+Startup output includes a config summary:
 
 ```
-Patch map loaded: venue='relay-santa-fe' node=192.168.1.50:6454 universes=[1] fixtures=12
-  Fixture 'spot_l1' (Eliminator Stealth Spot) → venue.stage.spot_l1 universe=1 start_ch=1 channels=10
-  Fixture 'par_l1' (Chauvet SlimPAR T12BT) → venue.stage.par_l1 universe=1 start_ch=65 channels=7
+DMX config loaded: 1 node(s), 12 fixture(s), 8 with entity routing
+  'Stage PAR L1' → demo_venue.stage.par_l1 node=192.168.1.50 universe=1 start_ch=65 channels=7
   ...
+DMX Gateway ready
+  Nodes:    1
+  Fixtures: 12
+  Routable: 8
+  Refresh:  every 30s
 ```
 
 Set `DMX_LOG_LEVEL=DEBUG` in your `.env` for per-channel resolution logging.
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FLEET_MANAGER_URL` | `http://fleet-manager:8080` | Fleet Manager API base URL |
+| `NATS_URL` | `nats://nats:4222` | NATS connection |
+| `LOG_LEVEL` | `INFO` | Log verbosity |
+| `CONFIG_REFRESH_INTERVAL` | `30` | Seconds between config reloads |
+| `KEEPALIVE_HZ` | `4` | Universe resend rate |
 
 ## Troubleshooting
 
 **Gateway starts but no light response:**
 
-1. Check the Art-Net node IP: `node.ip` must be reachable from the Docker container network (`ping 192.168.1.50` from host)
-2. Verify Art-Net port 6454/UDP is not blocked
-3. Check `make logs-dmx` for NATS connection errors
-4. Enable debug logging: set `DMX_LOG_LEVEL=DEBUG` and check channel resolution output
+1. Check the Art-Net node IP — it must be reachable from the Docker container network
+2. Verify Art-Net port 6454/UDP is not blocked by a firewall
+3. Check `make logs-dmx` for NATS or Fleet Manager connection errors
+4. Enable debug logging: set `DMX_LOG_LEVEL=DEBUG` and watch for channel resolution output
 
 **Entity state changes not triggering DMX:**
 
-1. Confirm the entity path in your state change matches `entity_path` in `patch.yaml` exactly
+1. Confirm the fixture has an `entity_id` set and that entity exists in Maestra
 2. Subscribe to the debug subject to see what the gateway is resolving:
    ```bash
    nats sub 'maestra.dmx.fixture.>'
    ```
+3. Check the gateway logs after a state change for `entity_path not found in fixture index`
 
 **Wrong channels firing:**
 
 1. Verify `start_channel` and channel `offset` values against the fixture manual
 2. Check the fixture's DMX mode matches the channel map (e.g. `15ch` mode, not `8ch`)
 
-**Art-Net node using zero-based universes:**
+**Art-Net node using zero-based universe numbering:**
 
-Set `node.universe_offset: 1` in `patch.yaml`. Maestra universe 1 will map to Art-Net universe 0.
+In the Dashboard → DMX Lighting → Art-Net Node setup, set the universe's `Art-Net Universe` field to `0` for the first universe. The gateway uses the `artnet_universe` value from the database directly.

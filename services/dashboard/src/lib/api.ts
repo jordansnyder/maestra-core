@@ -9,6 +9,8 @@ import {
   RoutePresetDetail, RoutingState,
   StreamInfo, StreamSession, StreamTypeInfo, StreamRegistryState,
   BlockedDevice, DeviceProvision, DeviceApproval,
+  DMXNode, DMXNodeCreate, DMXNodeUpdate,
+  DMXFixture, DMXFixtureCreate, DMXFixtureUpdate, FixturePositionUpdate
 } from './types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
@@ -488,7 +490,37 @@ export const cloudApi = {
 
   test: () => fetchApi<CloudTestResult>('/cloud/test', { method: 'POST' }),
 
-  getMetrics: () => fetchApi<Record<string, unknown>>('/cloud/metrics'),
+  getMetrics: () => fetchApi<Record<string, unknown>>('/cloud/metrics')
+}
+// DMX API
+export const dmxApi = {
+  // Art-Net Nodes
+  listNodes: () => fetchApi<DMXNode[]>('/dmx/nodes'),
+  getNode: (id: string) => fetchApi<DMXNode>(`/dmx/nodes/${id}`),
+  createNode: (data: DMXNodeCreate) =>
+    fetchApi<DMXNode>('/dmx/nodes', { method: 'POST', body: JSON.stringify(data) }),
+  updateNode: (id: string, data: DMXNodeUpdate) =>
+    fetchApi<DMXNode>(`/dmx/nodes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteNode: (id: string) =>
+    fetchApi<{ status: string; id: string }>(`/dmx/nodes/${id}`, { method: 'DELETE' }),
+
+  // DMX Fixtures
+  listFixtures: (nodeId?: string) => {
+    const params = nodeId ? `?node_id=${nodeId}` : ''
+    return fetchApi<DMXFixture[]>(`/dmx/fixtures${params}`)
+  },
+  getFixture: (id: string) => fetchApi<DMXFixture>(`/dmx/fixtures/${id}`),
+  createFixture: (data: DMXFixtureCreate) =>
+    fetchApi<DMXFixture>('/dmx/fixtures', { method: 'POST', body: JSON.stringify(data) }),
+  updateFixture: (id: string, data: DMXFixtureUpdate) =>
+    fetchApi<DMXFixture>(`/dmx/fixtures/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteFixture: (id: string) =>
+    fetchApi<{ status: string; id: string }>(`/dmx/fixtures/${id}`, { method: 'DELETE' }),
+  bulkUpdatePositions: (positions: FixturePositionUpdate[]) =>
+    fetchApi<{ status: string; count: number }>('/dmx/fixtures/positions/bulk', {
+      method: 'PUT',
+      body: JSON.stringify(positions),
+    }),
 }
 
 export { ApiError }

@@ -11,6 +11,7 @@ interface DMXCanvasProps {
   selectedId: string | null
   onSelect: (id: string | null) => void
   onEdit: (fixture: DMXFixture) => void
+  onCopy: (fixture: DMXFixture) => void
   onDelete: (id: string) => void
   onPositionsChange: (positions: FixturePositionUpdate[]) => void
 }
@@ -27,6 +28,7 @@ export function DMXCanvas({
   selectedId,
   onSelect,
   onEdit,
+  onCopy,
   onDelete,
   onPositionsChange,
 }: DMXCanvasProps) {
@@ -141,6 +143,10 @@ export function DMXCanvas({
           onEdit={() => {
             const fixture = fixtures.find((f) => f.id === ctxMenu.fixtureId)
             if (fixture) onEdit(fixture)
+          }}
+          onCopy={() => {
+            const fixture = fixtures.find((f) => f.id === ctxMenu.fixtureId)
+            if (fixture) onCopy(fixture)
           }}
           onDelete={() => onDelete(ctxMenu.fixtureId)}
           onClose={() => setCtxMenu(null)}

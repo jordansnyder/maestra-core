@@ -1,17 +1,18 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { Pencil, Trash2 } from '@/components/icons'
+import { Pencil, Trash2, Copy } from '@/components/icons'
 
 interface ContextMenuProps {
   x: number
   y: number
   onEdit: () => void
+  onCopy: () => void
   onDelete: () => void
   onClose: () => void
 }
 
-export function ContextMenu({ x, y, onEdit, onDelete, onClose }: ContextMenuProps) {
+export function ContextMenu({ x, y, onEdit, onCopy, onDelete, onClose }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -51,6 +52,13 @@ export function ContextMenu({ x, y, onEdit, onDelete, onClose }: ContextMenuProp
       >
         <Pencil className="w-3.5 h-3.5 text-slate-400" />
         Edit Fixture
+      </button>
+      <button
+        onClick={() => { onCopy(); onClose() }}
+        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 transition-colors"
+      >
+        <Copy className="w-3.5 h-3.5 text-slate-400" />
+        Copy Fixture
       </button>
       <div className="my-1 border-t border-slate-700" />
       <button

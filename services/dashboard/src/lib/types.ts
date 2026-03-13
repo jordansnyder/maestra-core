@@ -362,6 +362,7 @@ export interface UniverseConfig {
   artnet_universe: number
   port_label: string
   description: string
+  color?: string
 }
 
 export interface DMXNode {

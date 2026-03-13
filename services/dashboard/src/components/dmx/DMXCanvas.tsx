@@ -1,13 +1,15 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { DMXFixture, DMXNode, FixturePositionUpdate } from '@/lib/types'
+import { UNIVERSE_PALETTE } from '@/lib/dmx-constants'
 import { FixtureNode } from './FixtureNode'
 import { ContextMenu } from './ContextMenu'
 
 interface DMXCanvasProps {
   fixtures: DMXFixture[]
   nodes: DMXNode[]
+  nodeSize: number
   selectedId: string | null
   onSelect: (id: string | null) => void
   onEdit: (fixture: DMXFixture) => void
@@ -22,9 +24,16 @@ interface CtxMenu {
   fixtureId: string
 }
 
+function getUniverseColor(nodes: DMXNode[], fixture: DMXFixture): string {
+  const node = nodes.find((n) => n.id === fixture.node_id)
+  const uCfg = node?.universes.find((u) => u.id === fixture.universe)
+  return uCfg?.color ?? UNIVERSE_PALETTE[fixture.universe % UNIVERSE_PALETTE.length]
+}
+
 export function DMXCanvas({
   fixtures,
   nodes,
+  nodeSize,
   selectedId,
   onSelect,
   onEdit,
@@ -34,7 +43,6 @@ export function DMXCanvas({
 }: DMXCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState<string | null>(null)
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({})
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null)
 
@@ -42,36 +50,58 @@ export function DMXCanvas({
     return positions[fixture.id] ?? { x: fixture.position_x, y: fixture.position_y }
   }, [positions])
 
+  // Use refs for drag state so window-level handlers always see current values
+  const draggingRef = useRef<string | null>(null)
+  const dragOffsetRef = useRef({ x: 0, y: 0 })
+  const positionsRef = useRef(positions)
+  positionsRef.current = positions
+
+  // Window-level move/up handlers — attached only while dragging so they always
+  // fire even when the mouse leaves the canvas div
+  useEffect(() => {
+    if (!dragging) return
+
+    const onMove = (e: MouseEvent) => {
+      const rect = containerRef.current!.getBoundingClientRect()
+      const x = e.clientX - rect.left - dragOffsetRef.current.x
+      const y = e.clientY - rect.top - dragOffsetRef.current.y
+      setPositions((p) => ({ ...p, [draggingRef.current!]: { x, y } }))
+    }
+
+    const onUp = () => {
+      const id = draggingRef.current
+      if (id) {
+        const pos = positionsRef.current[id]
+        if (pos) {
+          onPositionsChange([{ id, position_x: pos.x, position_y: pos.y }])
+        }
+      }
+      draggingRef.current = null
+      setDragging(null)
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [dragging, onPositionsChange])
+
   const handleMouseDown = (e: React.MouseEvent, fixtureId: string) => {
     if (e.button !== 0) return
     e.preventDefault()
     const rect = containerRef.current!.getBoundingClientRect()
     const fixture = fixtures.find((f) => f.id === fixtureId)!
     const pos = getPos(fixture)
-    setDragOffset({
+    const offset = {
       x: e.clientX - rect.left - pos.x,
       y: e.clientY - rect.top - pos.y,
-    })
+    }
+    dragOffsetRef.current = offset
+    draggingRef.current = fixtureId
     setDragging(fixtureId)
     onSelect(fixtureId)
-  }
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!dragging) return
-    const rect = containerRef.current!.getBoundingClientRect()
-    const x = e.clientX - rect.left - dragOffset.x
-    const y = e.clientY - rect.top - dragOffset.y
-    setPositions((p) => ({ ...p, [dragging]: { x, y } }))
-  }
-
-  const handleMouseUp = () => {
-    if (dragging) {
-      const pos = positions[dragging]
-      if (pos) {
-        onPositionsChange([{ id: dragging, position_x: pos.x, position_y: pos.y }])
-      }
-    }
-    setDragging(null)
   }
 
   const handleContextMenu = (e: React.MouseEvent, fixtureId: string) => {
@@ -81,51 +111,117 @@ export function DMXCanvas({
     onSelect(fixtureId)
   }
 
-  const handleCanvasClick = () => {
-    onSelect(null)
-  }
+  // Group fixtures by (node_id, universe) for noodle drawing
+  // useMemo on fixtures/nodes so group membership only recomputes on data change
+  // Actual positions are computed at render via getPos
+  const universeGroups = useMemo(() => {
+    const groups = new Map<string, { fixtures: DMXFixture[]; color: string }>()
+    for (const f of fixtures) {
+      const key = `${f.node_id}:${f.universe}`
+      if (!groups.has(key)) {
+        groups.set(key, { fixtures: [], color: getUniverseColor(nodes, f) })
+      }
+      groups.get(key)!.fixtures.push(f)
+    }
+    // Sort each group by start_channel for daisy-chain ordering
+    for (const g of groups.values()) {
+      g.fixtures.sort((a, b) => a.start_channel - b.start_channel)
+    }
+    return groups
+  }, [fixtures, nodes])
 
   return (
     <div
       ref={containerRef}
       className="relative w-full h-full overflow-hidden"
       style={{ cursor: dragging ? 'grabbing' : 'default', background: '#0d1117' }}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onClick={handleCanvasClick}
+      onClick={() => onSelect(null)}
     >
-      {/* CSS grid overlay */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none">
+      {/* Grid background */}
+      <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
         <defs>
-          <pattern id="dmx-grid-small" width="24" height="24" patternUnits="userSpaceOnUse">
-            <path d="M 24 0 L 0 0 0 24" fill="none" stroke="#ffffff05" strokeWidth="0.5" />
+          <pattern id="dmx-grid-small" width="8" height="8" patternUnits="userSpaceOnUse">
+            <path d="M 8 0 L 0 0 0 8" fill="none" stroke="#ffffff05" strokeWidth="0.5" />
           </pattern>
-          <pattern id="dmx-grid-large" width="120" height="120" patternUnits="userSpaceOnUse">
-            <rect width="120" height="120" fill="url(#dmx-grid-small)" />
-            <path d="M 120 0 L 0 0 0 120" fill="none" stroke="#ffffff08" strokeWidth="1" />
+          <pattern id="dmx-grid-large" width="40" height="40" patternUnits="userSpaceOnUse">
+            <rect width="40" height="40" fill="url(#dmx-grid-small)" />
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ffffff08" strokeWidth="1" />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#dmx-grid-large)" />
       </svg>
 
+      {/* Noodle SVG — daisy-chain lines per universe, drawn above grid, below nodes */}
+      <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 6 }}>
+        {Array.from(universeGroups.entries()).map(([key, { fixtures: group, color }]) => {
+          if (group.length < 2) return null
+          const points = group.map((f) => {
+            const pos = getPos(f)
+            return `${pos.x},${pos.y}`
+          }).join(' ')
+          return (
+            <polyline
+              key={key}
+              points={points}
+              fill="none"
+              stroke={color}
+              strokeWidth="1.5"
+              strokeOpacity="0.3"
+              strokeDasharray="5 4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )
+        })}
+      </svg>
+
       {/* Empty state */}
       {fixtures.length === 0 && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ zIndex: 7 }}>
           <div className="text-slate-700 text-sm font-medium">No fixtures yet</div>
           <div className="text-slate-800 text-xs mt-1">Click &quot;Add Fixture&quot; to place one on the canvas</div>
         </div>
       )}
 
+      {/* Node badges — computed from fixture positions, highlight when child is selected */}
+      {nodes.map((node) => {
+        const nodeFixtures = fixtures.filter((f) => f.node_id === node.id)
+        if (nodeFixtures.length === 0) return null
+        const isParentOfSelected = nodeFixtures.some((f) => f.id === selectedId)
+        const livePositions = nodeFixtures.map((f) => getPos(f))
+        const cx = livePositions.reduce((s, p) => s + p.x, 0) / livePositions.length
+        const minY = Math.min(...livePositions.map((p) => p.y))
+        const nodeColor = node.universes[0]?.color ?? UNIVERSE_PALETTE[0]
+        return (
+          <div
+            key={node.id}
+            className="absolute pointer-events-none select-none"
+            style={{ left: Math.round(cx - 56), top: Math.round(minY - nodeSize / 2 - 18), zIndex: 7, transform: 'translateY(-100%)' }}
+          >
+            <div
+              className="px-2 py-1 rounded text-[9px] font-mono whitespace-nowrap transition-all duration-150"
+              style={{
+                background: isParentOfSelected ? `${nodeColor}22` : '#1e293b99',
+                border: `1px solid ${isParentOfSelected ? nodeColor : '#1e293b'}`,
+                color: isParentOfSelected ? nodeColor : '#475569',
+                boxShadow: isParentOfSelected ? `0 0 10px ${nodeColor}44` : 'none',
+              }}
+            >
+              {node.name} · {node.ip_address}
+            </div>
+          </div>
+        )
+      })}
+
       {/* Fixture nodes */}
       {fixtures.map((fixture) => {
-        const node = nodes.find((n) => n.id === fixture.node_id)
         const pos = getPos(fixture)
         const displayFixture = { ...fixture, position_x: pos.x, position_y: pos.y }
         return (
           <FixtureNode
             key={fixture.id}
             fixture={displayFixture}
-            node={node}
+            diameter={nodeSize}
             selected={selectedId === fixture.id}
             dragging={dragging === fixture.id}
             onMouseDown={(e) => handleMouseDown(e, fixture.id)}

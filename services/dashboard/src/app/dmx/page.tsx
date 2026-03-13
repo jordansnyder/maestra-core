@@ -6,19 +6,40 @@ import { DMXCanvas } from '@/components/dmx/DMXCanvas'
 import { DMXSidebar } from '@/components/dmx/DMXSidebar'
 import { NodeSetupForm } from '@/components/dmx/NodeSetupForm'
 import { AddFixtureModal } from '@/components/dmx/AddFixtureModal'
-import { DMXFixture, DMXNodeCreate } from '@/lib/types'
-import { Zap, Plus, Network, Settings } from '@/components/icons'
+import { DMXFixture, DMXNode, DMXNodeCreate } from '@/lib/types'
+import { Zap, Plus, Network, Settings, X } from '@/components/icons'
 
-type View = 'canvas' | 'add-node' | 'manage-nodes'
+const NODE_SCALES: { label: string; diameter: number }[] = [
+  { label: 'S', diameter: 32 },
+  { label: 'M', diameter: 58 },
+  { label: 'L', diameter: 88 },
+]
+
+function getInitialScale(): number {
+  if (typeof window === 'undefined') return 58
+  const stored = localStorage.getItem('dmx-node-scale')
+  if (stored) {
+    const n = Number(stored)
+    if (NODE_SCALES.some((s) => s.diameter === n)) return n
+  }
+  return 58
+}
 
 export default function DMXPage() {
-  const { nodes, fixtures, loading, error, createNode, deleteNode, createFixture, updateFixture, deleteFixture, bulkUpdatePositions } = useDMX()
+  const { nodes, fixtures, loading, error, createNode, updateNode, createFixture, updateFixture, deleteFixture, bulkUpdatePositions } = useDMX()
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [showAddNode, setShowAddNode] = useState(false)
   const [showAddFixture, setShowAddFixture] = useState(false)
   const [editingFixture, setEditingFixture] = useState<DMXFixture | null>(null)
   const [copyingFixture, setCopyingFixture] = useState<{ fixture: DMXFixture; name: string } | null>(null)
-  const [view, setView] = useState<View>('canvas')
+  const [nodeDiameter, setNodeDiameter] = useState<number>(getInitialScale)
+  const [editingNode, setEditingNode] = useState<DMXNode | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  const setScale = (diameter: number) => {
+    setNodeDiameter(diameter)
+    localStorage.setItem('dmx-node-scale', String(diameter))
+  }
 
   const handleCopy = (fixture: DMXFixture) => {
     const existingNames = fixtures.map((f) => f.name)
@@ -45,7 +66,7 @@ export default function DMXPage() {
   }
 
   // ── First-run gate: no Art-Net nodes configured ────────────────────────────
-  if (nodes.length === 0 && view !== 'add-node') {
+  if (nodes.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-slate-950 gap-8 p-8">
         <div className="flex flex-col items-center gap-3 text-center">
@@ -65,41 +86,9 @@ export default function DMXPage() {
             <h2 className="text-sm font-semibold text-white">Add Your First Art-Net Node</h2>
           </div>
           <NodeSetupForm
-            onSubmit={async (data: DMXNodeCreate) => {
-              await createNode(data)
-              setView('canvas')
-            }}
+            onSubmit={async (data: DMXNodeCreate) => { await createNode(data) }}
             submitLabel="Add Node & Continue"
           />
-        </div>
-      </div>
-    )
-  }
-
-  // ── Add node view ──────────────────────────────────────────────────────────
-  if (view === 'add-node') {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-start bg-slate-950 p-8 overflow-y-auto">
-        <div className="w-full max-w-xl">
-          <button
-            onClick={() => setView('canvas')}
-            className="text-xs text-slate-500 hover:text-slate-300 transition-colors mb-4"
-          >
-            ← Back to canvas
-          </button>
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <Network className="w-4 h-4 text-blue-400" />
-              <h2 className="text-sm font-semibold text-white">Add Art-Net Node</h2>
-            </div>
-            <NodeSetupForm
-              onSubmit={async (data: DMXNodeCreate) => {
-                await createNode(data)
-                setView('canvas')
-              }}
-              onCancel={() => setView('canvas')}
-            />
-          </div>
         </div>
       </div>
     )
@@ -121,8 +110,24 @@ export default function DMXPage() {
           {actionError && (
             <span className="text-xs text-red-400">{actionError}</span>
           )}
+          {/* Node scale picker */}
+          <div className="flex items-center rounded-lg overflow-hidden border border-slate-700">
+            {NODE_SCALES.map((scale) => (
+              <button
+                key={scale.label}
+                onClick={() => setScale(scale.diameter)}
+                className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  nodeDiameter === scale.diameter
+                    ? 'bg-slate-600 text-white'
+                    : 'bg-slate-800 text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                {scale.label}
+              </button>
+            ))}
+          </div>
           <button
-            onClick={() => setView('add-node')}
+            onClick={() => setShowAddNode(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 bg-slate-800 hover:bg-slate-700 transition-colors"
           >
             <Settings className="w-3.5 h-3.5" />
@@ -144,6 +149,7 @@ export default function DMXPage() {
           <DMXCanvas
             fixtures={fixtures}
             nodes={nodes}
+            nodeSize={nodeDiameter}
             selectedId={selectedId}
             onSelect={setSelectedId}
             onEdit={(fixture) => setEditingFixture(fixture)}
@@ -181,8 +187,62 @@ export default function DMXPage() {
               setActionError(e instanceof Error ? e.message : 'Delete failed')
             }
           }}
+          onEditNode={(node) => setEditingNode(node)}
         />
       </div>
+
+      {/* Add Node Modal */}
+      {showAddNode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Network className="w-4 h-4 text-blue-400" />
+                <h2 className="text-sm font-semibold text-white">Add Art-Net Node</h2>
+              </div>
+              <button onClick={() => setShowAddNode(false)} className="text-slate-500 hover:text-slate-300 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5">
+              <NodeSetupForm
+                onSubmit={async (data: DMXNodeCreate) => {
+                  await createNode(data)
+                  setShowAddNode(false)
+                }}
+                onCancel={() => setShowAddNode(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Node Modal */}
+      {editingNode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Network className="w-4 h-4 text-blue-400" />
+                <h2 className="text-sm font-semibold text-white">Edit Art-Net Node</h2>
+              </div>
+              <button onClick={() => setEditingNode(null)} className="text-slate-500 hover:text-slate-300 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 max-h-[80vh] overflow-y-auto">
+              <NodeSetupForm
+                node={editingNode}
+                onSubmit={async (data) => {
+                  await updateNode(editingNode.id, data)
+                  setEditingNode(null)
+                }}
+                onCancel={() => setEditingNode(null)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Fixture Modal */}
       {showAddFixture && (

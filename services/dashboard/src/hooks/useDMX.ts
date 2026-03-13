@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { dmxApi } from '@/lib/api'
-import { DMXNode, DMXFixture, DMXFixtureCreate, DMXFixtureUpdate, DMXNodeCreate, FixturePositionUpdate } from '@/lib/types'
+import { DMXNode, DMXFixture, DMXFixtureCreate, DMXFixtureUpdate, DMXNodeCreate, DMXNodeUpdate, FixturePositionUpdate } from '@/lib/types'
 
 export function useDMX() {
   const [nodes, setNodes] = useState<DMXNode[]>([])
@@ -41,6 +41,12 @@ export function useDMX() {
     setNodes((prev) => prev.filter((n) => n.id !== id))
   }, [])
 
+  const updateNode = useCallback(async (id: string, data: DMXNodeUpdate) => {
+    const updated = await dmxApi.updateNode(id, data)
+    setNodes((prev) => prev.map((n) => n.id === id ? updated : n))
+    return updated
+  }, [])
+
   const createFixture = useCallback(async (data: DMXFixtureCreate) => {
     const fixture = await dmxApi.createFixture(data)
     setFixtures((prev) => [...prev, fixture])
@@ -75,6 +81,7 @@ export function useDMX() {
     error,
     refresh: fetchAll,
     createNode,
+    updateNode,
     deleteNode,
     createFixture,
     updateFixture,

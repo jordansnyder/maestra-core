@@ -315,3 +315,48 @@ export interface StreamRegistryState {
   sessions: StreamSession[]
   stream_types: StreamTypeInfo[]
 }
+
+// Preview types
+export interface PreviewInfo {
+  status: 'connected' | 'connection_info'
+  name: string
+  stream_type: string
+  protocol: string
+  publisher_id?: string
+  publisher_address?: string
+  publisher_port?: number
+  address?: string
+  port?: number
+  local_port?: number
+  session_id?: string
+  config?: Record<string, unknown>
+  metadata?: Record<string, unknown>
+}
+
+export interface SensorPreviewData {
+  type: 'sensor'
+  seq: number
+  center_freq: number
+  sample_rate: number
+  fft_size: number
+  power_db: number[]
+  _seq: number
+}
+
+export interface AudioPreviewData {
+  type: 'audio'
+  samples: number
+  rms_db: number
+  peak_db: number
+  rms_level: number
+  peak_level: number
+  _seq: number
+}
+
+export interface DataPreviewData {
+  type: string
+  _seq: number
+  [key: string]: unknown
+}
+
+export type PreviewData = SensorPreviewData | AudioPreviewData | DataPreviewData

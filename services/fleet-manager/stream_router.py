@@ -127,19 +127,6 @@ async def list_streams(
     return [StreamInfo(**s) for s in streams_data]
 
 
-@router.get("/{stream_id}", response_model=StreamInfo)
-async def get_stream(stream_id: UUID):
-    """Get a single stream by ID"""
-    if not stream_manager.is_connected:
-        raise HTTPException(status_code=503, detail="Stream manager not connected")
-
-    stream_data = await stream_manager.get_stream(str(stream_id))
-    if not stream_data:
-        raise HTTPException(status_code=404, detail="Stream not found or expired")
-
-    return StreamInfo(**stream_data)
-
-
 @router.post("/advertise", response_model=StreamInfo, status_code=201)
 async def advertise_stream(advert: StreamAdvertise):
     """Advertise a new stream"""
@@ -150,69 +137,12 @@ async def advertise_stream(advert: StreamAdvertise):
     return StreamInfo(**stream_data)
 
 
-@router.delete("/{stream_id}")
-async def withdraw_stream(stream_id: UUID):
-    """Withdraw a stream from the registry"""
-    if not stream_manager.is_connected:
-        raise HTTPException(status_code=503, detail="Stream manager not connected")
-
-    removed = await stream_manager.withdraw_stream(str(stream_id))
-    if not removed:
-        raise HTTPException(status_code=404, detail="Stream not found or expired")
-
-    return {"status": "withdrawn", "stream_id": str(stream_id)}
-
-
-@router.post("/{stream_id}/heartbeat")
-async def stream_heartbeat(stream_id: UUID):
-    """Refresh a stream's TTL"""
-    if not stream_manager.is_connected:
-        raise HTTPException(status_code=503, detail="Stream manager not connected")
-
-    refreshed = await stream_manager.refresh_stream_ttl(str(stream_id))
-    if not refreshed:
-        raise HTTPException(status_code=404, detail="Stream not found or expired")
-
-    return {"status": "ok", "stream_id": str(stream_id)}
-
-
-# =============================================================================
-# Stream Negotiation
-# =============================================================================
-
-@router.post("/{stream_id}/request", response_model=StreamOffer)
-async def request_stream(stream_id: UUID, req: StreamRequest):
-    """
-    Request to consume a stream. Triggers NATS request-reply to the publisher.
-    Returns connection details on success.
-    """
-    if not stream_manager.is_connected:
-        raise HTTPException(status_code=503, detail="Stream manager not connected")
-
-    # Get a fresh DB session for logging (fire-and-forget)
-    db_session = async_session_maker()
-
-    try:
-        offer = await stream_manager.request_stream(
-            stream_id=str(stream_id),
-            consumer_id=req.consumer_id,
-            consumer_address=req.consumer_address,
-            consumer_port=req.consumer_port,
-            config=req.config,
-            db_session=db_session,
-        )
-        return StreamOffer(**offer)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except TimeoutError as e:
-        raise HTTPException(status_code=504, detail=str(e))
-    except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
-
 # =============================================================================
 # Session Management
 # =============================================================================
+# NOTE: Session routes use /sessions/* prefix and MUST be defined before the
+# catch-all /{stream_id} route, otherwise FastAPI would try to parse "sessions"
+# as a UUID path parameter.
 
 @router.get("/sessions", response_model=List[StreamSession])
 async def list_sessions(
@@ -302,3 +232,80 @@ async def session_heartbeat(session_id: UUID):
         raise HTTPException(status_code=404, detail="Session not found or expired")
 
     return {"status": "ok", "session_id": str(session_id)}
+
+
+# =============================================================================
+# Single Stream by ID (catch-all — MUST be after all static /streams/* routes)
+# =============================================================================
+
+@router.get("/{stream_id}", response_model=StreamInfo)
+async def get_stream(stream_id: UUID):
+    """Get a single stream by ID"""
+    if not stream_manager.is_connected:
+        raise HTTPException(status_code=503, detail="Stream manager not connected")
+
+    stream_data = await stream_manager.get_stream(str(stream_id))
+    if not stream_data:
+        raise HTTPException(status_code=404, detail="Stream not found or expired")
+
+    return StreamInfo(**stream_data)
+
+
+@router.delete("/{stream_id}")
+async def withdraw_stream(stream_id: UUID):
+    """Withdraw a stream from the registry"""
+    if not stream_manager.is_connected:
+        raise HTTPException(status_code=503, detail="Stream manager not connected")
+
+    removed = await stream_manager.withdraw_stream(str(stream_id))
+    if not removed:
+        raise HTTPException(status_code=404, detail="Stream not found or expired")
+
+    return {"status": "withdrawn", "stream_id": str(stream_id)}
+
+
+@router.post("/{stream_id}/heartbeat")
+async def stream_heartbeat(stream_id: UUID):
+    """Refresh a stream's TTL"""
+    if not stream_manager.is_connected:
+        raise HTTPException(status_code=503, detail="Stream manager not connected")
+
+    refreshed = await stream_manager.refresh_stream_ttl(str(stream_id))
+    if not refreshed:
+        raise HTTPException(status_code=404, detail="Stream not found or expired")
+
+    return {"status": "ok", "stream_id": str(stream_id)}
+
+
+# =============================================================================
+# Stream Negotiation
+# =============================================================================
+
+@router.post("/{stream_id}/request", response_model=StreamOffer)
+async def request_stream(stream_id: UUID, req: StreamRequest):
+    """
+    Request to consume a stream. Triggers NATS request-reply to the publisher.
+    Returns connection details on success.
+    """
+    if not stream_manager.is_connected:
+        raise HTTPException(status_code=503, detail="Stream manager not connected")
+
+    # Get a fresh DB session for logging (fire-and-forget)
+    db_session = async_session_maker()
+
+    try:
+        offer = await stream_manager.request_stream(
+            stream_id=str(stream_id),
+            consumer_id=req.consumer_id,
+            consumer_address=req.consumer_address,
+            consumer_port=req.consumer_port,
+            config=req.config,
+            db_session=db_session,
+        )
+        return StreamOffer(**offer)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except TimeoutError as e:
+        raise HTTPException(status_code=504, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))

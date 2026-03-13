@@ -640,6 +640,83 @@ class StreamRegistryState(BaseModel):
     stream_types: List[StreamTypeInfo]
 
 
+# =============================================================================
+# Analytics Models
+# =============================================================================
+
+class ShowAnnotationCreate(BaseModel):
+    """Create a show annotation (tag a moment)"""
+    time: Optional[datetime] = Field(None, description="Annotation time (defaults to now)")
+    title: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    category: str = Field("general", max_length=100)
+    tags: List[str] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ShowAnnotationUpdate(BaseModel):
+    """Update a show annotation"""
+    title: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class ShowAnnotation(BaseModel):
+    """Show annotation response"""
+    id: UUID
+    time: datetime
+    title: str
+    description: Optional[str] = None
+    category: str
+    tags: List[str] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
+
+
+class ShowSummary(BaseModel):
+    """Aggregate show statistics for presentations"""
+    total_metrics: int = 0
+    total_events: int = 0
+    total_state_changes: int = 0
+    unique_devices: int = 0
+    unique_entities: int = 0
+    total_devices_registered: int = 0
+    devices_online: int = 0
+    first_event_at: Optional[datetime] = None
+    last_event_at: Optional[datetime] = None
+    top_entities: List[Dict[str, Any]] = Field(default_factory=list)
+    events_by_severity: Dict[str, int] = Field(default_factory=dict)
+    annotations_count: int = 0
+
+
+class CollectionConfigCreate(BaseModel):
+    """Set collection verbosity for a scope"""
+    scope_type: str = Field(..., description="'global', 'entity_type', or 'device'")
+    scope_id: Optional[str] = Field(None, description="Entity type name or device UUID; NULL for global")
+    verbosity: str = Field("standard", description="'minimal', 'standard', or 'verbose'")
+    config: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CollectionConfigUpdate(BaseModel):
+    """Update collection verbosity"""
+    verbosity: Optional[str] = None
+    config: Optional[Dict[str, Any]] = None
+
+
+class CollectionConfig(BaseModel):
+    """Collection config response"""
+    id: UUID
+    scope_type: str
+    scope_id: Optional[str] = None
+    verbosity: str
+    config: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
+
+
 # Enable forward references
 Entity.model_rebuild()
 EntityTreeNode.model_rebuild()

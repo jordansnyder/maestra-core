@@ -1,0 +1,383 @@
+[
+    {
+        "id": "mqtt_broker_config",
+        "type": "mqtt-broker",
+        "name": "Maestra MQTT",
+        "broker": "mosquitto",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "sessionExpiry": ""
+    },
+
+    {
+        "id": "tab_device_monitor",
+        "type": "tab",
+        "label": "Device Monitor",
+        "disabled": false,
+        "info": "Monitors device heartbeats and displays activity in the debug panel.",
+        "env": []
+    },
+    {
+        "id": "dm_mqtt_in",
+        "type": "mqtt in",
+        "z": "tab_device_monitor",
+        "name": "Device Heartbeats",
+        "topic": "maestra/devices/+/heartbeat",
+        "qos": "0",
+        "datatype": "auto",
+        "broker": "mqtt_broker_config",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 140,
+        "y": 200,
+        "wires": [
+            ["dm_json_parse"]
+        ]
+    },
+    {
+        "id": "dm_json_parse",
+        "type": "json",
+        "z": "tab_device_monitor",
+        "name": "Parse JSON",
+        "property": "payload",
+        "action": "",
+        "pretty": false,
+        "x": 340,
+        "y": 200,
+        "wires": [
+            ["dm_format_fn"]
+        ]
+    },
+    {
+        "id": "dm_format_fn",
+        "type": "function",
+        "z": "tab_device_monitor",
+        "name": "Format Heartbeat",
+        "func": "var data = msg.payload;\nvar deviceName = msg.topic.split('/')[2] || 'unknown';\nmsg.payload = {\n    device: deviceName,\n    status: data.data ? data.data.status : 'heartbeat',\n    timestamp: data.timestamp || new Date().toISOString()\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 540,
+        "y": 200,
+        "wires": [
+            ["dm_debug"]
+        ]
+    },
+    {
+        "id": "dm_debug",
+        "type": "debug",
+        "z": "tab_device_monitor",
+        "name": "Device Activity",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload.device",
+        "statusType": "auto",
+        "x": 750,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "dm_comment",
+        "type": "comment",
+        "z": "tab_device_monitor",
+        "name": "How to use this flow",
+        "info": "This flow monitors device heartbeat messages. Deploy this flow and register a device to see heartbeats appear in the debug panel (sidebar \u2192 bug icon).\n\nHeartbeats arrive on `maestra/devices/+/heartbeat` where `+` is the device slug. The function node extracts the device name from the topic and formats a clean summary.",
+        "x": 160,
+        "y": 100,
+        "wires": []
+    },
+
+    {
+        "id": "tab_entity_controller",
+        "type": "tab",
+        "label": "Entity Controller",
+        "disabled": false,
+        "info": "Demonstrates controlling an entity's state via the Fleet Manager API and monitoring real-time state changes.",
+        "env": []
+    },
+    {
+        "id": "ec_inject_bright",
+        "type": "inject",
+        "z": "tab_entity_controller",
+        "name": "Set Brightness to 100",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"brightness\":100}",
+        "payloadType": "json",
+        "x": 180,
+        "y": 140,
+        "wires": [
+            ["ec_prepare_fn"]
+        ]
+    },
+    {
+        "id": "ec_inject_dim",
+        "type": "inject",
+        "z": "tab_entity_controller",
+        "name": "Set Brightness to 25",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"brightness\":25}",
+        "payloadType": "json",
+        "x": 180,
+        "y": 200,
+        "wires": [
+            ["ec_prepare_fn"]
+        ]
+    },
+    {
+        "id": "ec_inject_off",
+        "type": "inject",
+        "z": "tab_entity_controller",
+        "name": "Turn Off",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"on\":false,\"brightness\":0}",
+        "payloadType": "json",
+        "x": 150,
+        "y": 260,
+        "wires": [
+            ["ec_prepare_fn"]
+        ]
+    },
+    {
+        "id": "ec_prepare_fn",
+        "type": "function",
+        "z": "tab_entity_controller",
+        "name": "Prepare Request",
+        "func": "// Wrap in the state update format\nmsg.payload = { state: msg.payload };\nmsg.headers = { \"Content-Type\": \"application/json\" };\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 200,
+        "wires": [
+            ["ec_http_req"]
+        ]
+    },
+    {
+        "id": "ec_http_req",
+        "type": "http request",
+        "z": "tab_entity_controller",
+        "name": "Update Entity State",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "http://fleet-manager:8080/entities/by-slug/gallery-light-1/state/update",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 640,
+        "y": 200,
+        "wires": [
+            ["ec_debug_resp"]
+        ]
+    },
+    {
+        "id": "ec_debug_resp",
+        "type": "debug",
+        "z": "tab_entity_controller",
+        "name": "API Response",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "statusCode",
+        "statusType": "auto",
+        "x": 850,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "ec_mqtt_state",
+        "type": "mqtt in",
+        "z": "tab_entity_controller",
+        "name": "State Changes",
+        "topic": "maestra/entity/state/changed/gallery-light-1",
+        "qos": "0",
+        "datatype": "auto",
+        "broker": "mqtt_broker_config",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 160,
+        "y": 400,
+        "wires": [
+            ["ec_json_parse"]
+        ]
+    },
+    {
+        "id": "ec_json_parse",
+        "type": "json",
+        "z": "tab_entity_controller",
+        "name": "Parse JSON",
+        "property": "payload",
+        "action": "",
+        "pretty": false,
+        "x": 400,
+        "y": 400,
+        "wires": [
+            ["ec_debug_state"]
+        ]
+    },
+    {
+        "id": "ec_debug_state",
+        "type": "debug",
+        "z": "tab_entity_controller",
+        "name": "State Changed",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 620,
+        "y": 400,
+        "wires": []
+    },
+    {
+        "id": "ec_comment",
+        "type": "comment",
+        "z": "tab_entity_controller",
+        "name": "How to use this flow",
+        "info": "Control an entity's state via the Fleet Manager API. Click an inject button to change the 'Gallery Light 1' entity's brightness. The MQTT listener below shows real-time state change events.\n\nPrerequisite: Create an entity with slug 'gallery-light-1' via the Fleet Manager API or Dashboard first.\n\nThe top row sends HTTP POST requests to update entity state.\nThe bottom row listens for MQTT state change notifications that are broadcast when the state updates.",
+        "x": 160,
+        "y": 60,
+        "wires": []
+    },
+
+    {
+        "id": "tab_event_logger",
+        "type": "tab",
+        "label": "Event Logger",
+        "disabled": false,
+        "info": "Captures and logs all messages flowing through the Maestra MQTT bus for debugging and system understanding.",
+        "env": []
+    },
+    {
+        "id": "el_mqtt_in",
+        "type": "mqtt in",
+        "z": "tab_event_logger",
+        "name": "All Maestra Events",
+        "topic": "maestra/#",
+        "qos": "0",
+        "datatype": "utf8",
+        "broker": "mqtt_broker_config",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 200,
+        "wires": [
+            ["el_format_fn"]
+        ]
+    },
+    {
+        "id": "el_format_fn",
+        "type": "function",
+        "z": "tab_event_logger",
+        "name": "Format Event",
+        "func": "var topic = msg.topic;\nvar timestamp = new Date().toISOString();\n\n// Try to parse JSON payload\nvar data;\ntry {\n    data = typeof msg.payload === 'string' ? JSON.parse(msg.payload) : msg.payload;\n} catch(e) {\n    data = msg.payload;\n}\n\nmsg.payload = timestamp + ' | ' + topic + ' | ' + JSON.stringify(data).substring(0, 200);\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 390,
+        "y": 200,
+        "wires": [
+            ["el_debug"]
+        ]
+    },
+    {
+        "id": "el_debug",
+        "type": "debug",
+        "z": "tab_event_logger",
+        "name": "Event Log",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 590,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "el_comment",
+        "type": "comment",
+        "z": "tab_event_logger",
+        "name": "How to use this flow",
+        "info": "This flow captures ALL messages on the Maestra bus. Use this for debugging and understanding how messages flow through the system. Check the debug panel (sidebar \u2192 bug icon) to see events in real-time.\n\nThe wildcard subscription `maestra/#` matches every topic under the `maestra/` namespace, including device heartbeats, entity state changes, stream events, and more.\n\nEach log line shows: timestamp | topic | payload (truncated to 200 chars).",
+        "x": 160,
+        "y": 100,
+        "wires": []
+    }
+]

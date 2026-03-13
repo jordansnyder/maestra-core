@@ -100,6 +100,9 @@ make watch           # Monitor status in real-time
 # Database
 make shell-postgres  # Open psql shell
 make shell-redis     # Open Redis CLI
+make migrate         # Run pending database migrations
+make migrate-status  # Show which migrations have been applied
+make migrate-dry-run # Preview pending migrations without executing
 make backup-db       # Backup to backups/
 make restore-db FILE=backups/backup.sql
 
@@ -163,6 +166,32 @@ All inter-service messages include:
   "data": {...}
 }
 ```
+
+## Database Migrations
+
+PostgreSQL init scripts (`config/postgres/init/01-05*.sql`) only run on first database creation. For schema changes on existing databases, use the migration system:
+
+```bash
+make migrate         # Apply pending migrations
+make migrate-status  # See what's been applied
+make migrate-dry-run # Preview without executing
+```
+
+**How it works:**
+- Migration files live in `config/postgres/migrations/` with numbered prefixes (`001_`, `002_`, etc.)
+- A `schema_migrations` table tracks which migrations have been applied
+- Each migration runs exactly once; re-running `make migrate` is always safe
+- Migrations must be idempotent (use `IF NOT EXISTS`, `ON CONFLICT DO NOTHING`, etc.)
+
+**Adding a new migration:**
+1. Create `config/postgres/migrations/NNN_description.sql` (next number in sequence)
+2. Write idempotent SQL (safe to run on databases that may already have the changes)
+3. If this is for a brand-new table, also add it to the appropriate init script in `config/postgres/init/` so fresh installs get it automatically
+4. Run `make migrate` to apply
+
+**Fresh install vs existing database:**
+- Fresh install (`make clean-all && make up`): init scripts run automatically, then `make migrate` is a no-op
+- Existing database (`make up`): init scripts are skipped, `make migrate` applies any new changes
 
 ## Database Schema (TimescaleDB)
 

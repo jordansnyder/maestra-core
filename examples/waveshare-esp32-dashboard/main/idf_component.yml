@@ -1,0 +1,27 @@
+## IDF Component Manager Manifest File
+dependencies:
+  ## Waveshare BSP — display (MIPI-DSI), touch, audio, etc.
+  ## NOTE: the "xc" suffix is for the 3.4C/4C circular displays (800×800 / 720×720).
+  ## The plain "_x" variant is for the larger 7/8/10.1-inch rectangular screens.
+  waveshare/esp32_p4_wifi6_touch_lcd_xc:
+    version: "*"
+
+  ## LVGL graphics library
+  lvgl/lvgl:
+    version: "9.4.*"
+    public: true
+
+  ## WiFi via ESP32-C6 coprocessor (SDIO hosted)
+  espressif/esp_wifi_remote:
+    version: ">=0.14"
+
+  espressif/esp_hosted:
+    version: ">=1.4"
+
+  ## MQTT client
+  espressif/mqtt:
+    version: "*"
+
+  ## Required IDF version
+  idf:
+    version: ">=5.5.0"

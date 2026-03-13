@@ -13,6 +13,8 @@ import {
   BarChart3,
   FileCode,
   ExternalLink,
+  Sparkles,
+  BookOpen,
 } from '@/components/icons'
 import { useSystemHealth } from '@/hooks/useSystemHealth'
 
@@ -30,6 +32,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/streams', label: 'Streams', icon: Cast },
 ]
 
+const GETTING_STARTED_ITEM: NavItem = { href: '/#getting-started', label: 'Getting Started', icon: Sparkles }
+
 interface ServiceLink {
   href: string
   label: string
@@ -40,6 +44,7 @@ const SERVICE_LINKS: ServiceLink[] = [
   { href: 'http://localhost:1880', label: 'Node-RED', icon: Workflow },
   { href: 'http://localhost:3000', label: 'Grafana', icon: BarChart3 },
   { href: 'http://localhost:8080/docs', label: 'API Docs', icon: FileCode },
+  { href: 'http://localhost:8000', label: 'Documentation', icon: BookOpen },
 ]
 
 export function Sidebar() {
@@ -60,6 +65,21 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">
+        {/* Getting Started */}
+        <Link
+          href={GETTING_STARTED_ITEM.href}
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+            pathname === '/#getting-started'
+              ? 'bg-purple-900/50 text-purple-300'
+              : 'text-purple-400 hover:text-purple-300 hover:bg-purple-900/30'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          {GETTING_STARTED_ITEM.label}
+        </Link>
+
+        <div className="border-b border-slate-800 my-2" />
+
         {NAV_ITEMS.map((item) => {
           const isActive = item.href === '/'
             ? pathname === '/'

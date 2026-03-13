@@ -398,6 +398,9 @@ export const streamsApi = {
     fetchApi<{ status: string }>(`/streams/sessions/${sessionId}`, { method: 'DELETE' }),
 
   listTypes: () => fetchApi<StreamTypeInfo[]>('/streams/types'),
+
+  /** Get the SSE preview URL for a stream (use with EventSource) */
+  getPreviewUrl: (id: string) => `${API_URL}/streams/${id}/preview`,
 }
 
 export { ApiError }

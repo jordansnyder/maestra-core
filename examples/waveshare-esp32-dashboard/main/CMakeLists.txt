@@ -1,0 +1,9 @@
+idf_component_register(
+    SRCS
+        main.c
+        maestra_mqtt.c
+        dashboard_ui.c
+        spectrum_stream.c
+    INCLUDE_DIRS
+        .
+)

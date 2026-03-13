@@ -6,11 +6,12 @@ Device registration, configuration, monitoring, and entity state management
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, text
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID, uuid4
 import os
+import json
 
 from database import get_db, init_db, close_db, DeviceDB
 from models import (
@@ -19,10 +20,13 @@ from models import (
 )
 from state_manager import state_manager
 from stream_manager import stream_manager
+from demo_simulator import demo_simulator
 from redis_client import init_redis, close_redis, get_redis
 from entity_router import router as entity_router
 from routing_router import router as routing_router
 from stream_router import router as stream_router
+from stream_preview import router as stream_preview_router
+from analytics_router import router as analytics_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -44,6 +48,8 @@ app.add_middleware(
 app.include_router(entity_router)
 app.include_router(routing_router)
 app.include_router(stream_router)
+app.include_router(stream_preview_router)
+app.include_router(analytics_router)
 
 
 # =============================================================================
@@ -247,8 +253,17 @@ async def submit_metric(metric: DeviceMetric, db: AsyncSession = Depends(get_db)
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Device not found")
 
-    # TODO: Store metric in TimescaleDB device_metrics table
-    # For now, just acknowledge receipt
+    await db.execute(text("""
+        INSERT INTO device_metrics (time, device_id, metric_name, metric_value, unit, tags)
+        VALUES (NOW(), :device_id, :metric_name, :metric_value, :unit, CAST(:tags AS jsonb))
+    """), {
+        "device_id": metric.device_id,
+        "metric_name": metric.metric_name,
+        "metric_value": metric.metric_value,
+        "unit": metric.unit,
+        "tags": json.dumps(metric.tags) if metric.tags else "{}"
+    })
+    await db.commit()
 
     return {"status": "ok", "metric": metric.metric_name}
 
@@ -260,10 +275,69 @@ async def submit_event(event: DeviceEvent, db: AsyncSession = Depends(get_db)):
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Device not found")
 
-    # TODO: Store event in TimescaleDB device_events table
-    # For now, just acknowledge receipt
+    await db.execute(text("""
+        INSERT INTO device_events (time, device_id, event_type, severity, message, data)
+        VALUES (NOW(), :device_id, :event_type, :severity, :message, CAST(:data AS jsonb))
+    """), {
+        "device_id": event.device_id,
+        "event_type": event.event_type,
+        "severity": event.severity,
+        "message": event.message,
+        "data": json.dumps(event.data) if event.data else "{}"
+    })
+    await db.commit()
 
     return {"status": "ok", "event_type": event.event_type}
+
+
+@app.post("/metrics/batch")
+async def submit_metrics_batch(
+    metrics: List[DeviceMetric],
+    db: AsyncSession = Depends(get_db)
+):
+    """Submit multiple metrics in a single request"""
+    if len(metrics) > 1000:
+        raise HTTPException(status_code=400, detail="Maximum 1000 metrics per batch")
+
+    for metric in metrics:
+        await db.execute(text("""
+            INSERT INTO device_metrics (time, device_id, metric_name, metric_value, unit, tags)
+            VALUES (NOW(), :device_id, :metric_name, :metric_value, :unit, CAST(:tags AS jsonb))
+        """), {
+            "device_id": metric.device_id,
+            "metric_name": metric.metric_name,
+            "metric_value": metric.metric_value,
+            "unit": metric.unit,
+            "tags": json.dumps(metric.tags) if metric.tags else "{}"
+        })
+
+    await db.commit()
+    return {"status": "ok", "count": len(metrics)}
+
+
+@app.post("/events/batch")
+async def submit_events_batch(
+    events: List[DeviceEvent],
+    db: AsyncSession = Depends(get_db)
+):
+    """Submit multiple events in a single request"""
+    if len(events) > 1000:
+        raise HTTPException(status_code=400, detail="Maximum 1000 events per batch")
+
+    for event in events:
+        await db.execute(text("""
+            INSERT INTO device_events (time, device_id, event_type, severity, message, data)
+            VALUES (NOW(), :device_id, :event_type, :severity, :message, CAST(:data AS jsonb))
+        """), {
+            "device_id": event.device_id,
+            "event_type": event.event_type,
+            "severity": event.severity,
+            "message": event.message,
+            "data": json.dumps(event.data) if event.data else "{}"
+        })
+
+    await db.commit()
+    return {"status": "ok", "count": len(events)}
 
 
 # =============================================================================
@@ -297,6 +371,11 @@ async def startup_event():
     else:
         print("⚠️ Stream Manager not started (requires Redis + NATS)")
 
+    # Start demo simulator if DEMO_MODE is enabled
+    if os.getenv("DEMO_MODE", "").lower() == "true" and state_manager.nc:
+        await demo_simulator.start(state_manager.nc)
+        print("🎭 Demo simulator active — generating live sample data")
+
     print("✅ Fleet Manager ready!")
 
 
@@ -304,6 +383,7 @@ async def startup_event():
 async def shutdown_event():
     """Cleanup on shutdown"""
     print("👋 Maestra Fleet Manager shutting down...")
+    await demo_simulator.stop()
     await stream_manager.disconnect()
     await state_manager.disconnect()
     await close_redis()

@@ -27,7 +27,7 @@ export function useSystemHealth(pollInterval = 30000): SystemHealthState {
     // Check Fleet Manager health
     try {
       const health = await healthApi.check()
-      results.push({ name: 'Fleet Manager', status: health.status === 'ok' ? 'healthy' : 'unhealthy' })
+      results.push({ name: 'Fleet Manager', status: health.status === 'healthy' ? 'healthy' : 'unhealthy' })
     } catch {
       results.push({ name: 'Fleet Manager', status: 'unhealthy' })
     }

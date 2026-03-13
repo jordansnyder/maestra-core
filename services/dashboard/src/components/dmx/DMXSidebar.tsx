@@ -11,9 +11,10 @@ interface DMXSidebarProps {
   onSelect: (id: string | null) => void
   onEdit: (fixture: DMXFixture) => void
   onDelete: (id: string) => void
+  onEditNode: (node: DMXNode) => void
 }
 
-export function DMXSidebar({ nodes, fixtures, selectedFixtureId, onSelect, onEdit, onDelete }: DMXSidebarProps) {
+export function DMXSidebar({ nodes, fixtures, selectedFixtureId, onSelect, onEdit, onDelete, onEditNode }: DMXSidebarProps) {
   const selectedFixture = fixtures.find((f) => f.id === selectedFixtureId) ?? null
   const selectedNode = selectedFixture ? nodes.find((n) => n.id === selectedFixture.node_id) : null
 
@@ -33,7 +34,15 @@ export function DMXSidebar({ nodes, fixtures, selectedFixtureId, onSelect, onEdi
               const nodeFixtures = fixtures.filter((f) => f.node_id === node.id)
               return (
                 <div key={node.id} className="rounded-lg bg-slate-800/50 px-3 py-2">
-                  <div className="text-xs font-medium text-slate-200 truncate">{node.name}</div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-medium text-slate-200 truncate">{node.name}</div>
+                    <button
+                      onClick={() => onEditNode(node)}
+                      className="text-slate-600 hover:text-slate-300 transition-colors shrink-0 ml-2"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  </div>
                   <div className="text-[10px] font-mono text-slate-500 mt-0.5">{node.ip_address}</div>
                   <div className="text-[10px] text-slate-600 mt-0.5">
                     {nodeFixtures.length} fixture{nodeFixtures.length !== 1 ? 's' : ''} · {node.universe_count} universe{node.universe_count !== 1 ? 's' : ''}

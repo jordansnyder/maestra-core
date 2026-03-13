@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { DMXNode, DMXFixture, DMXFixtureCreate } from '@/lib/types'
-import { X } from '@/components/icons'
+import { useState, useEffect, useRef } from 'react'
+import { DMXNode, DMXFixture, DMXFixtureCreate, Entity, EntityType } from '@/lib/types'
+import { X, Search, ChevronDown } from '@/components/icons'
+import { entitiesApi, entityTypesApi } from '@/lib/api'
 
 interface AddFixtureModalProps {
   nodes: DMXNode[]
@@ -11,6 +12,9 @@ interface AddFixtureModalProps {
   onSubmit: (data: DMXFixtureCreate) => Promise<void>
   onClose: () => void
 }
+
+// Entity type preference order for auto-created fixture entities
+const PREFERRED_ENTITY_TYPES = ['actuator', 'device', 'sensor', 'installation']
 
 export function AddFixtureModal({ nodes, fixture, defaultPosition, onSubmit, onClose }: AddFixtureModalProps) {
   const isEditing = !!fixture
@@ -26,9 +30,51 @@ export function AddFixtureModal({ nodes, fixture, defaultPosition, onSubmit, onC
   const [universe, setUniverse] = useState(fixture?.universe ?? 1)
   const [startChannel, setStartChannel] = useState(fixture?.start_channel ?? 1)
   const [channelCount, setChannelCount] = useState(fixture?.channel_count ?? 1)
+
+  // Edit mode only: entity picker
   const [entityId, setEntityId] = useState(fixture?.entity_id ?? '')
+  const [entities, setEntities] = useState<Entity[]>([])
+  const [entityTypes, setEntityTypes] = useState<EntityType[]>([])
+  const [entitySearch, setEntitySearch] = useState('')
+  const [entityOpen, setEntityOpen] = useState(false)
+  const entityDropdownRef = useRef<HTMLDivElement>(null)
 
   const selectedNode = nodes.find((n) => n.id === nodeId)
+  const selectedEntity = entities.find((e) => e.id === entityId) ?? null
+
+  useEffect(() => {
+    Promise.all([
+      entitiesApi.list({ limit: 500 }),
+      entityTypesApi.list(),
+    ]).then(([ents, types]) => {
+      setEntities(ents)
+      setEntityTypes(types)
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!entityOpen) return
+    const handler = (e: MouseEvent) => {
+      if (entityDropdownRef.current && !entityDropdownRef.current.contains(e.target as Node)) {
+        setEntityOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [entityOpen])
+
+  const filteredEntities = entities.filter((e) => {
+    const q = entitySearch.toLowerCase()
+    return !q || e.name.toLowerCase().includes(q) || e.slug.toLowerCase().includes(q) || (e.path ?? '').toLowerCase().includes(q)
+  })
+
+  const pickEntityTypeId = (): string | null => {
+    for (const preferred of PREFERRED_ENTITY_TYPES) {
+      const found = entityTypes.find((t) => t.name === preferred)
+      if (found) return found.id
+    }
+    return entityTypes[0]?.id ?? null
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,6 +85,22 @@ export function AddFixtureModal({ nodes, fixture, defaultPosition, onSubmit, onC
     setSubmitting(true)
     setError(null)
     try {
+      let resolvedEntityId = isEditing ? (entityId.trim() || undefined) : undefined
+
+      // On create: auto-create a linked entity with the same name
+      if (!isEditing) {
+        const typeId = pickEntityTypeId()
+        if (typeId) {
+          const created = await entitiesApi.create({
+            name: name.trim(),
+            entity_type_id: typeId,
+            description: `DMX fixture — ${[manufacturer, model].filter(Boolean).join(' ') || 'linked fixture'}`,
+            metadata: { dmx_fixture: true },
+          })
+          resolvedEntityId = created.id
+        }
+      }
+
       await onSubmit({
         name: name.trim(),
         label: label.trim() || undefined,
@@ -49,7 +111,7 @@ export function AddFixtureModal({ nodes, fixture, defaultPosition, onSubmit, onC
         universe,
         start_channel: startChannel,
         channel_count: channelCount,
-        entity_id: entityId.trim() || undefined,
+        entity_id: resolvedEntityId,
         position_x: fixture?.position_x ?? defaultPosition?.x ?? 200,
         position_y: fixture?.position_y ?? defaultPosition?.y ?? 200,
       })
@@ -65,9 +127,16 @@ export function AddFixtureModal({ nodes, fixture, defaultPosition, onSubmit, onC
       <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
-          <h2 className="text-sm font-semibold text-white">
-            {isEditing ? 'Edit Fixture' : 'Add DMX Fixture'}
-          </h2>
+          <div>
+            <h2 className="text-sm font-semibold text-white">
+              {isEditing ? 'Edit Fixture' : 'Add DMX Fixture'}
+            </h2>
+            {!isEditing && (
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                A linked entity will be created automatically
+              </p>
+            )}
+          </div>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
             <X className="w-4 h-4" />
           </button>
@@ -210,21 +279,84 @@ export function AddFixtureModal({ nodes, fixture, defaultPosition, onSubmit, onC
             </div>
           </div>
 
-          {/* Entity link */}
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">
-              Linked Entity ID
-              <span className="ml-1.5 text-slate-600 font-normal normal-case tracking-normal">
-                — optional, links this fixture to a Maestra entity for state-driven control
-              </span>
-            </label>
-            <input
-              value={entityId}
-              onChange={(e) => setEntityId(e.target.value)}
-              placeholder="e.g. a1b2c3d4-…"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
-            />
-          </div>
+          {/* Entity link — edit mode only (create mode auto-links) */}
+          {isEditing && (
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">
+                Linked Entity
+                <span className="ml-1.5 text-slate-600 font-normal normal-case tracking-normal">
+                  — drives DMX channels from entity state changes
+                </span>
+              </label>
+              <div ref={entityDropdownRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => { setEntityOpen((v) => !v); setEntitySearch('') }}
+                  className="w-full flex items-center justify-between bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-left focus:outline-none focus:border-blue-500 transition-colors hover:border-slate-600"
+                >
+                  {selectedEntity ? (
+                    <span className="flex flex-col min-w-0">
+                      <span className="text-white truncate">{selectedEntity.name}</span>
+                      <span className="text-[10px] text-slate-500 font-mono truncate">{selectedEntity.slug}</span>
+                    </span>
+                  ) : (
+                    <span className="text-slate-600">None — no entity linked</span>
+                  )}
+                  <ChevronDown className={`w-3.5 h-3.5 text-slate-500 shrink-0 ml-2 transition-transform duration-150 ${entityOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {entityOpen && (
+                  <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-700">
+                      <Search className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <input
+                        autoFocus
+                        value={entitySearch}
+                        onChange={(e) => setEntitySearch(e.target.value)}
+                        placeholder="Search by name, slug, or path…"
+                        className="flex-1 bg-transparent text-sm text-white placeholder-slate-600 focus:outline-none"
+                      />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      <button
+                        type="button"
+                        onClick={() => { setEntityId(''); setEntityOpen(false) }}
+                        className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                          !entityId ? 'bg-slate-700 text-slate-300' : 'text-slate-500 hover:bg-slate-700/50'
+                        }`}
+                      >
+                        None — no entity linked
+                      </button>
+                      {filteredEntities.length === 0 ? (
+                        <div className="px-3 py-3 text-xs text-slate-600 text-center">
+                          {entities.length === 0 ? 'Loading entities…' : 'No entities match'}
+                        </div>
+                      ) : (
+                        filteredEntities.map((entity) => {
+                          const isSelected = entity.id === entityId
+                          return (
+                            <button
+                              key={entity.id}
+                              type="button"
+                              onClick={() => { setEntityId(entity.id); setEntityOpen(false) }}
+                              className={`w-full text-left px-3 py-2 transition-colors ${
+                                isSelected ? 'bg-blue-600/30 text-white' : 'hover:bg-slate-700/50 text-slate-300'
+                              }`}
+                            >
+                              <div className="text-xs font-medium truncate">{entity.name}</div>
+                              <div className="text-[10px] font-mono text-slate-500 truncate">
+                                {entity.path ?? entity.slug}
+                              </div>
+                            </button>
+                          )
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-3 pt-1">
@@ -241,7 +373,7 @@ export function AddFixtureModal({ nodes, fixture, defaultPosition, onSubmit, onC
               className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50"
             >
               {submitting
-                ? (isEditing ? 'Saving…' : 'Adding…')
+                ? (isEditing ? 'Saving…' : 'Creating…')
                 : (isEditing ? 'Save Changes' : 'Add Fixture')}
             </button>
           </div>

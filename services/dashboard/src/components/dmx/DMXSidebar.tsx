@@ -1,7 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { DMXFixture, DMXNode } from '@/lib/types'
-import { Pencil, Trash2, Network, Layers } from '@/components/icons'
+import { Pencil, Trash2, Network, Layers, ExternalLink } from '@/components/icons'
 
 interface DMXSidebarProps {
   nodes: DMXNode[]
@@ -134,7 +135,26 @@ export function DMXSidebar({ nodes, fixtures, selectedFixtureId, onSelect, onEdi
             )}
           </div>
 
-          <div className="flex gap-2 mt-4">
+          {/* Entity link shortcut */}
+          {selectedFixture.entity_id ? (
+            <Link
+              href={`/entities/${selectedFixture.entity_id}`}
+              className="mt-3 flex items-center justify-between w-full px-3 py-2 rounded-lg bg-amber-900/20 border border-amber-800/40 hover:bg-amber-900/30 transition-colors group"
+            >
+              <div className="min-w-0">
+                <div className="text-[9px] uppercase tracking-wider text-amber-600 font-medium">Linked Entity</div>
+                <div className="text-[10px] text-amber-400 font-mono truncate">{selectedFixture.entity_id.slice(0, 8)}…</div>
+              </div>
+              <ExternalLink className="w-3 h-3 text-amber-600 group-hover:text-amber-400 shrink-0 ml-2" />
+            </Link>
+          ) : (
+            <div className="mt-3 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+              <span className="text-[10px] text-slate-600">No entity linked</span>
+            </div>
+          )}
+
+          <div className="flex gap-2 mt-2">
             <button
               onClick={() => onEdit(selectedFixture)}
               className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"

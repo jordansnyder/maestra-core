@@ -3,13 +3,21 @@ Maestra DMX / Art-Net Router
 
 REST API for managing Art-Net nodes (hardware DMX converters) and DMX fixtures
 (logical fixture definitions with canvas positions and channel maps).
+
+Entity linking: a DMX fixture can be linked to a Maestra entity via entity_id.
+The link is stored as a proper FK (dmx_fixtures.entity_id → entities.id) with
+ON DELETE SET NULL semantics. This router validates that the referenced entity
+exists before persisting any create or update, returning clean 404 errors rather
+than raw constraint failures.
+
+Reverse lookup: GET /dmx/fixtures?entity_id=<uuid> or
+                GET /dmx/entities/<entity_id>/fixture
 """
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from typing import Optional, List, Dict, Any
-from datetime import datetime
 from uuid import UUID, uuid4
 import json
 
@@ -73,13 +81,14 @@ class DMXFixtureCreate(BaseModel):
     label: Optional[str] = None
     manufacturer: Optional[str] = None
     model: Optional[str] = None
-    node_id: str
+    node_id: UUID
     universe: int
     start_channel: int = Field(..., ge=1, le=512)
     channel_count: int = 1
     fixture_mode: Optional[str] = None
     channel_map: Dict[str, ChannelMapping] = {}
-    entity_id: Optional[str] = None
+    # UUID validated at model layer; existence validated against entities table at write time
+    entity_id: Optional[UUID] = None
     position_x: float = 100.0
     position_y: float = 100.0
     metadata: Dict[str, Any] = {}
@@ -90,20 +99,22 @@ class DMXFixtureUpdate(BaseModel):
     label: Optional[str] = None
     manufacturer: Optional[str] = None
     model: Optional[str] = None
-    node_id: Optional[str] = None
+    node_id: Optional[UUID] = None
     universe: Optional[int] = None
     start_channel: Optional[int] = Field(None, ge=1, le=512)
     channel_count: Optional[int] = None
     fixture_mode: Optional[str] = None
     channel_map: Optional[Dict[str, ChannelMapping]] = None
-    entity_id: Optional[str] = None
+    # Pass null explicitly to unlink; omit to leave unchanged.
+    # exclude_unset=True in model_dump() distinguishes "omitted" from "set to null".
+    entity_id: Optional[UUID] = Field(default=None)
     position_x: Optional[float] = None
     position_y: Optional[float] = None
     metadata: Optional[Dict[str, Any]] = None
 
 
 class FixturePositionUpdate(BaseModel):
-    id: str
+    id: UUID
     position_x: float
     position_y: float
 
@@ -152,6 +163,29 @@ def _row_to_fixture(row) -> dict:
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
+
+
+async def _require_entity(entity_id: UUID, db: AsyncSession) -> None:
+    """Raise 404 if the referenced entity does not exist."""
+    result = await db.execute(
+        text("SELECT id FROM entities WHERE id = :id"),
+        {"id": str(entity_id)},
+    )
+    if not result.fetchone():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Entity '{entity_id}' not found. Create the entity first or leave entity_id unset.",
+        )
+
+
+async def _require_node(node_id: UUID, db: AsyncSession) -> None:
+    """Raise 404 if the referenced DMX node does not exist."""
+    result = await db.execute(
+        text("SELECT id FROM dmx_nodes WHERE id = :id"),
+        {"id": str(node_id)},
+    )
+    if not result.fetchone():
+        raise HTTPException(status_code=404, detail="DMX node not found")
 
 
 # =============================================================================
@@ -206,9 +240,11 @@ async def create_node(data: DMXNodeCreate, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/nodes/{node_id}")
-async def get_node(node_id: str, db: AsyncSession = Depends(get_db)):
+async def get_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get a single Art-Net node by ID."""
-    result = await db.execute(text("SELECT * FROM dmx_nodes WHERE id = :id"), {"id": node_id})
+    result = await db.execute(
+        text("SELECT * FROM dmx_nodes WHERE id = :id"), {"id": str(node_id)}
+    )
     row = result.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="DMX node not found")
@@ -216,19 +252,19 @@ async def get_node(node_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/nodes/{node_id}")
-async def update_node(node_id: str, data: DMXNodeUpdate, db: AsyncSession = Depends(get_db)):
+async def update_node(node_id: UUID, data: DMXNodeUpdate, db: AsyncSession = Depends(get_db)):
     """Update an Art-Net node configuration."""
-    result = await db.execute(text("SELECT id FROM dmx_nodes WHERE id = :id"), {"id": node_id})
-    if not result.fetchone():
-        raise HTTPException(status_code=404, detail="DMX node not found")
+    await _require_node(node_id, db)
 
-    updates = {k: v for k, v in data.model_dump(exclude_unset=True).items()}
+    updates = data.model_dump(exclude_unset=True)
     if not updates:
-        result = await db.execute(text("SELECT * FROM dmx_nodes WHERE id = :id"), {"id": node_id})
+        result = await db.execute(
+            text("SELECT * FROM dmx_nodes WHERE id = :id"), {"id": str(node_id)}
+        )
         return _row_to_node(result.fetchone())
 
     set_clauses = []
-    params = {"id": node_id}
+    params: Dict[str, Any] = {"id": str(node_id)}
     for key, value in updates.items():
         if key == "universes":
             set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
@@ -245,28 +281,32 @@ async def update_node(node_id: str, data: DMXNodeUpdate, db: AsyncSession = Depe
     ), params)
     await db.commit()
 
-    result = await db.execute(text("SELECT * FROM dmx_nodes WHERE id = :id"), {"id": node_id})
+    result = await db.execute(
+        text("SELECT * FROM dmx_nodes WHERE id = :id"), {"id": str(node_id)}
+    )
     return _row_to_node(result.fetchone())
 
 
 @router.delete("/nodes/{node_id}")
-async def delete_node(node_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
     """Delete an Art-Net node. Fails if fixtures are still assigned to it."""
     result = await db.execute(
-        text("SELECT COUNT(*) FROM dmx_fixtures WHERE node_id = :id"), {"id": node_id}
+        text("SELECT COUNT(*) FROM dmx_fixtures WHERE node_id = :id"), {"id": str(node_id)}
     )
     count = result.scalar()
     if count and count > 0:
         raise HTTPException(
             status_code=409,
-            detail=f"Cannot delete node: {count} fixture(s) are still assigned to it. Delete fixtures first."
+            detail=f"Cannot delete node: {count} fixture(s) still assigned. Delete fixtures first.",
         )
 
-    result = await db.execute(text("DELETE FROM dmx_nodes WHERE id = :id RETURNING id"), {"id": node_id})
+    result = await db.execute(
+        text("DELETE FROM dmx_nodes WHERE id = :id RETURNING id"), {"id": str(node_id)}
+    )
     if not result.fetchone():
         raise HTTPException(status_code=404, detail="DMX node not found")
     await db.commit()
-    return {"status": "deleted", "id": node_id}
+    return {"status": "deleted", "id": str(node_id)}
 
 
 # =============================================================================
@@ -274,27 +314,47 @@ async def delete_node(node_id: str, db: AsyncSession = Depends(get_db)):
 # =============================================================================
 
 @router.get("/fixtures")
-async def list_fixtures(node_id: Optional[str] = None, db: AsyncSession = Depends(get_db)):
-    """List DMX fixtures, optionally filtered by node."""
+async def list_fixtures(
+    node_id: Optional[UUID] = None,
+    entity_id: Optional[UUID] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    List DMX fixtures.
+    - Filter by node: ?node_id=<uuid>
+    - Filter by linked entity: ?entity_id=<uuid>
+    """
+    conditions = []
+    params: Dict[str, Any] = {}
+
     if node_id:
-        result = await db.execute(
-            text("SELECT * FROM dmx_fixtures WHERE node_id = :node_id ORDER BY created_at ASC"),
-            {"node_id": node_id}
-        )
-    else:
-        result = await db.execute(text("SELECT * FROM dmx_fixtures ORDER BY created_at ASC"))
+        conditions.append("node_id = :node_id")
+        params["node_id"] = str(node_id)
+    if entity_id:
+        conditions.append("entity_id = :entity_id")
+        params["entity_id"] = str(entity_id)
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    result = await db.execute(
+        text(f"SELECT * FROM dmx_fixtures {where} ORDER BY created_at ASC"),
+        params,
+    )
     return [_row_to_fixture(r) for r in result.fetchall()]
 
 
 @router.post("/fixtures", status_code=201)
 async def create_fixture(data: DMXFixtureCreate, db: AsyncSession = Depends(get_db)):
-    """Create a new DMX fixture and place it on the canvas."""
-    # Validate node exists
-    node_result = await db.execute(
-        text("SELECT id FROM dmx_nodes WHERE id = :id"), {"id": data.node_id}
-    )
-    if not node_result.fetchone():
-        raise HTTPException(status_code=404, detail="DMX node not found")
+    """
+    Create a new DMX fixture and place it on the canvas.
+
+    If entity_id is provided, validates the entity exists before linking.
+    On delete of the linked entity, entity_id is automatically set to NULL
+    (handled by the database FK: ON DELETE SET NULL).
+    """
+    await _require_node(data.node_id, db)
+
+    if data.entity_id:
+        await _require_entity(data.entity_id, db)
 
     fixture_id = str(uuid4())
     channel_map_json = json.dumps({k: v.model_dump() for k, v in data.channel_map.items()})
@@ -316,28 +376,30 @@ async def create_fixture(data: DMXFixtureCreate, db: AsyncSession = Depends(get_
         "label": data.label,
         "manufacturer": data.manufacturer,
         "model": data.model,
-        "node_id": data.node_id,
+        "node_id": str(data.node_id),
         "universe": data.universe,
         "start_channel": data.start_channel,
         "channel_count": data.channel_count,
         "fixture_mode": data.fixture_mode,
         "channel_map": channel_map_json,
-        "entity_id": data.entity_id,
+        "entity_id": str(data.entity_id) if data.entity_id else None,
         "position_x": data.position_x,
         "position_y": data.position_y,
         "metadata": metadata_json,
     })
     await db.commit()
 
-    result = await db.execute(text("SELECT * FROM dmx_fixtures WHERE id = :id"), {"id": fixture_id})
+    result = await db.execute(
+        text("SELECT * FROM dmx_fixtures WHERE id = :id"), {"id": fixture_id}
+    )
     return _row_to_fixture(result.fetchone())
 
 
 @router.get("/fixtures/{fixture_id}")
-async def get_fixture(fixture_id: str, db: AsyncSession = Depends(get_db)):
+async def get_fixture(fixture_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get a single DMX fixture by ID."""
     result = await db.execute(
-        text("SELECT * FROM dmx_fixtures WHERE id = :id"), {"id": fixture_id}
+        text("SELECT * FROM dmx_fixtures WHERE id = :id"), {"id": str(fixture_id)}
     )
     row = result.fetchone()
     if not row:
@@ -346,31 +408,55 @@ async def get_fixture(fixture_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/fixtures/{fixture_id}")
-async def update_fixture(fixture_id: str, data: DMXFixtureUpdate, db: AsyncSession = Depends(get_db)):
-    """Update a DMX fixture (config, position, channel map)."""
+async def update_fixture(
+    fixture_id: UUID,
+    data: DMXFixtureUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Update a DMX fixture (config, entity link, position, channel map).
+
+    To unlink from an entity, explicitly pass "entity_id": null.
+    Omitting entity_id from the request body leaves the existing link unchanged.
+    """
     result = await db.execute(
-        text("SELECT id FROM dmx_fixtures WHERE id = :id"), {"id": fixture_id}
+        text("SELECT id FROM dmx_fixtures WHERE id = :id"), {"id": str(fixture_id)}
     )
     if not result.fetchone():
         raise HTTPException(status_code=404, detail="DMX fixture not found")
 
-    updates = {k: v for k, v in data.model_dump(exclude_unset=True).items()}
+    updates = data.model_dump(exclude_unset=True)
     if not updates:
         result = await db.execute(
-            text("SELECT * FROM dmx_fixtures WHERE id = :id"), {"id": fixture_id}
+            text("SELECT * FROM dmx_fixtures WHERE id = :id"), {"id": str(fixture_id)}
         )
         return _row_to_fixture(result.fetchone())
 
+    # Validate entity exists if a non-null entity_id is being set
+    if "entity_id" in updates and updates["entity_id"] is not None:
+        await _require_entity(updates["entity_id"], db)
+
+    # Validate new node exists if node_id is being changed
+    if "node_id" in updates and updates["node_id"] is not None:
+        await _require_node(updates["node_id"], db)
+
     set_clauses = []
-    params = {"id": fixture_id}
+    params: Dict[str, Any] = {"id": str(fixture_id)}
     for key, value in updates.items():
         if key == "channel_map":
             set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
-            params[key] = json.dumps({k: (v if isinstance(v, dict) else v.model_dump()) for k, v in value.items()})
+            params[key] = json.dumps(
+                {k: (v if isinstance(v, dict) else v.model_dump()) for k, v in value.items()}
+            )
         elif key == "metadata":
             set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
             params[key] = json.dumps(value)
+        elif key in ("entity_id", "node_id") and value is not None:
+            # UUID fields — store as string; None passes through as NULL below
+            set_clauses.append(f"{key} = :{key}")
+            params[key] = str(value)
         else:
+            # Handles None (→ NULL) for entity_id unlinking, and scalar fields
             set_clauses.append(f"{key} = :{key}")
             params[key] = value
 
@@ -380,32 +466,59 @@ async def update_fixture(fixture_id: str, data: DMXFixtureUpdate, db: AsyncSessi
     await db.commit()
 
     result = await db.execute(
-        text("SELECT * FROM dmx_fixtures WHERE id = :id"), {"id": fixture_id}
+        text("SELECT * FROM dmx_fixtures WHERE id = :id"), {"id": str(fixture_id)}
     )
     return _row_to_fixture(result.fetchone())
 
 
 @router.delete("/fixtures/{fixture_id}")
-async def delete_fixture(fixture_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_fixture(fixture_id: UUID, db: AsyncSession = Depends(get_db)):
     """Delete a DMX fixture from the canvas."""
     result = await db.execute(
-        text("DELETE FROM dmx_fixtures WHERE id = :id RETURNING id"), {"id": fixture_id}
+        text("DELETE FROM dmx_fixtures WHERE id = :id RETURNING id"), {"id": str(fixture_id)}
     )
     if not result.fetchone():
         raise HTTPException(status_code=404, detail="DMX fixture not found")
     await db.commit()
-    return {"status": "deleted", "id": fixture_id}
+    return {"status": "deleted", "id": str(fixture_id)}
 
 
 @router.put("/fixtures/positions/bulk")
 async def bulk_update_positions(
     positions: List[FixturePositionUpdate],
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Bulk update fixture canvas positions after a drag operation."""
     for pos in positions:
         await db.execute(text(
             "UPDATE dmx_fixtures SET position_x = :x, position_y = :y WHERE id = :id"
-        ), {"id": pos.id, "x": pos.position_x, "y": pos.position_y})
+        ), {"id": str(pos.id), "x": pos.position_x, "y": pos.position_y})
     await db.commit()
     return {"status": "updated", "count": len(positions)}
+
+
+# =============================================================================
+# Reverse Lookup — Entity → Fixture
+# =============================================================================
+
+@router.get("/entities/{entity_id}/fixture")
+async def get_fixture_by_entity(entity_id: UUID, db: AsyncSession = Depends(get_db)):
+    """
+    Get the DMX fixture linked to a specific Maestra entity.
+
+    Returns 404 if the entity exists but has no linked fixture.
+    Useful for the entities UI to show DMX context without fetching all fixtures.
+    """
+    await _require_entity(entity_id, db)
+
+    result = await db.execute(
+        text("SELECT * FROM dmx_fixtures WHERE entity_id = :entity_id LIMIT 1"),
+        {"entity_id": str(entity_id)},
+    )
+    row = result.fetchone()
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No DMX fixture is linked to entity '{entity_id}'.",
+        )
+    return _row_to_fixture(row)

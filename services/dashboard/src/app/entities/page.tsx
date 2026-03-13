@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { Entity, EntityType, EntityTreeNode } from '@/lib/types'
-import { entitiesApi, entityTypesApi } from '@/lib/api'
+import { entitiesApi, entityTypesApi, dmxApi } from '@/lib/api'
 import { useToast } from '@/components/Toast'
 import { ENTITY_TYPE_ICONS, DEFAULT_ENTITY_ICON, Plus, Search, Pencil, Trash2, Boxes } from '@/components/icons'
 import { EmptyState } from '@/components/EmptyState'
@@ -24,6 +24,7 @@ export default function EntitiesPage() {
   const [entities, setEntities] = useState<Entity[]>([])
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([])
   const [tree, setTree] = useState<EntityTreeNode[]>([])
+  const [dmxLinkedIds, setDmxLinkedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('list')
@@ -37,16 +38,18 @@ export default function EntitiesPage() {
       setLoading(true)
       setError(null)
 
-      const [typesData, entitiesData] = await Promise.all([
+      const [typesData, entitiesData, fixturesData] = await Promise.all([
         entityTypesApi.list(),
         entitiesApi.list({
           entity_type: selectedType || undefined,
           search: searchQuery || undefined,
         }),
+        dmxApi.listFixtures().catch(() => []),
       ])
 
       setEntityTypes(typesData)
       setEntities(entitiesData)
+      setDmxLinkedIds(new Set(fixturesData.flatMap((f) => f.entity_id ? [f.entity_id] : [])))
 
       if (viewMode === 'tree') {
         const treeData = await entitiesApi.getTree(undefined, selectedType || undefined)
@@ -162,13 +165,14 @@ export default function EntitiesPage() {
           <EntityList
             entities={entities}
             entityTypes={entityTypes}
+            dmxLinkedIds={dmxLinkedIds}
             onDelete={handleDelete}
             onCreateEntity={() => setShowCreateModal(true)}
           />
         )}
 
         {!loading && viewMode === 'tree' && (
-          <EntityTree nodes={tree} entityTypes={entityTypes} />
+          <EntityTree nodes={tree} entityTypes={entityTypes} dmxLinkedIds={dmxLinkedIds} />
         )}
 
         {/* Create Modal */}
@@ -192,11 +196,13 @@ export default function EntitiesPage() {
 function EntityList({
   entities,
   entityTypes,
+  dmxLinkedIds,
   onDelete,
   onCreateEntity,
 }: {
   entities: Entity[]
   entityTypes: EntityType[]
+  dmxLinkedIds: Set<string>
   onDelete: (id: string, name: string) => void
   onCreateEntity: () => void
 }) {
@@ -221,6 +227,7 @@ function EntityList({
     <div className="grid gap-3">
       {entities.map((entity) => {
         const Icon = getEntityIcon(entityTypes, entity.entity_type_id)
+        const isDmxLinked = dmxLinkedIds.has(entity.id)
         return (
           <div
             key={entity.id}
@@ -252,6 +259,12 @@ function EntityList({
                     >
                       {entity.status}
                     </span>
+                    {isDmxLinked && (
+                      <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-900/40 text-amber-400 border border-amber-800/50">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                        DMX
+                      </span>
+                    )}
                   </div>
                   {entity.description && (
                     <p className="text-sm text-slate-400 mt-2">{entity.description}</p>
@@ -292,10 +305,12 @@ function EntityList({
 function EntityTree({
   nodes,
   entityTypes,
+  dmxLinkedIds,
   level = 0,
 }: {
   nodes: EntityTreeNode[]
   entityTypes: EntityType[]
+  dmxLinkedIds: Set<string>
   level?: number
 }) {
   if (nodes.length === 0 && level === 0) {
@@ -313,6 +328,7 @@ function EntityTree({
     <div className={level > 0 ? 'ml-6 border-l border-slate-700 pl-4' : ''}>
       {nodes.map((node) => {
         const Icon = getEntityIconByName(node.entity_type_name)
+        const isDmxLinked = dmxLinkedIds.has(node.id)
         return (
           <div key={node.id} className="py-2">
             <Link
@@ -331,9 +347,15 @@ function EntityTree({
               >
                 {node.status}
               </span>
+              {isDmxLinked && (
+                <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-900/40 text-amber-400 border border-amber-800/50">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                  DMX
+                </span>
+              )}
             </Link>
             {node.children.length > 0 && (
-              <EntityTree nodes={node.children} entityTypes={entityTypes} level={level + 1} />
+              <EntityTree nodes={node.children} entityTypes={entityTypes} dmxLinkedIds={dmxLinkedIds} level={level + 1} />
             )}
           </div>
         )

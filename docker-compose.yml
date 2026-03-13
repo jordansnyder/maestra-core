@@ -164,10 +164,10 @@ services:
       dockerfile: Dockerfile
     container_name: maestra-dashboard
     environment:
-      - NEXT_PUBLIC_API_URL=http://10.0.0.199:8080
-      - NEXT_PUBLIC_NODERED_URL=http://10.0.0.199:1880
-      - NEXT_PUBLIC_GRAFANA_URL=http://10.0.0.199:3000
-      - NEXT_PUBLIC_MQTT_WS_URL=ws://10.0.0.199:9001
+      - NEXT_PUBLIC_API_URL=http://${HOST_IP:-localhost}:8080
+      - NEXT_PUBLIC_NODERED_URL=http://${HOST_IP:-localhost}:1880
+      - NEXT_PUBLIC_GRAFANA_URL=http://${HOST_IP:-localhost}:3000
+      - NEXT_PUBLIC_MQTT_WS_URL=ws://${HOST_IP:-localhost}:9001
     ports:
       - "3001:3000"
     volumes:
@@ -187,7 +187,7 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
-      - GF_INSTALL_PLUGINS=redis-datasource
+      - GF_PLUGINS_PREINSTALL=redis-datasource
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-maestra_dev_password}
     ports:
       - "3000:3000"
@@ -195,6 +195,8 @@ services:
       - grafana-data:/var/lib/grafana
       - ./config/grafana/provisioning:/etc/grafana/provisioning
       - ./config/grafana/dashboards:/var/lib/grafana/dashboards
+    dns:
+      - 8.8.8.8
     networks:
       - maestra-network
     depends_on:
@@ -316,6 +318,27 @@ services:
     depends_on:
       - nats
       - mosquitto
+    restart: unless-stopped
+
+  # DMX / Art-Net Gateway - Bridges NATS entity state to physical DMX fixtures via Art-Net UDP
+  # Opt-in service: requires DMX hardware. Enable with: make up-dmx  or  docker compose --profile dmx up -d
+  dmx-gateway:
+    build:
+      context: ./services/dmx-gateway
+      dockerfile: Dockerfile
+    profiles: ["dmx"]
+    container_name: maestra-dmx-gateway
+    environment:
+      - NATS_URL=nats://nats:4222
+      - FLEET_MANAGER_URL=http://fleet-manager:8080
+      - LOG_LEVEL=${DMX_LOG_LEVEL:-INFO}
+      - CONFIG_REFRESH_INTERVAL=${DMX_CONFIG_REFRESH:-30}
+      - KEEPALIVE_HZ=${DMX_KEEPALIVE_HZ:-4}
+    networks:
+      - maestra-network
+    depends_on:
+      - nats
+      - fleet-manager
     restart: unless-stopped
 
 # =============================================================================

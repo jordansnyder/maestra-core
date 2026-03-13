@@ -170,6 +170,35 @@ test-mqtt: ## Test MQTT connection (publishes test message)
 	$(DOCKER_COMPOSE) exec mosquitto mosquitto_pub -t "maestra/test" -m "Hello from Maestra"
 	@echo "✅ Test message published to MQTT topic: maestra/test"
 
+# =============================================================================
+# DMX / ART-NET GATEWAY
+# =============================================================================
+
+up-dmx: ## Start full stack including the DMX gateway (requires DMX hardware)
+	$(DOCKER_COMPOSE) --profile dmx up -d
+	@echo ""
+	@echo "✅ Maestra + DMX gateway started."
+	@echo ""
+	@echo "  Configure Art-Net nodes and fixtures via the Dashboard → DMX Lighting."
+	@echo "  The gateway loads config from the database automatically."
+	@echo ""
+
+dev-dmx: ## Start core services + DMX gateway for development
+	$(DOCKER_COMPOSE) --profile dmx up -d nats redis postgres fleet-manager dmx-gateway
+	@echo "✅ Core services + DMX gateway started."
+
+logs-dmx: ## View DMX gateway logs
+	$(DOCKER_COMPOSE) logs -f dmx-gateway
+
+build-dmx: ## Rebuild the DMX gateway image
+	$(DOCKER_COMPOSE) build dmx-gateway
+
+test-dmx: ## Send a test entity state change via NATS
+	@echo "📡 Publishing test entity state to NATS..."
+	$(DOCKER_COMPOSE) exec nats nats pub maestra.entity.state.test \
+	  '{"entity_path":"test.fixture","state":{"intensity":0.8,"red":1.0,"green":0.0,"blue":0.0}}'
+	@echo "✅ Test state published. Check DMX gateway logs: make logs-dmx"
+
 watch: ## Watch service logs in real-time (requires watch command)
 	watch -n 2 '$(DOCKER_COMPOSE) ps'
 
@@ -226,3 +255,4 @@ logs-prod: ## View production environment logs
 .PHONY: migrate migrate-status migrate-dry-run
 .PHONY: backup-db restore-db test-mqtt watch stats update
 .PHONY: deploy-test deploy-prod stop-test stop-prod logs-test logs-prod
+.PHONY: up-dmx dev-dmx logs-dmx build-dmx test-dmx

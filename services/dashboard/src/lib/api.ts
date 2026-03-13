@@ -8,6 +8,8 @@ import {
   RouteData, RouteCreate, RoutePreset, RoutePresetCreate, RoutePresetUpdate,
   RoutePresetDetail, RoutingState,
   StreamInfo, StreamSession, StreamTypeInfo, StreamRegistryState,
+  DMXNode, DMXNodeCreate, DMXNodeUpdate,
+  DMXFixture, DMXFixtureCreate, DMXFixtureUpdate, FixturePositionUpdate,
 } from './types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
@@ -401,6 +403,42 @@ export const streamsApi = {
 
   /** Get the SSE preview URL for a stream (use with EventSource) */
   getPreviewUrl: (id: string) => `${API_URL}/streams/${id}/preview`,
+}
+
+// DMX API
+export const dmxApi = {
+  // Art-Net Nodes
+  listNodes: () => fetchApi<DMXNode[]>('/dmx/nodes'),
+  getNode: (id: string) => fetchApi<DMXNode>(`/dmx/nodes/${id}`),
+  createNode: (data: DMXNodeCreate) =>
+    fetchApi<DMXNode>('/dmx/nodes', { method: 'POST', body: JSON.stringify(data) }),
+  updateNode: (id: string, data: DMXNodeUpdate) =>
+    fetchApi<DMXNode>(`/dmx/nodes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteNode: (id: string) =>
+    fetchApi<{ status: string; id: string }>(`/dmx/nodes/${id}`, { method: 'DELETE' }),
+
+  // DMX Fixtures
+  listFixtures: (filters?: { nodeId?: string; entityId?: string }) => {
+    const params = new URLSearchParams()
+    if (filters?.nodeId) params.set('node_id', filters.nodeId)
+    if (filters?.entityId) params.set('entity_id', filters.entityId)
+    const q = params.toString()
+    return fetchApi<DMXFixture[]>(`/dmx/fixtures${q ? `?${q}` : ''}`)
+  },
+  getFixture: (id: string) => fetchApi<DMXFixture>(`/dmx/fixtures/${id}`),
+  getFixtureByEntity: (entityId: string) =>
+    fetchApi<DMXFixture>(`/dmx/entities/${entityId}/fixture`),
+  createFixture: (data: DMXFixtureCreate) =>
+    fetchApi<DMXFixture>('/dmx/fixtures', { method: 'POST', body: JSON.stringify(data) }),
+  updateFixture: (id: string, data: DMXFixtureUpdate) =>
+    fetchApi<DMXFixture>(`/dmx/fixtures/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteFixture: (id: string) =>
+    fetchApi<{ status: string; id: string }>(`/dmx/fixtures/${id}`, { method: 'DELETE' }),
+  bulkUpdatePositions: (positions: FixturePositionUpdate[]) =>
+    fetchApi<{ status: string; count: number }>('/dmx/fixtures/positions/bulk', {
+      method: 'PUT',
+      body: JSON.stringify(positions),
+    }),
 }
 
 export { ApiError }

@@ -104,6 +104,19 @@ export function FixtureNode({
         </div>
       </div>
 
+      {/* Entity link indicator — bottom-right of ring */}
+      <div
+        title={fixture.entity_id ? 'Linked to entity' : 'No entity linked'}
+        className="absolute rounded-full border-2 border-slate-950"
+        style={{
+          width: 10,
+          height: 10,
+          bottom: node ? 18 : 2,
+          right: 4,
+          background: fixture.entity_id ? '#22c55e' : '#ef4444',
+        }}
+      />
+
       {/* Label below */}
       {node && (
         <span className="mt-1 text-[9px] text-slate-600 font-mono max-w-[88px] truncate text-center">

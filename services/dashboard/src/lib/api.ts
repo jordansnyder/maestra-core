@@ -505,11 +505,16 @@ export const dmxApi = {
     fetchApi<{ status: string; id: string }>(`/dmx/nodes/${id}`, { method: 'DELETE' }),
 
   // DMX Fixtures
-  listFixtures: (nodeId?: string) => {
-    const params = nodeId ? `?node_id=${nodeId}` : ''
-    return fetchApi<DMXFixture[]>(`/dmx/fixtures${params}`)
+  listFixtures: (filters?: { nodeId?: string; entityId?: string }) => {
+    const params = new URLSearchParams()
+    if (filters?.nodeId) params.set('node_id', filters.nodeId)
+    if (filters?.entityId) params.set('entity_id', filters.entityId)
+    const q = params.toString()
+    return fetchApi<DMXFixture[]>(`/dmx/fixtures${q ? `?${q}` : ''}`)
   },
   getFixture: (id: string) => fetchApi<DMXFixture>(`/dmx/fixtures/${id}`),
+  getFixtureByEntity: (entityId: string) =>
+    fetchApi<DMXFixture>(`/dmx/entities/${entityId}/fixture`),
   createFixture: (data: DMXFixtureCreate) =>
     fetchApi<DMXFixture>('/dmx/fixtures', { method: 'POST', body: JSON.stringify(data) }),
   updateFixture: (id: string, data: DMXFixtureUpdate) =>

@@ -496,7 +496,8 @@ export interface DMXFixtureUpdate {
   channel_count?: number
   fixture_mode?: string
   channel_map?: Record<string, ChannelMapping>
-  entity_id?: string
+  /** Pass null explicitly to unlink from an entity; omit to leave unchanged. */
+  entity_id?: string | null
   position_x?: number
   position_y?: number
   metadata?: Record<string, unknown>

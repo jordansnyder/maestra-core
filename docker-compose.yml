@@ -330,14 +330,15 @@ services:
     container_name: maestra-dmx-gateway
     environment:
       - NATS_URL=nats://nats:4222
-      - PATCH_MAP_PATH=/config/patch.yaml
+      - FLEET_MANAGER_URL=http://fleet-manager:8080
       - LOG_LEVEL=${DMX_LOG_LEVEL:-INFO}
-    volumes:
-      - ./config/dmx:/config:ro
+      - CONFIG_REFRESH_INTERVAL=${DMX_CONFIG_REFRESH:-30}
+      - KEEPALIVE_HZ=${DMX_KEEPALIVE_HZ:-4}
     networks:
       - maestra-network
     depends_on:
       - nats
+      - fleet-manager
     restart: unless-stopped
 
 # =============================================================================

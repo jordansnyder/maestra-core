@@ -15,6 +15,7 @@ import {
   ExternalLink,
   Sparkles,
   BookOpen,
+  Zap,
 } from '@/components/icons'
 import { useSystemHealth } from '@/hooks/useSystemHealth'
 
@@ -30,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/entities', label: 'Entities', icon: Boxes },
   { href: '/routing', label: 'Routing', icon: GitFork },
   { href: '/streams', label: 'Streams', icon: Cast },
+  { href: '/dmx', label: 'DMX Lighting', icon: Zap },
 ]
 
 const GETTING_STARTED_ITEM: NavItem = { href: '/#getting-started', label: 'Getting Started', icon: Sparkles }

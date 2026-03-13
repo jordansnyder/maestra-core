@@ -353,6 +353,131 @@ export interface AudioPreviewData {
   _seq: number
 }
 
+// =============================================================================
+// DMX / Art-Net Types
+// =============================================================================
+
+export interface UniverseConfig {
+  id: number
+  artnet_universe: number
+  port_label: string
+  description: string
+}
+
+export interface DMXNode {
+  id: string
+  name: string
+  manufacturer?: string
+  model?: string
+  ip_address: string
+  mac_address?: string
+  artnet_port: number
+  universe_count: number
+  universes: UniverseConfig[]
+  poe_powered: boolean
+  firmware_version?: string
+  notes?: string
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface DMXNodeCreate {
+  name: string
+  manufacturer?: string
+  model?: string
+  ip_address: string
+  mac_address?: string
+  artnet_port?: number
+  universe_count?: number
+  universes?: UniverseConfig[]
+  poe_powered?: boolean
+  firmware_version?: string
+  notes?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface DMXNodeUpdate {
+  name?: string
+  manufacturer?: string
+  model?: string
+  ip_address?: string
+  mac_address?: string
+  artnet_port?: number
+  universe_count?: number
+  universes?: UniverseConfig[]
+  poe_powered?: boolean
+  firmware_version?: string
+  notes?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface ChannelMapping {
+  offset: number
+  type: 'range' | 'number' | 'boolean' | 'enum' | 'color'
+  enum_dmx_values?: Record<string, number>
+}
+
+export interface DMXFixture {
+  id: string
+  name: string
+  label?: string
+  manufacturer?: string
+  model?: string
+  node_id: string
+  universe: number
+  start_channel: number
+  channel_count: number
+  fixture_mode?: string
+  channel_map: Record<string, ChannelMapping>
+  entity_id?: string
+  position_x: number
+  position_y: number
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface DMXFixtureCreate {
+  name: string
+  label?: string
+  manufacturer?: string
+  model?: string
+  node_id: string
+  universe: number
+  start_channel: number
+  channel_count?: number
+  fixture_mode?: string
+  channel_map?: Record<string, ChannelMapping>
+  entity_id?: string
+  position_x?: number
+  position_y?: number
+  metadata?: Record<string, unknown>
+}
+
+export interface DMXFixtureUpdate {
+  name?: string
+  label?: string
+  manufacturer?: string
+  model?: string
+  node_id?: string
+  universe?: number
+  start_channel?: number
+  channel_count?: number
+  fixture_mode?: string
+  channel_map?: Record<string, ChannelMapping>
+  entity_id?: string
+  position_x?: number
+  position_y?: number
+  metadata?: Record<string, unknown>
+}
+
+export interface FixturePositionUpdate {
+  id: string
+  position_x: number
+  position_y: number
+}
+
 export interface DataPreviewData {
   type: string
   _seq: number

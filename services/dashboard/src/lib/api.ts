@@ -403,4 +403,46 @@ export const streamsApi = {
   getPreviewUrl: (id: string) => `${API_URL}/streams/${id}/preview`,
 }
 
+// Cloud Gateway API
+import type { CloudConfig, CloudPolicy, CloudStatus, CloudTestResult, CloudSiteRegister } from './cloudTypes'
+
+export const cloudApi = {
+  getConfig: () => fetchApi<CloudConfig>('/cloud/config'),
+
+  saveConfig: (data: { gateway_url: string }) =>
+    fetchApi<CloudConfig>('/cloud/config', { method: 'PUT', body: JSON.stringify(data) }),
+
+  deleteConfig: () =>
+    fetchApi<{ status: string }>('/cloud/config', { method: 'DELETE' }),
+
+  register: (data: CloudSiteRegister) =>
+    fetchApi<{ id: string; slug: string; status: string }>('/cloud/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  activate: () =>
+    fetchApi<{ id: string; status: string }>('/cloud/activate', { method: 'POST' }),
+
+  getStatus: () => fetchApi<CloudStatus>('/cloud/status'),
+
+  issueCertificates: () =>
+    fetchApi<{ certificate: Record<string, unknown>; client_cert_pem: string; ca_cert_pem: string }>(
+      '/cloud/certificates/issue',
+      { method: 'POST' }
+    ),
+
+  getPolicies: () => fetchApi<CloudPolicy[]>('/cloud/policies'),
+
+  savePolicies: (policies: CloudPolicy[]) =>
+    fetchApi<CloudPolicy[]>('/cloud/policies', {
+      method: 'PUT',
+      body: JSON.stringify({ policies }),
+    }),
+
+  test: () => fetchApi<CloudTestResult>('/cloud/test', { method: 'POST' }),
+
+  getMetrics: () => fetchApi<Record<string, unknown>>('/cloud/metrics'),
+}
+
 export { ApiError }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { healthApi } from '@/lib/api'
+import { healthApi, cloudApi } from '@/lib/api'
 
 export interface ServiceHealth {
   name: string
@@ -44,6 +44,19 @@ export function useSystemHealth(pollInterval = 30000): SystemHealthState {
     } catch {
       results.push({ name: 'Message Bus', status: 'unhealthy' })
       results.push({ name: 'Database', status: 'unhealthy' })
+    }
+
+    // Check Cloud Gateway (only if configured)
+    try {
+      const cloudStatus = await cloudApi.getStatus()
+      if (cloudStatus.configured) {
+        results.push({
+          name: 'Cloud Gateway',
+          status: cloudStatus.agent_connected ? 'healthy' : 'unhealthy',
+        })
+      }
+    } catch {
+      // Cloud not configured or unreachable — don't add to list
     }
 
     setServices(results)

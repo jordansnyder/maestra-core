@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useWebSocket } from './useWebSocket'
 import type { WebSocketMessage } from '@/types'
 
-export type ActivityCategory = 'device' | 'entity' | 'system' | 'route'
+export type ActivityCategory = 'device' | 'entity' | 'system' | 'route' | 'cloud'
 
 export interface ActivityItem {
   id: string
@@ -75,6 +75,21 @@ function parseMessage(msg: WebSocketMessage): ActivityItem | null {
       title: `Device ${action}`,
       detail: deviceName,
       severity: isRegister ? 'info' : 'info',
+    }
+  }
+
+  // Cloud gateway events
+  if (subject.startsWith('maestra.cloud.')) {
+    const action = subject.split('.').slice(2).join('.')
+    const isError = action.includes('error') || data.severity === 'error'
+    const detail = data.message || data.site_slug || action
+    return {
+      id: `act-${++idCounter}`,
+      timestamp,
+      category: 'cloud',
+      title: `Cloud ${action.replace(/\./g, ' ')}`,
+      detail,
+      severity: isError ? 'error' : 'info',
     }
   }
 

@@ -7,7 +7,9 @@ import { entitiesApi, entityTypesApi } from '@/lib/api'
 
 interface AddFixtureModalProps {
   nodes: DMXNode[]
-  fixture?: DMXFixture        // when provided: edit mode, pre-filled
+  fixture?: DMXFixture        // edit mode: pre-filled, saves as update
+  copyOf?: DMXFixture         // copy mode: pre-filled, saves as new create
+  initialName?: string        // override the initial name field (used for copy)
   defaultPosition?: { x: number; y: number }
   onSubmit: (data: DMXFixtureCreate) => Promise<void>
   onClose: () => void
@@ -16,20 +18,23 @@ interface AddFixtureModalProps {
 // Entity type preference order for auto-created fixture entities
 const PREFERRED_ENTITY_TYPES = ['actuator', 'device', 'sensor', 'installation']
 
-export function AddFixtureModal({ nodes, fixture, defaultPosition, onSubmit, onClose }: AddFixtureModalProps) {
+export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPosition, onSubmit, onClose }: AddFixtureModalProps) {
   const isEditing = !!fixture
+  const isCopying = !!copyOf
+  // source to pre-fill from (edit uses fixture, copy uses copyOf)
+  const source = fixture ?? copyOf
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [name, setName] = useState(fixture?.name ?? '')
-  const [label, setLabel] = useState(fixture?.label ?? '')
-  const [manufacturer, setManufacturer] = useState(fixture?.manufacturer ?? '')
-  const [model, setModel] = useState(fixture?.model ?? '')
-  const [fixtureMode, setFixtureMode] = useState(fixture?.fixture_mode ?? '')
-  const [nodeId, setNodeId] = useState(fixture?.node_id ?? nodes[0]?.id ?? '')
-  const [universe, setUniverse] = useState(fixture?.universe ?? 1)
-  const [startChannel, setStartChannel] = useState(fixture?.start_channel ?? 1)
-  const [channelCount, setChannelCount] = useState(fixture?.channel_count ?? 1)
+  const [name, setName] = useState(initialName ?? source?.name ?? '')
+  const [label, setLabel] = useState(source?.label ?? '')
+  const [manufacturer, setManufacturer] = useState(source?.manufacturer ?? '')
+  const [model, setModel] = useState(source?.model ?? '')
+  const [fixtureMode, setFixtureMode] = useState(source?.fixture_mode ?? '')
+  const [nodeId, setNodeId] = useState(source?.node_id ?? nodes[0]?.id ?? '')
+  const [universe, setUniverse] = useState(source?.universe ?? 1)
+  const [startChannel, setStartChannel] = useState(source?.start_channel ?? 1)
+  const [channelCount, setChannelCount] = useState(source?.channel_count ?? 1)
 
   // Edit mode only: entity picker
   const [entityId, setEntityId] = useState(fixture?.entity_id ?? '')
@@ -87,17 +92,22 @@ export function AddFixtureModal({ nodes, fixture, defaultPosition, onSubmit, onC
     try {
       let resolvedEntityId = isEditing ? (entityId.trim() || undefined) : undefined
 
-      // On create: auto-create a linked entity with the same name
+      // On create/copy: auto-create a linked entity
+      // — always for plain add
+      // — only if the source had an entity_id for copy
       if (!isEditing) {
-        const typeId = pickEntityTypeId()
-        if (typeId) {
-          const created = await entitiesApi.create({
-            name: name.trim(),
-            entity_type_id: typeId,
-            description: `DMX fixture — ${[manufacturer, model].filter(Boolean).join(' ') || 'linked fixture'}`,
-            metadata: { dmx_fixture: true },
-          })
-          resolvedEntityId = created.id
+        const shouldAutoCreate = isCopying ? !!copyOf!.entity_id : true
+        if (shouldAutoCreate) {
+          const typeId = pickEntityTypeId()
+          if (typeId) {
+            const created = await entitiesApi.create({
+              name: name.trim(),
+              entity_type_id: typeId,
+              description: `DMX fixture — ${[manufacturer, model].filter(Boolean).join(' ') || 'linked fixture'}`,
+              metadata: { dmx_fixture: true },
+            })
+            resolvedEntityId = created.id
+          }
         }
       }
 
@@ -112,8 +122,8 @@ export function AddFixtureModal({ nodes, fixture, defaultPosition, onSubmit, onC
         start_channel: startChannel,
         channel_count: channelCount,
         entity_id: resolvedEntityId,
-        position_x: fixture?.position_x ?? defaultPosition?.x ?? 200,
-        position_y: fixture?.position_y ?? defaultPosition?.y ?? 200,
+        position_x: (isCopying ? (copyOf!.position_x + 40) : fixture?.position_x) ?? defaultPosition?.x ?? 200,
+        position_y: (isCopying ? (copyOf!.position_y + 40) : fixture?.position_y) ?? defaultPosition?.y ?? 200,
       })
       onClose()
     } catch (e) {
@@ -129,11 +139,15 @@ export function AddFixtureModal({ nodes, fixture, defaultPosition, onSubmit, onC
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
           <div>
             <h2 className="text-sm font-semibold text-white">
-              {isEditing ? 'Edit Fixture' : 'Add DMX Fixture'}
+              {isEditing ? 'Edit Fixture' : isCopying ? 'Copy Fixture' : 'Add DMX Fixture'}
             </h2>
             {!isEditing && (
               <p className="text-[10px] text-slate-500 mt-0.5">
-                A linked entity will be created automatically
+                {isCopying
+                  ? copyOf!.entity_id
+                    ? 'A new linked entity will be created automatically'
+                    : 'No entity will be linked (source has none)'
+                  : 'A linked entity will be created automatically'}
               </p>
             )}
           </div>

@@ -16,8 +16,17 @@ export default function DMXPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showAddFixture, setShowAddFixture] = useState(false)
   const [editingFixture, setEditingFixture] = useState<DMXFixture | null>(null)
+  const [copyingFixture, setCopyingFixture] = useState<{ fixture: DMXFixture; name: string } | null>(null)
   const [view, setView] = useState<View>('canvas')
   const [actionError, setActionError] = useState<string | null>(null)
+
+  const handleCopy = (fixture: DMXFixture) => {
+    const existingNames = fixtures.map((f) => f.name)
+    const base = fixture.name.replace(/ \d+$/, '')
+    let n = 2
+    while (existingNames.includes(`${base} ${n}`)) n++
+    setCopyingFixture({ fixture, name: `${base} ${n}` })
+  }
 
   if (loading) {
     return (
@@ -138,6 +147,7 @@ export default function DMXPage() {
             selectedId={selectedId}
             onSelect={setSelectedId}
             onEdit={(fixture) => setEditingFixture(fixture)}
+            onCopy={handleCopy}
             onDelete={async (id) => {
               try {
                 setActionError(null)
@@ -194,6 +204,20 @@ export default function DMXPage() {
             setEditingFixture(null)
           }}
           onClose={() => setEditingFixture(null)}
+        />
+      )}
+
+      {/* Copy Fixture Modal */}
+      {copyingFixture && (
+        <AddFixtureModal
+          nodes={nodes}
+          copyOf={copyingFixture.fixture}
+          initialName={copyingFixture.name}
+          onSubmit={async (data) => {
+            await createFixture(data)
+            setCopyingFixture(null)
+          }}
+          onClose={() => setCopyingFixture(null)}
         />
       )}
     </div>

@@ -7,8 +7,8 @@ export interface Device {
   hardware_id: string
   firmware_version?: string
   ip_address?: string
-  location?: Record<string, any>
-  metadata?: Record<string, any>
+  location?: Record<string, unknown>
+  metadata?: Record<string, unknown>
   status: 'online' | 'offline' | 'error' | 'maintenance'
   last_seen?: string
   created_at: string
@@ -21,8 +21,8 @@ export interface DeviceRegistration {
   hardware_id: string
   firmware_version?: string
   ip_address?: string
-  location?: Record<string, any>
-  metadata?: Record<string, any>
+  location?: Record<string, unknown>
+  metadata?: Record<string, unknown>
 }
 
 export interface DeviceMetric {
@@ -31,7 +31,7 @@ export interface DeviceMetric {
   metric_name: string
   metric_value: number
   unit?: string
-  tags?: Record<string, any>
+  tags?: Record<string, unknown>
 }
 
 export interface DeviceEvent {
@@ -40,7 +40,7 @@ export interface DeviceEvent {
   event_type: string
   severity: 'debug' | 'info' | 'warning' | 'error' | 'critical'
   message?: string
-  data?: Record<string, any>
+  data?: Record<string, unknown>
 }
 
 export interface ServiceStatus {
@@ -61,7 +61,7 @@ export interface MQTTMessage {
 export interface WebSocketMessage {
   type: 'message' | 'error' | 'welcome' | 'ack' | 'pong'
   subject?: string
-  data?: any
+  data?: unknown
   timestamp: string
 }
 

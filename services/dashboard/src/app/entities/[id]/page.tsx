@@ -8,6 +8,7 @@ import { entitiesApi, entityTypesApi, dmxApi } from '@/lib/api'
 import { EntityVariablesPanel } from '@/components/EntityVariablesPanel'
 import { StateTestPanel } from '@/components/StateTestPanel'
 import { EntityStateOverview } from '@/components/EntityStateOverview'
+import { DMXChannelPanel } from '@/components/dmx/DMXChannelPanel'
 import { useToast } from '@/components/Toast'
 import {
   ENTITY_TYPE_ICONS, DEFAULT_ENTITY_ICON,
@@ -571,6 +572,21 @@ export default function EntityDetailPage() {
 
           {/* Right Column - Variables & Advanced */}
           <div>
+            {/* DMX Channel Panel — shown when fixture has a channel_map */}
+            {isDmxLinked && linkedFixture && Object.keys(linkedFixture.channel_map).length > 0 && (
+              <div className="mb-6">
+                <DMXChannelPanel
+                  fixture={linkedFixture}
+                  entityId={entityId}
+                  currentState={entity.state}
+                  onStateChange={async (updates) => {
+                    await entitiesApi.updateState(entityId, { state: updates, source: 'dmx_panel' })
+                    await loadData()
+                  }}
+                />
+              </div>
+            )}
+
             {/* DMX-managed notice — unobtrusive, only when linked */}
             {isDmxLinked && (
               <div className="flex items-start gap-2.5 px-3 py-2.5 mb-4 rounded-lg bg-amber-950/30 border border-amber-900/40">

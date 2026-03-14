@@ -432,6 +432,7 @@ export interface DMXFixture {
   fixture_mode?: string
   channel_map: Record<string, ChannelMapping>
   entity_id?: string
+  ofl_fixture_id?: string
   position_x: number
   position_y: number
   metadata: Record<string, unknown>
@@ -451,6 +452,7 @@ export interface DMXFixtureCreate {
   fixture_mode?: string
   channel_map?: Record<string, ChannelMapping>
   entity_id?: string
+  ofl_fixture_id?: string
   position_x?: number
   position_y?: number
   metadata?: Record<string, unknown>
@@ -487,3 +489,56 @@ export interface DataPreviewData {
 }
 
 export type PreviewData = SensorPreviewData | AudioPreviewData | DataPreviewData
+
+// =============================================================================
+// OFL Fixture Library Types
+// =============================================================================
+
+export interface OFLManufacturer {
+  id: string
+  key: string
+  name: string
+  website?: string
+  fixture_count?: number
+  synced_at?: string
+}
+
+export interface OFLChannelDef {
+  name: string
+  type: string
+  defaultValue?: number
+}
+
+export interface OFLFixtureMode {
+  shortName: string
+  name: string
+  channels: OFLChannelDef[]
+  channel_count: number
+}
+
+export interface OFLFixture {
+  id: string
+  manufacturer_key: string
+  fixture_key: string
+  name: string
+  source: 'ofl' | 'custom'
+  categories: string[]
+  channel_count_min?: number
+  channel_count_max?: number
+  physical?: Record<string, unknown>
+  modes: OFLFixtureMode[]
+  ofl_last_modified?: string
+  synced_at?: string
+}
+
+export interface OFLSyncStatus {
+  ran_at: string
+  ofl_commit_sha?: string
+  ofl_schema_version?: string
+  fixtures_added: number
+  fixtures_updated: number
+  fixtures_skipped: number
+  fixtures_errored: number
+  status: 'success' | 'partial' | 'failed'
+  errors: unknown[]
+}

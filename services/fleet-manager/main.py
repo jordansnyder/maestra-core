@@ -28,6 +28,7 @@ from stream_router import router as stream_router
 from stream_preview import router as stream_preview_router
 from analytics_router import router as analytics_router
 from dmx_router import router as dmx_router
+from fixtures_router import router as fixtures_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -52,6 +53,7 @@ app.include_router(stream_router)
 app.include_router(stream_preview_router)
 app.include_router(analytics_router)
 app.include_router(dmx_router)
+app.include_router(fixtures_router)
 
 
 # =============================================================================

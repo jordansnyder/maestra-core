@@ -1,13 +1,27 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useDMX } from '@/hooks/useDMX'
 import { DMXCanvas } from '@/components/dmx/DMXCanvas'
 import { DMXSidebar } from '@/components/dmx/DMXSidebar'
 import { NodeSetupForm } from '@/components/dmx/NodeSetupForm'
 import { AddFixtureModal } from '@/components/dmx/AddFixtureModal'
-import { DMXFixture, DMXNode, DMXNodeCreate } from '@/lib/types'
+import { DMXFixture, DMXNode, DMXNodeCreate, OFLSyncStatus } from '@/lib/types'
 import { Zap, Plus, Network, Settings, X } from '@/components/icons'
+import { oflApi } from '@/lib/api'
+
+function formatRelativeTime(iso: string): string {
+  const date = new Date(iso)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) return 'today'
+  if (diffDays === 1) return 'yesterday'
+  if (diffDays < 7) return `${diffDays} days ago`
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`
+  return `${Math.floor(diffDays / 365)}y ago`
+}
 
 const NODE_SCALES: { label: string; diameter: number }[] = [
   { label: 'S', diameter: 32 },
@@ -35,6 +49,11 @@ export default function DMXPage() {
   const [nodeDiameter, setNodeDiameter] = useState<number>(getInitialScale)
   const [editingNode, setEditingNode] = useState<DMXNode | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [syncStatus, setSyncStatus] = useState<OFLSyncStatus | null>(null)
+
+  useEffect(() => {
+    oflApi.getSyncStatus().then(setSyncStatus).catch(() => {})
+  }, [])
 
   const setScale = (diameter: number) => {
     setNodeDiameter(diameter)
@@ -105,6 +124,11 @@ export default function DMXPage() {
           <span className="text-xs text-slate-600">
             {fixtures.length} fixture{fixtures.length !== 1 ? 's' : ''} · {nodes.length} node{nodes.length !== 1 ? 's' : ''}
           </span>
+          {syncStatus && (
+            <span className="text-xs text-slate-600 ml-2 pl-2 border-l border-slate-800">
+              OFL {syncStatus.status === 'success' ? '✓' : '⚠'} {formatRelativeTime(syncStatus.ran_at)}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {actionError && (

@@ -2,6 +2,7 @@
 
 #include "MaestraClient.h"
 #include "MaestraEntity.h"
+#include "MaestraDiscovery.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Serialization/JsonReader.h"
@@ -620,4 +621,59 @@ void UMaestraClient::HandleSessionHeartbeatResponse(FHttpRequestPtr Request, FHt
     {
         UE_LOG(LogTemp, Warning, TEXT("[Maestra] Session heartbeat HTTP %d"), Response->GetResponseCode());
     }
+}
+
+// ===== Discovery & Provisioning =====
+
+void UMaestraClient::DiscoverAndConnect(const FString& ApiUrl, const FString& HardwareId, const FString& DeviceType, const FString& Name)
+{
+    // Create discovery helper
+    Discovery = NewObject<UMaestraDiscovery>(this);
+
+    // Bind discovery delegates to our handlers
+    Discovery->OnDeviceRegistered.AddDynamic(this, &UMaestraClient::HandleDiscoveryRegistered);
+    Discovery->OnProvisionReceived.AddDynamic(this, &UMaestraClient::HandleDiscoveryProvisioned);
+    Discovery->OnDiscoveryError.AddDynamic(this, &UMaestraClient::HandleDiscoveryFailed);
+
+    // Store ApiUrl for later use in provisioning poll
+    ApiBaseUrl = ApiUrl;
+
+    UE_LOG(LogTemp, Log, TEXT("[Maestra] Starting discover-and-connect flow for %s"), *Name);
+
+    // Step 1: Advertise device
+    Discovery->AdvertiseDevice(ApiUrl, HardwareId, DeviceType, Name);
+}
+
+void UMaestraClient::HandleDiscoveryRegistered(const FString& DeviceId)
+{
+    UE_LOG(LogTemp, Log, TEXT("[Maestra] Device discovered, id: %s - waiting for provisioning..."), *DeviceId);
+
+    // Forward the event
+    OnDeviceDiscovered.Broadcast(DeviceId);
+
+    // Step 2: Start polling for provisioning
+    if (Discovery)
+    {
+        Discovery->WaitForProvisioning(ApiBaseUrl, DeviceId);
+    }
+}
+
+void UMaestraClient::HandleDiscoveryProvisioned(const FMaestraProvisionConfig& Config)
+{
+    UE_LOG(LogTemp, Log, TEXT("[Maestra] Provisioning received - initializing client with API: %s"), *Config.ApiUrl);
+
+    // Forward the event
+    OnProvisionConfigReceived.Broadcast(Config);
+
+    // Step 3: Initialize the client with the provisioned API URL
+    Initialize(Config.ApiUrl);
+}
+
+void UMaestraClient::HandleDiscoveryFailed(const FString& ErrorMessage)
+{
+    UE_LOG(LogTemp, Error, TEXT("[Maestra] Discovery failed: %s"), *ErrorMessage);
+
+    // Forward the error
+    OnDiscoveryFailed.Broadcast(ErrorMessage);
+    OnError.Broadcast(FString::Printf(TEXT("Discovery: %s"), *ErrorMessage));
 }

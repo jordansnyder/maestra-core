@@ -13,6 +13,12 @@ import json
 import asyncio
 from datetime import datetime
 
+try:
+    from MaestraDiscovery import discover_maestra, advertise_device, wait_for_provisioning
+    _HAS_DISCOVERY = True
+except ImportError:
+    _HAS_DISCOVERY = False
+
 class MaestraExt:
     """
     Maestra TouchDesigner Extension
@@ -41,6 +47,39 @@ class MaestraExt:
         self._entity_slug = entity_slug
         self._api_url = api_url
         self._fetch_initial_state()
+
+    def DiscoverAndInitialize(self, entity_slug: str, timeout: float = 5.0):
+        """
+        Discover a Maestra server on the local network via mDNS,
+        then initialize the connection using the discovered API URL.
+
+        Requires the 'zeroconf' package: pip install zeroconf
+
+        Args:
+            entity_slug: Entity slug to bind to
+            timeout: How long to wait for mDNS discovery (seconds)
+
+        Returns:
+            dict with discovered connection config (api_url, nats_url, etc.)
+        """
+        if not _HAS_DISCOVERY:
+            print("Maestra: MaestraDiscovery module not available. "
+                  "Ensure MaestraDiscovery.py is in the same directory and "
+                  "'zeroconf' is installed (pip install zeroconf).")
+            return None
+
+        try:
+            config = discover_maestra(timeout=timeout)
+            api_url = config.get("api_url", "http://localhost:8080")
+            print(f"Maestra: Discovered server, initializing with {api_url}")
+            self.Initialize(entity_slug, api_url=api_url)
+            return config
+        except TimeoutError as e:
+            print(f"Maestra: Discovery timed out: {e}")
+            return None
+        except Exception as e:
+            print(f"Maestra: Discovery failed: {e}")
+            return None
 
     def _fetch_initial_state(self):
         """Fetch initial state from API"""

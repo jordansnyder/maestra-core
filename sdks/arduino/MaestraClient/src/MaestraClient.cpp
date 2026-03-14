@@ -143,6 +143,27 @@ void MaestraClient::loop() {
     _mqtt.loop();
 }
 
+#ifdef ESP32
+bool MaestraClient::discoverAndConnect(unsigned long timeoutMs) {
+    MaestraDiscovery discovery;
+
+    if (!discovery.discoverMaestra(timeoutMs)) {
+        Serial.println("[MaestraClient] Discovery failed - no Maestra service found");
+        return false;
+    }
+
+    // Configure broker from discovery results
+    setBroker(discovery.getMqttBroker(), discovery.getMqttPort());
+
+    Serial.print("[MaestraClient] Connecting to discovered broker ");
+    Serial.print(discovery.getMqttBroker());
+    Serial.print(":");
+    Serial.println(discovery.getMqttPort());
+
+    return connect();
+}
+#endif
+
 MaestraEntity* MaestraClient::getEntity(const char* slug) {
     // Check if already exists
     for (int i = 0; i < _entityCount; i++) {

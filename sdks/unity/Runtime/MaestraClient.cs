@@ -24,8 +24,25 @@ namespace Maestra
         public event Action<MaestraEntity> OnEntityReceived;
         public event Action<List<EntityData>> OnEntitiesReceived;
 
+        // Discovery events
+        public event Action<DeviceRegistration> OnDeviceAdvertised;
+        public event Action<ProvisionConfig> OnDeviceProvisioned;
+        public event Action<string> OnDiscoveryFailed;
+
         private Dictionary<string, MaestraEntity> _entityCache = new Dictionary<string, MaestraEntity>();
         private bool _isInitialized = false;
+        private DeviceRegistration _deviceRegistration;
+        private ProvisionConfig _provisionConfig;
+
+        /// <summary>
+        /// The device registration returned after advertising (null until advertised)
+        /// </summary>
+        public DeviceRegistration DeviceRegistration => _deviceRegistration;
+
+        /// <summary>
+        /// The provisioning config returned after approval (null until provisioned)
+        /// </summary>
+        public ProvisionConfig ProvisionConfig => _provisionConfig;
 
         /// <summary>
         /// Whether the client has been initialized
@@ -40,6 +57,116 @@ namespace Maestra
             _isInitialized = true;
             Debug.Log($"[Maestra] Client initialized with URL: {apiUrl}");
             OnConnected?.Invoke();
+        }
+
+        /// <summary>
+        /// Advertise this device to the Maestra Fleet Manager, wait for admin
+        /// approval and provisioning, then automatically initialize the client
+        /// with the provisioned configuration.
+        /// </summary>
+        /// <param name="hardwareId">Unique hardware identifier for this device</param>
+        /// <param name="deviceType">Device type string (e.g., "unity")</param>
+        /// <param name="deviceName">Human-readable display name</param>
+        /// <param name="timeout">Maximum seconds to wait for provisioning approval</param>
+        public void DiscoverAndConnect(string hardwareId, string deviceType, string deviceName, float timeout = 30f)
+        {
+            StartCoroutine(DiscoverAndConnectCoroutine(hardwareId, deviceType, deviceName, timeout));
+        }
+
+        private IEnumerator DiscoverAndConnectCoroutine(string hardwareId, string deviceType, string deviceName, float timeout)
+        {
+            Debug.Log($"[Maestra] Starting discovery flow (hardware_id: {hardwareId})");
+
+            // Step 1: Advertise device
+            bool advertiseComplete = false;
+            bool advertiseFailed = false;
+            string advertiseError = null;
+
+            yield return MaestraDiscovery.AdvertiseDevice(
+                apiUrl,
+                hardwareId,
+                deviceType,
+                deviceName,
+                registration =>
+                {
+                    _deviceRegistration = registration;
+                    advertiseComplete = true;
+                    OnDeviceAdvertised?.Invoke(registration);
+                },
+                error =>
+                {
+                    advertiseFailed = true;
+                    advertiseError = error;
+                });
+
+            if (advertiseFailed)
+            {
+                string error = $"Discovery failed during advertisement: {advertiseError}";
+                Debug.LogError($"[Maestra] {error}");
+                OnDiscoveryFailed?.Invoke(error);
+                OnError?.Invoke(error);
+                yield break;
+            }
+
+            if (!advertiseComplete || _deviceRegistration == null)
+            {
+                string error = "Discovery failed: no registration received";
+                Debug.LogError($"[Maestra] {error}");
+                OnDiscoveryFailed?.Invoke(error);
+                OnError?.Invoke(error);
+                yield break;
+            }
+
+            // If device is already online (re-discovery), skip provisioning wait
+            if (_deviceRegistration.Status == "online")
+            {
+                Debug.Log("[Maestra] Device already approved, fetching provision config...");
+            }
+
+            // Step 2: Wait for provisioning
+            bool provisionComplete = false;
+            bool provisionFailed = false;
+            string provisionError = null;
+
+            yield return MaestraDiscovery.WaitForProvisioning(
+                apiUrl,
+                _deviceRegistration.Id,
+                2f, // poll every 2 seconds
+                timeout,
+                config =>
+                {
+                    _provisionConfig = config;
+                    provisionComplete = true;
+                    OnDeviceProvisioned?.Invoke(config);
+                },
+                error =>
+                {
+                    provisionFailed = true;
+                    provisionError = error;
+                });
+
+            if (provisionFailed)
+            {
+                string error = $"Discovery failed during provisioning: {provisionError}";
+                Debug.LogError($"[Maestra] {error}");
+                OnDiscoveryFailed?.Invoke(error);
+                OnError?.Invoke(error);
+                yield break;
+            }
+
+            if (!provisionComplete || _provisionConfig == null)
+            {
+                string error = "Discovery failed: no provision config received";
+                Debug.LogError($"[Maestra] {error}");
+                OnDiscoveryFailed?.Invoke(error);
+                OnError?.Invoke(error);
+                yield break;
+            }
+
+            // Step 3: Initialize client with provisioned API URL
+            apiUrl = _provisionConfig.ApiUrl;
+            Initialize();
+            Debug.Log($"[Maestra] Discovery complete — connected to {apiUrl}");
         }
 
         /// <summary>

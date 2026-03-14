@@ -46,10 +46,14 @@
     "vitest": "^1.0.0"
   },
   "peerDependencies": {
-    "mqtt": "^5.0.0"
+    "mqtt": "^5.0.0",
+    "bonjour-service": "^1.2.0"
   },
   "peerDependenciesMeta": {
     "mqtt": {
+      "optional": true
+    },
+    "bonjour-service": {
       "optional": true
     }
   }

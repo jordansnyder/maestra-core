@@ -343,6 +343,26 @@ services:
       fleet-manager:
         condition: service_healthy
     restart: unless-stopped
+  # OFL Fixture Sync - Syncs Open Fixture Library data into PostgreSQL
+  # Never runs automatically. Invoke manually: make sync-ofl
+  ofl-sync:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.sync
+    profiles: ["ofl-sync"]
+    container_name: maestra-ofl-sync
+    environment:
+      - DATABASE_URL=postgresql://maestra:${POSTGRES_PASSWORD:-maestra_dev_password}@postgres:5432/maestra
+      - OFL_EXPECTED_MAJOR_VERSION=${OFL_EXPECTED_MAJOR_VERSION:-12}
+      - OFL_PATH=/vendor/ofl
+    volumes:
+      - ./vendor/ofl:/vendor/ofl:ro
+    networks:
+      - maestra-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
 
   # DMX / Art-Net Gateway - Bridges NATS entity state to physical DMX fixtures via Art-Net UDP
   # Opt-in service: requires DMX hardware. Enable with: make up-dmx  or  docker compose --profile dmx up -d

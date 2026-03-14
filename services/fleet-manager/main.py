@@ -31,6 +31,7 @@ from cloud_router import router as cloud_router
 from cloud_manager import cloud_manager
 from discovery_router import router as discovery_router
 from dmx_router import router as dmx_router
+from fixtures_router import router as fixtures_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -57,6 +58,7 @@ app.include_router(analytics_router)
 app.include_router(cloud_router)
 app.include_router(discovery_router)
 app.include_router(dmx_router)
+app.include_router(fixtures_router)
 
 
 # =============================================================================

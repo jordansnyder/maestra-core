@@ -210,6 +210,12 @@ bootstrap-venue: ## Create venue entities in Maestra from config/dmx/patch.yaml
 
 bootstrap-venue-dry: ## Preview venue bootstrap without creating anything
 	python3 scripts/bootstrap_venue.py --patch config/dmx/patch.yaml --dry-run
+sync-ofl: ## Run OFL fixture sync manually (never runs automatically)
+	docker compose --profile ofl-sync run --build --rm ofl-sync
+
+ofl-status: ## Show last 5 OFL sync results
+	docker compose exec postgres psql -U maestra -d maestra \
+	  -c "SELECT ran_at, ofl_commit_sha, fixtures_added, fixtures_updated, fixtures_errored, status FROM ofl_sync_log ORDER BY ran_at DESC LIMIT 5;"
 
 watch: ## Watch service logs in real-time (requires watch command)
 	watch -n 2 '$(DOCKER_COMPOSE) ps'
@@ -267,4 +273,4 @@ logs-prod: ## View production environment logs
 .PHONY: migrate migrate-status migrate-dry-run
 .PHONY: backup-db restore-db test-mqtt test-mqtt-state watch stats update
 .PHONY: deploy-test deploy-prod stop-test stop-prod logs-test logs-prod
-.PHONY: up-dmx dev-dmx logs-dmx build-dmx test-dmx
+.PHONY: up-dmx dev-dmx logs-dmx build-dmx test-dmx sync-ofl ofl-status

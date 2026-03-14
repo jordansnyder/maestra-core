@@ -10,7 +10,8 @@ import {
   StreamInfo, StreamSession, StreamTypeInfo, StreamRegistryState,
   BlockedDevice, DeviceProvision, DeviceApproval,
   DMXNode, DMXNodeCreate, DMXNodeUpdate,
-  DMXFixture, DMXFixtureCreate, DMXFixtureUpdate, FixturePositionUpdate
+  DMXFixture, DMXFixtureCreate, DMXFixtureUpdate, FixturePositionUpdate,
+  OFLManufacturer, OFLFixture, OFLSyncStatus,
 } from './types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
@@ -526,6 +527,30 @@ export const dmxApi = {
       method: 'PUT',
       body: JSON.stringify(positions),
     }),
+}
+
+// OFL Fixture Library API
+export const oflApi = {
+  getManufacturers: (q?: string) => {
+    const params = q ? `?q=${encodeURIComponent(q)}` : ''
+    return fetchApi<OFLManufacturer[]>(`/ofl/manufacturers${params}`)
+  },
+
+  getFixtures: (params: { q?: string; manufacturer?: string; category?: string; page?: number; limit?: number }) => {
+    const sp = new URLSearchParams()
+    if (params.q) sp.set('q', params.q)
+    if (params.manufacturer) sp.set('manufacturer', params.manufacturer)
+    if (params.category) sp.set('category', params.category)
+    if (params.page) sp.set('page', String(params.page))
+    if (params.limit) sp.set('limit', String(params.limit))
+    const qs = sp.toString()
+    return fetchApi<{ items: OFLFixture[]; total: number; page: number; limit: number }>(`/ofl/fixtures${qs ? `?${qs}` : ''}`)
+  },
+
+  getFixture: (manufacturerKey: string, fixtureKey: string) =>
+    fetchApi<OFLFixture>(`/ofl/fixtures/${manufacturerKey}/${fixtureKey}`),
+
+  getSyncStatus: () => fetchApi<OFLSyncStatus>(`/ofl/sync/status`),
 }
 
 export { ApiError }

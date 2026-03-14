@@ -90,6 +90,7 @@ class DMXFixtureCreate(BaseModel):
     channel_map: Dict[str, ChannelMapping] = {}
     # UUID validated at model layer; existence validated against entities table at write time
     entity_id: Optional[UUID] = None
+    ofl_fixture_id: Optional[str] = None
     position_x: float = 100.0
     position_y: float = 100.0
     metadata: Dict[str, Any] = {}
@@ -158,12 +159,94 @@ def _row_to_fixture(row) -> dict:
         "fixture_mode": row.fixture_mode,
         "channel_map": row.channel_map if row.channel_map else {},
         "entity_id": str(row.entity_id) if row.entity_id else None,
+        "ofl_fixture_id": str(row.ofl_fixture_id) if row.ofl_fixture_id else None,
         "position_x": row.position_x,
         "position_y": row.position_y,
         "metadata": row.metadata if row.metadata else {},
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
+
+
+def _sanitize_var_name(raw: str) -> str:
+    """Sanitize a channel name into a valid variable key."""
+    import re
+    name = raw.lower()
+    name = re.sub(r'[^a-z0-9]+', '_', name)
+    name = name.strip('_')
+    return name
+
+
+async def _build_channel_map_from_ofl(
+    ofl_fixture_id: str,
+    fixture_mode: Optional[str],
+    db: AsyncSession,
+) -> Optional[Dict[str, Any]]:
+    """
+    Look up OFL fixture modes from the database and build a channel_map dict
+    from the matching mode (or first mode if fixture_mode is not specified).
+
+    Returns None if the OFL fixture is not found or has no modes.
+    """
+    result = await db.execute(
+        text("SELECT modes FROM ofl_fixtures WHERE id = :id"),
+        {"id": ofl_fixture_id},
+    )
+    row = result.fetchone()
+    if not row or not row.modes:
+        return None
+
+    modes_data = row.modes
+    if isinstance(modes_data, str):
+        try:
+            modes_data = json.loads(modes_data)
+        except (json.JSONDecodeError, TypeError):
+            return None
+
+    if not isinstance(modes_data, list) or len(modes_data) == 0:
+        return None
+
+    # Find the matching mode
+    selected_mode = None
+    if fixture_mode:
+        for m in modes_data:
+            if m.get("shortName") == fixture_mode or m.get("name") == fixture_mode:
+                selected_mode = m
+                break
+
+    if selected_mode is None:
+        selected_mode = modes_data[0]
+
+    channels = selected_mode.get("channels", [])
+    channel_map: Dict[str, Any] = {}
+    for i, ch in enumerate(channels):
+        if isinstance(ch, str):
+            ch_name = ch
+            ch_type = "range"
+            ch_default = 0
+        else:
+            ch_name = ch.get("name", f"channel_{i + 1}")
+            ch_type = ch.get("type", "range")
+            ch_default = ch.get("defaultValue", 0) or 0
+
+        var_name = _sanitize_var_name(ch_name)
+        if not var_name:
+            var_name = f"channel_{i + 1}"
+
+        # Avoid duplicate keys by appending index if needed
+        if var_name in channel_map:
+            var_name = f"{var_name}_{i + 1}"
+
+        channel_map[var_name] = {
+            "offset": i + 1,
+            "type": "range",
+            "label": ch_name,
+            "dmx_min": 0,
+            "dmx_max": 255,
+            "enum_dmx_values": None,
+        }
+
+    return channel_map if channel_map else None
 
 
 async def _require_entity(entity_id: UUID, db: AsyncSession) -> None:
@@ -349,6 +432,8 @@ async def create_fixture(data: DMXFixtureCreate, db: AsyncSession = Depends(get_
     Create a new DMX fixture and place it on the canvas.
 
     If entity_id is provided, validates the entity exists before linking.
+    If ofl_fixture_id is provided, the channel_map is auto-populated from the
+    OFL fixture's mode channels (matching fixture_mode, or first mode if unset).
     On delete of the linked entity, entity_id is automatically set to NULL
     (handled by the database FK: ON DELETE SET NULL).
     """
@@ -357,19 +442,26 @@ async def create_fixture(data: DMXFixtureCreate, db: AsyncSession = Depends(get_
     if data.entity_id:
         await _require_entity(data.entity_id, db)
 
+    # Build channel_map from OFL if ofl_fixture_id is provided and no manual map given
+    resolved_channel_map = {k: v.model_dump() for k, v in data.channel_map.items()}
+    if data.ofl_fixture_id and not resolved_channel_map:
+        ofl_map = await _build_channel_map_from_ofl(data.ofl_fixture_id, data.fixture_mode, db)
+        if ofl_map:
+            resolved_channel_map = ofl_map
+
     fixture_id = str(uuid4())
-    channel_map_json = json.dumps({k: v.model_dump() for k, v in data.channel_map.items()})
+    channel_map_json = json.dumps(resolved_channel_map)
     metadata_json = json.dumps(data.metadata)
 
     await db.execute(text("""
         INSERT INTO dmx_fixtures (
             id, name, label, manufacturer, model, node_id, universe,
             start_channel, channel_count, fixture_mode, channel_map,
-            entity_id, position_x, position_y, metadata
+            entity_id, ofl_fixture_id, position_x, position_y, metadata
         ) VALUES (
             :id, :name, :label, :manufacturer, :model, :node_id, :universe,
             :start_channel, :channel_count, :fixture_mode, CAST(:channel_map AS jsonb),
-            :entity_id, :position_x, :position_y, CAST(:metadata AS jsonb)
+            :entity_id, :ofl_fixture_id, :position_x, :position_y, CAST(:metadata AS jsonb)
         )
     """), {
         "id": fixture_id,
@@ -384,6 +476,7 @@ async def create_fixture(data: DMXFixtureCreate, db: AsyncSession = Depends(get_
         "fixture_mode": data.fixture_mode,
         "channel_map": channel_map_json,
         "entity_id": str(data.entity_id) if data.entity_id else None,
+        "ofl_fixture_id": data.ofl_fixture_id if data.ofl_fixture_id else None,
         "position_x": data.position_x,
         "position_y": data.position_y,
         "metadata": metadata_json,

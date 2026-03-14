@@ -1,0 +1,3 @@
+[submodule "vendor/ofl"]
+	path = vendor/ofl
+	url = https://github.com/OpenLightingProject/open-fixture-library.git

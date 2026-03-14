@@ -38,6 +38,7 @@ class UniverseConfig(BaseModel):
     artnet_universe: int
     port_label: str = ""
     description: str = ""
+    color: Optional[str] = None
 
 
 class DMXNodeCreate(BaseModel):

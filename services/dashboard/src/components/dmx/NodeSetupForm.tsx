@@ -141,33 +141,31 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
           {universes.map((u) => (
             <div key={u.id} className="bg-slate-800/50 rounded-lg px-3 py-2 space-y-2">
               {/* Row 1: universe number, artnet universe, label, description, delete */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <span className="text-[10px] text-slate-600 font-mono w-4 shrink-0">{u.id}</span>
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-[10px] text-slate-500">Art-Net U#</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={32767}
-                    value={u.artnet_universe}
-                    onChange={(e) => {
-                      const v = parseInt(e.target.value, 10)
-                      updateUniverse(u.id, 'artnet_universe', isNaN(v) ? 0 : v)
-                    }}
-                    className="w-14 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
-                  />
-                </div>
+                <input
+                  type="number"
+                  min={0}
+                  max={32767}
+                  title="Art-Net universe number"
+                  value={u.artnet_universe}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10)
+                    updateUniverse(u.id, 'artnet_universe', isNaN(v) ? 0 : v)
+                  }}
+                  className="w-12 shrink-0 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                />
                 <input
                   value={u.port_label}
                   onChange={(e) => updateUniverse(u.id, 'port_label', e.target.value)}
                   placeholder="Port label"
-                  className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                  className="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
                 />
                 <input
                   value={u.description}
                   onChange={(e) => updateUniverse(u.id, 'description', e.target.value)}
                   placeholder="Description"
-                  className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                  className="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
                 />
                 {universes.length > 1 && (
                   <button

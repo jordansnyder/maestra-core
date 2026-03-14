@@ -8,8 +8,8 @@ import { NodeSetupForm } from '@/components/dmx/NodeSetupForm'
 import { AddFixtureModal } from '@/components/dmx/AddFixtureModal'
 import { DMXFixture, DMXNode, DMXNodeCreate, OFLSyncStatus } from '@/lib/types'
 import { DMXChannelModal } from '@/components/dmx/DMXChannelModal'
-import { Zap, Plus, Network, Settings, X, Trash2 } from '@/components/icons'
-import { oflApi, entitiesApi, devicesApi } from '@/lib/api'
+import { Zap, Plus, Network, Settings, X, Trash2, Pause, Play } from '@/components/icons'
+import { oflApi, entitiesApi, devicesApi, dmxApi } from '@/lib/api'
 import { DeleteFixtureDialog } from '@/components/dmx/DeleteFixtureDialog'
 
 function formatRelativeTime(iso: string): string {
@@ -56,6 +56,8 @@ export default function DMXPage() {
   const [deletingFixture, setDeletingFixture] = useState<DMXFixture | null>(null)
   const [confirmDeleteNode, setConfirmDeleteNode] = useState(false)
   const [deleteNodeDevice, setDeleteNodeDevice] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
+  const [pauseLoading, setPauseLoading] = useState(false)
 
   // Multi-select group: fixtures with same OFL profile + universe as primary selection
   const primaryId = selectedIds.size > 0 ? [...selectedIds][0] : null
@@ -108,11 +110,24 @@ export default function DMXPage() {
 
   useEffect(() => {
     oflApi.getSyncStatus().then(setSyncStatus).catch(() => {})
+    dmxApi.getPauseState().then((r) => setIsPaused(r.paused)).catch(() => {})
   }, [])
 
   const setScale = (diameter: number) => {
     setNodeDiameter(diameter)
     localStorage.setItem('dmx-node-scale', String(diameter))
+  }
+
+  const handleTogglePause = async () => {
+    setPauseLoading(true)
+    try {
+      const result = isPaused ? await dmxApi.resumeOutput() : await dmxApi.pauseOutput()
+      setIsPaused(result.paused)
+    } catch {
+      // silently ignore — state remains unchanged
+    } finally {
+      setPauseLoading(false)
+    }
   }
 
   const handleCopy = (fixture: DMXFixture) => {
@@ -214,6 +229,31 @@ export default function DMXPage() {
           {actionError && (
             <span className="text-xs text-red-400">{actionError}</span>
           )}
+
+          {/* DMX Pause / Resume */}
+          <div className="flex items-center rounded-lg overflow-hidden border border-slate-700">
+            <button
+              onClick={handleTogglePause}
+              disabled={pauseLoading}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                isPaused
+                  ? 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30'
+                  : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {isPaused
+                ? <><Play className="w-3 h-3" /> Resume Listening</>
+                : <><Pause className="w-3 h-3" /> Pause</>
+              }
+            </button>
+          </div>
+          {isPaused && (
+            <span className="flex items-center gap-1.5 text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1.5 rounded-lg">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+              External signals paused
+            </span>
+          )}
+
           {/* Node scale picker */}
           <div className="flex items-center rounded-lg overflow-hidden border border-slate-700">
             {NODE_SCALES.map((scale) => (

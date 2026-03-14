@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useDMX } from '@/hooks/useDMX'
 import { DMXCanvas } from '@/components/dmx/DMXCanvas'
 import { DMXSidebar } from '@/components/dmx/DMXSidebar'
 import { NodeSetupForm } from '@/components/dmx/NodeSetupForm'
 import { AddFixtureModal } from '@/components/dmx/AddFixtureModal'
 import { DMXFixture, DMXNode, DMXNodeCreate, OFLSyncStatus } from '@/lib/types'
+import { DMXChannelModal } from '@/components/dmx/DMXChannelModal'
 import { Zap, Plus, Network, Settings, X, Trash2 } from '@/components/icons'
 import { oflApi, entitiesApi, devicesApi } from '@/lib/api'
 import { DeleteFixtureDialog } from '@/components/dmx/DeleteFixtureDialog'
@@ -42,7 +43,8 @@ function getInitialScale(): number {
 
 export default function DMXPage() {
   const { nodes, fixtures, loading, error, createNode, updateNode, deleteNode, createFixture, updateFixture, deleteFixture, bulkUpdatePositions } = useDMX()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [showDMXAdjust, setShowDMXAdjust] = useState(false)
   const [showAddNode, setShowAddNode] = useState(false)
   const [showAddFixture, setShowAddFixture] = useState(false)
   const [editingFixture, setEditingFixture] = useState<DMXFixture | null>(null)
@@ -54,6 +56,55 @@ export default function DMXPage() {
   const [deletingFixture, setDeletingFixture] = useState<DMXFixture | null>(null)
   const [confirmDeleteNode, setConfirmDeleteNode] = useState(false)
   const [deleteNodeDevice, setDeleteNodeDevice] = useState(false)
+
+  // Multi-select group: fixtures with same OFL profile + universe as primary selection
+  const primaryId = selectedIds.size > 0 ? [...selectedIds][0] : null
+  const multiSelectGroup = useMemo(() => {
+    if (!primaryId) return new Set<string>()
+    const primary = fixtures.find((f) => f.id === primaryId)
+    if (!primary?.ofl_fixture_id) return new Set<string>()
+    return new Set(
+      fixtures
+        .filter((f) => f.ofl_fixture_id === primary.ofl_fixture_id && f.universe === primary.universe)
+        .map((f) => f.id)
+    )
+  }, [primaryId, fixtures])
+
+  const handleSelect = useCallback((id: string | null, shiftKey = false) => {
+    if (!id) { setSelectedIds(new Set()); return }
+    const clicked = fixtures.find((f) => f.id === id)
+    if (!clicked) return
+
+    if (!shiftKey) {
+      // Plain click → select only this fixture
+      setSelectedIds(new Set([id]))
+      return
+    }
+
+    // Shift-click → add/remove from multi-select if same OFL profile + universe
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return new Set([id])
+      const primaryFixture = fixtures.find((f) => f.id === [...prev][0])
+      if (
+        primaryFixture?.ofl_fixture_id &&
+        clicked.ofl_fixture_id === primaryFixture.ofl_fixture_id &&
+        clicked.universe === primaryFixture.universe
+      ) {
+        const next = new Set(prev)
+        if (next.has(id) && next.size > 1) {
+          next.delete(id)
+        } else {
+          next.add(id)
+        }
+        return next
+      }
+      // Different group → select only this one
+      return new Set([id])
+    })
+  }, [fixtures])
+
+  // Selected fixture objects (for the DMX adjust modal)
+  const selectedFixtures = fixtures.filter((f) => selectedIds.has(f.id))
 
   useEffect(() => {
     oflApi.getSyncStatus().then(setSyncStatus).catch(() => {})
@@ -85,7 +136,9 @@ export default function DMXPage() {
       if (deleteEntity && deletingFixture.entity_id) {
         await entitiesApi.delete(deletingFixture.entity_id)
       }
-      if (selectedId === deletingFixture.id) setSelectedId(null)
+      if (selectedIds.has(deletingFixture.id)) {
+        setSelectedIds((prev) => { const next = new Set(prev); next.delete(deletingFixture.id); return next })
+      }
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Delete failed')
     } finally {
@@ -112,7 +165,8 @@ export default function DMXPage() {
   // ── First-run gate: no Art-Net nodes configured ────────────────────────────
   if (nodes.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-slate-950 gap-8 p-8">
+      <div className="h-full flex flex-col bg-slate-950 overflow-hidden">
+      <div className="flex-1 flex flex-col items-center justify-center gap-8 p-8">
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="w-16 h-16 rounded-full bg-amber-900/30 border border-amber-800/50 flex items-center justify-center">
             <Zap className="w-7 h-7 text-amber-400" />
@@ -135,6 +189,7 @@ export default function DMXPage() {
           />
         </div>
       </div>
+      </div>
     )
   }
 
@@ -151,7 +206,7 @@ export default function DMXPage() {
           </span>
           {syncStatus && (
             <span className="text-xs text-slate-600 ml-2 pl-2 border-l border-slate-800">
-              OFL {syncStatus.status === 'success' ? '✓' : '⚠'} {formatRelativeTime(syncStatus.ran_at)}
+              OFL synced {formatRelativeTime(syncStatus.ran_at)}
             </span>
           )}
         </div>
@@ -199,11 +254,13 @@ export default function DMXPage() {
             fixtures={fixtures}
             nodes={nodes}
             nodeSize={nodeDiameter}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
+            selectedIds={selectedIds}
+            multiSelectGroup={multiSelectGroup}
+            onSelect={handleSelect}
             onEdit={(fixture) => setEditingFixture(fixture)}
             onCopy={handleCopy}
             onDelete={handleDeleteRequest}
+            onAdjustDMX={() => setShowDMXAdjust(true)}
             onPositionsChange={async (positions) => {
               try {
                 await bulkUpdatePositions(positions)
@@ -216,11 +273,13 @@ export default function DMXPage() {
         <DMXSidebar
           nodes={nodes}
           fixtures={fixtures}
-          selectedFixtureId={selectedId}
-          onSelect={setSelectedId}
+          selectedIds={selectedIds}
+          multiSelectGroup={multiSelectGroup}
+          onSelect={handleSelect}
           onEdit={(fixture) => setEditingFixture(fixture)}
           onDelete={handleDeleteRequest}
           onEditNode={(node) => { setEditingNode(node); setConfirmDeleteNode(false) }}
+          onAdjustDMX={() => setShowDMXAdjust(true)}
         />
       </div>
 
@@ -377,6 +436,7 @@ export default function DMXPage() {
       {showAddFixture && (
         <AddFixtureModal
           nodes={nodes}
+          fixtures={fixtures}
           defaultPosition={{ x: 300 + fixtures.length * 30, y: 200 + fixtures.length * 20 }}
           onSubmit={createFixture}
           onClose={() => setShowAddFixture(false)}
@@ -387,6 +447,7 @@ export default function DMXPage() {
       {editingFixture && (
         <AddFixtureModal
           nodes={nodes}
+          fixtures={fixtures}
           fixture={editingFixture}
           onSubmit={async (data) => {
             await updateFixture(editingFixture.id, data)
@@ -400,6 +461,7 @@ export default function DMXPage() {
       {copyingFixture && (
         <AddFixtureModal
           nodes={nodes}
+          fixtures={fixtures}
           copyOf={copyingFixture.fixture}
           initialName={copyingFixture.name}
           onSubmit={async (data) => {
@@ -416,6 +478,14 @@ export default function DMXPage() {
           fixture={deletingFixture}
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeletingFixture(null)}
+        />
+      )}
+
+      {/* DMX Channel Adjust Modal */}
+      {showDMXAdjust && selectedFixtures.length > 0 && (
+        <DMXChannelModal
+          fixtures={selectedFixtures}
+          onClose={() => setShowDMXAdjust(false)}
         />
       )}
     </div>

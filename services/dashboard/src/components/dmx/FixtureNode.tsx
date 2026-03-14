@@ -8,11 +8,12 @@ interface FixtureNodeProps {
   diameter: number
   universeColor: string
   selected: boolean
+  multiSelectable: boolean
   dragging: boolean
   isActive: boolean
   onMouseDown: (e: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent) => void
-  onClick: () => void
+  onClick: (shiftKey: boolean) => void
 }
 
 export function FixtureNode({
@@ -20,6 +21,7 @@ export function FixtureNode({
   diameter,
   universeColor,
   selected,
+  multiSelectable,
   dragging,
   isActive,
   onMouseDown,
@@ -38,7 +40,7 @@ export function FixtureNode({
     <div
       onMouseDown={onMouseDown}
       onContextMenu={onContextMenu}
-      onClick={(e) => { e.stopPropagation(); onClick() }}
+      onClick={(e) => { e.stopPropagation(); onClick(e.shiftKey) }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className="absolute flex items-center select-none"
@@ -49,6 +51,21 @@ export function FixtureNode({
         zIndex: dragging ? 100 : selected ? 50 : 10,
       }}
     >
+      {/* Multi-selectable dashed ring — rendered behind the circle */}
+      {multiSelectable && !selected && (
+        <div
+          className="absolute rounded-full pointer-events-none"
+          style={{
+            width: diameter + 8,
+            height: diameter + 8,
+            top: -4,
+            left: -4,
+            border: `1.5px dashed ${color}88`,
+            borderRadius: '50%',
+          }}
+        />
+      )}
+
       {/* Circle */}
       <div
         className="relative rounded-full shrink-0"
@@ -57,11 +74,15 @@ export function FixtureNode({
           height: diameter,
           boxShadow: selected
             ? `0 0 0 2px ${color}, 0 0 12px ${color}88`
+            : multiSelectable
+            ? `0 0 0 1.5px ${color}66`
             : hovered
             ? `0 0 0 1.5px ${color}cc`
             : `0 0 0 1px ${color}55`,
           background: selected
             ? `radial-gradient(circle at 35% 35%, ${color}55, #1e293b)`
+            : multiSelectable
+            ? `radial-gradient(circle at 35% 35%, ${color}2a, #131d2e)`
             : hovered
             ? `radial-gradient(circle at 35% 35%, ${color}33, #131d2e)`
             : `radial-gradient(circle at 35% 35%, ${color}22, #0f172a)`,
@@ -112,8 +133,24 @@ export function FixtureNode({
         >
           {displayName}
         </div>
+        {fixture.ofl_manufacturer && (
+          <div
+            className="text-[8px] leading-none mt-[2px] truncate"
+            style={{ color: selected ? '#94a3b8' : '#475569', maxWidth: 80 }}
+          >
+            {fixture.ofl_manufacturer}
+          </div>
+        )}
+        {fixture.ofl_model && (
+          <div
+            className="text-[8px] leading-none mt-[1px] truncate"
+            style={{ color: selected ? '#94a3b8' : '#475569', maxWidth: 80 }}
+          >
+            {fixture.ofl_model}
+          </div>
+        )}
         <div
-          className="text-[8px] font-mono leading-none mt-[3px]"
+          className="text-[8px] font-mono leading-none mt-[2px]"
           style={{ color: `${color}bb` }}
         >
           U{fixture.universe}·{fixture.start_channel}

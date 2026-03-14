@@ -32,9 +32,11 @@ dependencies = [
 [project.optional-dependencies]
 nats = ["nats-py>=2.6.0"]
 mqtt = ["paho-mqtt>=2.0.0"]
+discovery = ["zeroconf>=0.131.0"]
 all = [
     "nats-py>=2.6.0",
     "paho-mqtt>=2.0.0",
+    "zeroconf>=0.131.0",
 ]
 dev = [
     "pytest>=7.0.0",

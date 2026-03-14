@@ -8,6 +8,7 @@ import {
   RouteData, RouteCreate, RoutePreset, RoutePresetCreate, RoutePresetUpdate,
   RoutePresetDetail, RoutingState,
   StreamInfo, StreamSession, StreamTypeInfo, StreamRegistryState,
+  BlockedDevice, DeviceProvision, DeviceApproval,
 } from './types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
@@ -241,6 +242,43 @@ export const devicesApi = {
     }),
 }
 
+// Discovery API
+export const discoveryApi = {
+  listPending: () => fetchApi<Device[]>('/devices/pending'),
+
+  approve: (id: string, data?: DeviceApproval) =>
+    fetchApi<Device>(`/devices/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    }),
+
+  reject: (id: string) =>
+    fetchApi<{ status: string }>(`/devices/${id}/reject`, {
+      method: 'POST',
+    }),
+
+  block: (id: string, reason?: string) =>
+    fetchApi<{ status: string }>(`/devices/${id}/block`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
+  listBlocked: () => fetchApi<BlockedDevice[]>('/devices/blocked'),
+
+  unblock: (hardwareId: string) =>
+    fetchApi<{ status: string }>(`/devices/blocked/${hardwareId}`, {
+      method: 'DELETE',
+    }),
+
+  getProvision: (id: string) => fetchApi<DeviceProvision>(`/devices/${id}/provision`),
+
+  updateProvision: (id: string, data: Partial<DeviceApproval>) =>
+    fetchApi<DeviceProvision>(`/devices/${id}/provision`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+}
+
 // Routing API
 export const routingApi = {
   // Full state (single fetch for frontend)
@@ -372,6 +410,14 @@ export const api = {
   createEntity: entitiesApi.create,
   updateEntity: entitiesApi.update,
   deleteEntity: entitiesApi.delete,
+
+  // Discovery
+  listPendingDevices: discoveryApi.listPending,
+  approveDevice: discoveryApi.approve,
+  rejectDevice: discoveryApi.reject,
+  blockDevice: discoveryApi.block,
+  listBlockedDevices: discoveryApi.listBlocked,
+  unblockDevice: discoveryApi.unblock,
 
   // Health
   health: healthApi.check,

@@ -110,6 +110,36 @@ class DeviceDB(Base):
 # Routing Models
 # =============================================================================
 
+class BlockedDeviceDB(Base):
+    """Blocked device hardware IDs - rejected on discovery"""
+    __tablename__ = "blocked_devices"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    hardware_id = Column(String(255), unique=True, nullable=False)
+    reason = Column(Text)
+    blocked_at = Column(DateTime, default=datetime.utcnow)
+
+
+class DeviceProvisionDB(Base):
+    """Device provisioning config - pushed to devices after approval"""
+    __tablename__ = "device_provisions"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    device_id = Column(PGUUID(as_uuid=True), ForeignKey("devices.id", ondelete="CASCADE"), unique=True, nullable=False)
+    entity_id = Column(PGUUID(as_uuid=True), ForeignKey("entities.id", ondelete="SET NULL"))
+    env_vars = Column(JSONB, default={})
+    connection_config = Column(JSONB, default={})
+    provision_status = Column(String(50), default='pending')
+    approved_at = Column(DateTime)
+    provisioned_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# =============================================================================
+# Routing Models
+# =============================================================================
+
 class RoutingDeviceDB(Base):
     """Routing device - signal chain equipment for visual patching"""
     __tablename__ = "routing_devices"

@@ -41,4 +41,16 @@ __all__ = [
     "StreamSessionData",
     "StreamSessionHistoryData",
     "StreamRegistryStateData",
+    # Discovery (lazy imports - require zeroconf)
+    "discover_maestra",
+    "advertise_device",
+    "wait_for_provisioning",
 ]
+
+
+def __getattr__(name):
+    """Lazy import discovery functions to avoid requiring zeroconf"""
+    if name in ("discover_maestra", "advertise_device", "wait_for_provisioning"):
+        from . import discovery
+        return getattr(discovery, name)
+    raise AttributeError(f"module 'maestra' has no attribute {name!r}")

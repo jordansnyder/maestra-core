@@ -256,6 +256,7 @@ class DeviceStatus:
     OFFLINE = "offline"
     ERROR = "error"
     MAINTENANCE = "maintenance"
+    PENDING = "pending"
 
 
 class Device(BaseModel):
@@ -311,6 +312,57 @@ class DeviceEvent(BaseModel):
     severity: str = "info"
     message: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
+
+
+# =============================================================================
+# Device Discovery & Provisioning Models
+# =============================================================================
+
+class DeviceDiscover(BaseModel):
+    """Called by discovery service when a new device is found via mDNS"""
+    name: str
+    device_type: str
+    hardware_id: str
+    firmware_version: Optional[str] = None
+    ip_address: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class DeviceApproval(BaseModel):
+    """Admin approves a pending device with optional config"""
+    name: Optional[str] = None
+    entity_id: Optional[UUID] = None
+    env_vars: Optional[Dict[str, Any]] = None
+    device_type: Optional[str] = None
+
+
+class DeviceProvisionResponse(BaseModel):
+    """Provisioning config returned to device after approval"""
+    device_id: UUID
+    provision_status: str
+    api_url: str
+    nats_url: str
+    mqtt_broker: str
+    mqtt_port: int
+    ws_url: Optional[str] = None
+    entity_id: Optional[UUID] = None
+    env_vars: Dict[str, Any] = Field(default_factory=dict)
+
+
+class BlockedDeviceResponse(BaseModel):
+    """Blocked device response"""
+    id: UUID
+    hardware_id: str
+    reason: Optional[str] = None
+    blocked_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class BlockDeviceRequest(BaseModel):
+    """Request to block a device"""
+    reason: Optional[str] = None
 
 
 # =============================================================================

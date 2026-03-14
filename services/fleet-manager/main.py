@@ -29,6 +29,7 @@ from stream_preview import router as stream_preview_router
 from analytics_router import router as analytics_router
 from cloud_router import router as cloud_router
 from cloud_manager import cloud_manager
+from discovery_router import router as discovery_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -53,6 +54,7 @@ app.include_router(stream_router)
 app.include_router(stream_preview_router)
 app.include_router(analytics_router)
 app.include_router(cloud_router)
+app.include_router(discovery_router)
 
 
 # =============================================================================

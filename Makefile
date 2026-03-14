@@ -22,6 +22,16 @@ init: ## Initialize environment (copy .env.example to .env)
 		echo "⚠️  .env already exists. Skipping..."; \
 	fi
 
+update-ip: ## Detect current LAN IP and update HOST_IP in .env, then restart dashboard
+	@NEW_IP=$$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null); \
+	if [ -z "$$NEW_IP" ]; then \
+		echo "❌ Could not detect LAN IP. Set HOST_IP manually in .env"; exit 1; \
+	fi; \
+	sed -i '' "s/^HOST_IP=.*/HOST_IP=$$NEW_IP/" .env; \
+	echo "✅ HOST_IP updated to $$NEW_IP"; \
+	$(DOCKER_COMPOSE) up -d --force-recreate dashboard; \
+	echo "✅ Dashboard restarted"
+
 up: ## Start all services
 	$(DOCKER_COMPOSE) up -d
 	@echo ""
@@ -273,4 +283,4 @@ logs-prod: ## View production environment logs
 .PHONY: migrate migrate-status migrate-dry-run
 .PHONY: backup-db restore-db test-mqtt test-mqtt-state watch stats update
 .PHONY: deploy-test deploy-prod stop-test stop-prod logs-test logs-prod
-.PHONY: up-dmx dev-dmx logs-dmx build-dmx test-dmx sync-ofl ofl-status
+.PHONY: up-dmx dev-dmx logs-dmx build-dmx test-dmx sync-ofl ofl-status update-ip

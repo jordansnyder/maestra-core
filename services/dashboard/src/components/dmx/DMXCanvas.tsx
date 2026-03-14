@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { DMXFixture, DMXNode, FixturePositionUpdate } from '@/lib/types'
 import { UNIVERSE_PALETTE } from '@/lib/dmx-constants'
+import { useDMXActivity } from '@/hooks/useDMXActivity'
 import { FixtureNode } from './FixtureNode'
 import { ContextMenu } from './ContextMenu'
 
@@ -41,6 +42,7 @@ export function DMXCanvas({
   onDelete,
   onPositionsChange,
 }: DMXCanvasProps) {
+  const activeEntityIds = useDMXActivity()
   const containerRef = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState<string | null>(null)
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({})
@@ -222,8 +224,10 @@ export function DMXCanvas({
             key={fixture.id}
             fixture={displayFixture}
             diameter={nodeSize}
+            universeColor={getUniverseColor(nodes, fixture)}
             selected={selectedId === fixture.id}
             dragging={dragging === fixture.id}
+            isActive={!!fixture.entity_id && activeEntityIds.has(fixture.entity_id)}
             onMouseDown={(e) => handleMouseDown(e, fixture.id)}
             onContextMenu={(e) => handleContextMenu(e, fixture.id)}
             onClick={() => onSelect(fixture.id)}

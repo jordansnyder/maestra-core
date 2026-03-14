@@ -6,36 +6,28 @@ import { DMXFixture } from '@/lib/types'
 interface FixtureNodeProps {
   fixture: DMXFixture
   diameter: number
+  universeColor: string
   selected: boolean
   dragging: boolean
+  isActive: boolean
   onMouseDown: (e: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent) => void
   onClick: () => void
 }
 
-const UNIVERSE_COLORS = [
-  '#60a5fa', // blue-400
-  '#a78bfa', // violet-400
-  '#34d399', // emerald-400
-  '#fb923c', // orange-400
-  '#f472b6', // pink-400
-  '#38bdf8', // sky-400
-  '#4ade80', // green-400
-  '#fbbf24', // amber-400
-]
-
 export function FixtureNode({
   fixture,
   diameter,
+  universeColor,
   selected,
   dragging,
+  isActive,
   onMouseDown,
   onContextMenu,
   onClick,
 }: FixtureNodeProps) {
   const [hovered, setHovered] = useState(false)
-  const universeIndex = fixture.universe % UNIVERSE_COLORS.length
-  const color = UNIVERSE_COLORS[universeIndex]
+  const color = universeColor
   const displayName = fixture.label || fixture.name
 
   const radius = Math.round(diameter / 2)
@@ -76,19 +68,36 @@ export function FixtureNode({
           transition: 'box-shadow 0.1s, background 0.1s',
         }}
       >
-        {/* Entity link dot — bottom-right corner */}
+        {/* DMX activity ring — bottom-right corner */}
         <div
-          title={fixture.entity_id ? 'Linked to entity' : 'No entity linked'}
+          title={isActive ? 'DMX data flowing' : 'No DMX activity'}
           className="absolute rounded-full"
           style={{
             width: dotSize,
             height: dotSize,
             bottom: dotOffset,
             right: dotOffset,
-            background: fixture.entity_id ? '#22c55e' : '#ef4444',
-            border: '1.5px solid #0d1117',
+            background: isActive ? '#15803d' : '#0d1117',
+            border: isActive ? '1.5px solid #4ade80' : '1.5px solid #334155',
+            boxShadow: isActive ? '0 0 6px #4ade80cc' : 'none',
+            transition: 'background 0.15s, border-color 0.15s, box-shadow 0.15s',
           }}
         />
+
+        {/* Universe color inner circle */}
+        <div
+          className="absolute rounded-full"
+          style={{
+            width: Math.round(diameter * 0.38),
+            height: Math.round(diameter * 0.38),
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: `${color}55`,
+            boxShadow: `0 0 0 1px ${color}33`,
+          }}
+        />
+
       </div>
 
       {/* Info — to the right so nodes only consume their circle height vertically */}

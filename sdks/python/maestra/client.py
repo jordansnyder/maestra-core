@@ -260,6 +260,26 @@ class MaestraClient:
         self._subscribed_entities: Dict[str, Entity] = {}
         self._client_id = self.config.client_id or f"maestra-py-{uuid.uuid4().hex[:8]}"
 
+    @classmethod
+    async def discover(cls, timeout: float = 5.0) -> "MaestraClient":
+        """
+        Discover a Maestra server on the local network via mDNS and create a connected client.
+
+        Usage:
+            client = await MaestraClient.discover()
+
+        Args:
+            timeout: How long to wait for mDNS discovery (seconds)
+
+        Returns:
+            A connected MaestraClient instance
+        """
+        from .discovery import discover_maestra
+        config = await discover_maestra(timeout=timeout)
+        client = cls(config)
+        await client.connect()
+        return client
+
     async def connect(self) -> None:
         """Connect to Maestra services"""
         # HTTP is always available

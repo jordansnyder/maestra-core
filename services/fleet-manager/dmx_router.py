@@ -700,54 +700,104 @@ async def resume_dmx_output():
 @router.post("/clear")
 async def clear_dmx_output(db: AsyncSession = Depends(get_db)):
     """
-    Send all-zeros to every Art-Net universe that has at least one fixture configured.
-    Uses the raw universe bypass (maestra.to_artnet.universe.*) which is always active.
+    Zero all DMX output:
+    1. Update entity state to all-zeros in the database for every linked fixture,
+       then broadcast via state_manager so the DMX gateway re-sends via entity path.
+    2. Also send raw Art-Net all-zeros for every configured universe as immediate backup.
     """
-    if not state_manager.nc:
-        raise HTTPException(status_code=503, detail="NATS not connected")
-
-    # Collect all (node_id, dmx_universe) pairs from configured fixtures
-    rows = await db.execute(text("""
-        SELECT DISTINCT f.node_id, f.universe
-        FROM dmx_fixtures f
-    """))
-    fixture_universes = rows.fetchall()
-
-    if not fixture_universes:
-        return {"cleared": 0}
-
-    # For each node, load its universe config so we can resolve the Art-Net universe number
-    node_ids = list({r.node_id for r in fixture_universes})
-    node_rows = await db.execute(text("""
-        SELECT id, universes FROM dmx_nodes WHERE id = ANY(:ids)
-    """), {"ids": node_ids})
-
-    # Build map: node_id -> {dmx_universe -> artnet_universe}
-    node_universe_map: dict[str, dict[int, int]] = {}
-    for nr in node_rows.fetchall():
-        universes_cfg = nr.universes or []
-        # universes_cfg is a list of dicts with keys: id (dmx), artnet_universe
-        mapping = {}
-        for uc in universes_cfg:
-            if isinstance(uc, dict):
-                mapping[uc.get("id", 0)] = uc.get("artnet_universe", 0)
-        node_universe_map[nr.id] = mapping
-
-    # Collect unique Art-Net universe numbers to zero out
-    artnet_universes: set[int] = set()
-    for row in fixture_universes:
-        node_map = node_universe_map.get(row.node_id, {})
-        artnet_u = node_map.get(row.universe, row.universe)  # fallback: dmx == artnet
-        artnet_universes.add(artnet_u)
-
     import json as _json
-    zeros = [0] * 512
-    payload = _json.dumps({"channels": zeros}).encode()
+    from database import EntityDB, EntityTypeDB
+    from sqlalchemy import select as sa_select
+    from datetime import datetime
 
-    cleared = 0
-    for artnet_u in artnet_universes:
-        subject = f"maestra.to_artnet.universe.{artnet_u}"
-        await state_manager.nc.publish(subject, payload)
-        cleared += 1
+    # ── Step 1: zero entity states for all fixtures that have an entity + channel_map ──
 
-    return {"cleared": cleared, "universes": sorted(artnet_universes)}
+    fixture_rows = await db.execute(text("""
+        SELECT f.id, f.entity_id, f.channel_map
+        FROM dmx_fixtures f
+        WHERE f.entity_id IS NOT NULL AND f.channel_map IS NOT NULL
+    """))
+    fixtures_with_entities = fixture_rows.fetchall()
+
+    entity_ids = [r.entity_id for r in fixtures_with_entities if r.entity_id]
+    entities_updated = 0
+
+    if entity_ids:
+        entity_result = await db.execute(
+            sa_select(EntityDB, EntityTypeDB)
+            .join(EntityTypeDB, EntityDB.entity_type_id == EntityTypeDB.id)
+            .where(EntityDB.id.in_(entity_ids))
+        )
+        entity_map = {str(row.EntityDB.id): (row.EntityDB, row.EntityTypeDB) for row in entity_result}
+
+        for fx_row in fixtures_with_entities:
+            if not fx_row.entity_id:
+                continue
+            entry = entity_map.get(str(fx_row.entity_id))
+            if not entry:
+                continue
+            db_entity, entity_type = entry
+
+            channel_map = fx_row.channel_map or {}
+            zero_state: dict[str, int] = {key: 0 for key in channel_map}
+            if not zero_state:
+                continue
+
+            previous_state = db_entity.state or {}
+            db_entity.state = zero_state
+            db_entity.state_updated_at = datetime.utcnow()
+
+            await state_manager.broadcast_state_change(
+                entity_id=db_entity.id,
+                entity_slug=db_entity.slug,
+                entity_type=entity_type.name,
+                entity_path=db_entity.path,
+                previous_state=previous_state,
+                new_state=zero_state,
+                source="dashboard-dmx",
+                entity_metadata=db_entity.entity_metadata,
+            )
+            entities_updated += 1
+
+        await db.commit()
+
+    # ── Step 2: raw Art-Net universe zeros (belt-and-suspenders) ──────────────
+
+    if not state_manager.nc:
+        return {"cleared_entities": entities_updated, "cleared_universes": 0}
+
+    universe_rows = await db.execute(text("""
+        SELECT DISTINCT f.node_id, f.universe FROM dmx_fixtures f
+    """))
+    fixture_universes = universe_rows.fetchall()
+
+    artnet_universes: set[int] = set()
+    if fixture_universes:
+        node_ids = list({r.node_id for r in fixture_universes})
+        node_rows = await db.execute(text("""
+            SELECT id, universes FROM dmx_nodes WHERE id = ANY(:ids)
+        """), {"ids": node_ids})
+
+        node_universe_map: dict[str, dict[int, int]] = {}
+        for nr in node_rows.fetchall():
+            universes_cfg = nr.universes or []
+            mapping = {}
+            for uc in universes_cfg:
+                if isinstance(uc, dict):
+                    mapping[uc.get("id", 0)] = uc.get("artnet_universe", 0)
+            node_universe_map[nr.id] = mapping
+
+        for row in fixture_universes:
+            node_map = node_universe_map.get(row.node_id, {})
+            artnet_u = node_map.get(row.universe, row.universe)
+            artnet_universes.add(artnet_u)
+
+        zeros_payload = _json.dumps({"channels": [0] * 512}).encode()
+        for artnet_u in artnet_universes:
+            await state_manager.nc.publish(f"maestra.to_artnet.universe.{artnet_u}", zeros_payload)
+
+    return {
+        "cleared_entities": entities_updated,
+        "cleared_universes": len(artnet_universes),
+        "universes": sorted(artnet_universes),
+    }

@@ -51,21 +51,6 @@ export function FixtureNode({
         zIndex: dragging ? 100 : selected ? 50 : 10,
       }}
     >
-      {/* Multi-selectable dashed ring — rendered behind the circle */}
-      {multiSelectable && !selected && (
-        <div
-          className="absolute rounded-full pointer-events-none"
-          style={{
-            width: diameter + 8,
-            height: diameter + 8,
-            top: -4,
-            left: -4,
-            border: `1.5px dashed ${color}88`,
-            borderRadius: '50%',
-          }}
-        />
-      )}
-
       {/* Circle */}
       <div
         className="relative rounded-full shrink-0"
@@ -89,6 +74,20 @@ export function FixtureNode({
           transition: 'box-shadow 0.1s, background 0.1s',
         }}
       >
+        {/* Multi-selectable dashed ring — centered on the circle */}
+        {multiSelectable && !selected && (
+          <div
+            className="absolute rounded-full pointer-events-none"
+            style={{
+              width: diameter + 8,
+              height: diameter + 8,
+              top: -4,
+              left: -4,
+              border: `1.5px dashed ${color}88`,
+            }}
+          />
+        )}
+
         {/* DMX activity ring — bottom-right corner */}
         <div
           title={isActive ? 'DMX data flowing' : 'No DMX activity'}

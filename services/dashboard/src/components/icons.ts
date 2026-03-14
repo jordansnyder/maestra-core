@@ -40,6 +40,7 @@ export {
   Activity,
   CheckCircle2,
   PauseCircle,
+  Pause,
   AlertTriangle,
 } from 'lucide-react'
 

@@ -80,8 +80,6 @@ class ChannelMapping(BaseModel):
 class DMXFixtureCreate(BaseModel):
     name: str
     label: Optional[str] = None
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
     node_id: UUID
     universe: int
     start_channel: int = Field(..., ge=1, le=512)
@@ -99,8 +97,6 @@ class DMXFixtureCreate(BaseModel):
 class DMXFixtureUpdate(BaseModel):
     name: Optional[str] = None
     label: Optional[str] = None
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
     node_id: Optional[UUID] = None
     universe: Optional[int] = None
     start_channel: Optional[int] = Field(None, ge=1, le=512)
@@ -151,8 +147,8 @@ def _row_to_fixture(row) -> dict:
         "id": str(row.id),
         "name": row.name,
         "label": row.label,
-        "manufacturer": row.manufacturer,
-        "model": row.model,
+        "ofl_manufacturer": getattr(row, "ofl_manufacturer", None),
+        "ofl_model": getattr(row, "ofl_model", None),
         "node_id": str(row.node_id),
         "universe": row.universe,
         "start_channel": row.start_channel,
@@ -167,6 +163,18 @@ def _row_to_fixture(row) -> dict:
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
+
+
+# SQL fragment for selecting fixtures with OFL manufacturer + model joined in
+_FIXTURE_SELECT = """
+    SELECT
+        f.*,
+        m.name AS ofl_manufacturer,
+        of2.name AS ofl_model
+    FROM dmx_fixtures f
+    LEFT JOIN ofl_fixtures of2 ON of2.id = f.ofl_fixture_id
+    LEFT JOIN ofl_manufacturers m ON m.key = of2.manufacturer_key
+"""
 
 
 def _sanitize_var_name(raw: str) -> str:
@@ -441,7 +449,7 @@ async def list_fixtures(
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     result = await db.execute(
-        text(f"SELECT * FROM dmx_fixtures {where} ORDER BY created_at ASC"),
+        text(f"{_FIXTURE_SELECT} {where} ORDER BY f.created_at ASC"),
         params,
     )
     return [_row_to_fixture(r) for r in result.fetchall()]
@@ -476,11 +484,11 @@ async def create_fixture(data: DMXFixtureCreate, db: AsyncSession = Depends(get_
 
     await db.execute(text("""
         INSERT INTO dmx_fixtures (
-            id, name, label, manufacturer, model, node_id, universe,
+            id, name, label, node_id, universe,
             start_channel, channel_count, fixture_mode, channel_map,
             entity_id, ofl_fixture_id, position_x, position_y, metadata
         ) VALUES (
-            :id, :name, :label, :manufacturer, :model, :node_id, :universe,
+            :id, :name, :label, :node_id, :universe,
             :start_channel, :channel_count, :fixture_mode, CAST(:channel_map AS jsonb),
             :entity_id, :ofl_fixture_id, :position_x, :position_y, CAST(:metadata AS jsonb)
         )
@@ -488,8 +496,6 @@ async def create_fixture(data: DMXFixtureCreate, db: AsyncSession = Depends(get_
         "id": fixture_id,
         "name": data.name,
         "label": data.label,
-        "manufacturer": data.manufacturer,
-        "model": data.model,
         "node_id": str(data.node_id),
         "universe": data.universe,
         "start_channel": data.start_channel,
@@ -505,7 +511,7 @@ async def create_fixture(data: DMXFixtureCreate, db: AsyncSession = Depends(get_
     await db.commit()
 
     result = await db.execute(
-        text("SELECT * FROM dmx_fixtures WHERE id = :id"), {"id": fixture_id}
+        text(f"{_FIXTURE_SELECT} WHERE f.id = :id"), {"id": fixture_id}
     )
     return _row_to_fixture(result.fetchone())
 
@@ -514,7 +520,7 @@ async def create_fixture(data: DMXFixtureCreate, db: AsyncSession = Depends(get_
 async def get_fixture(fixture_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get a single DMX fixture by ID."""
     result = await db.execute(
-        text("SELECT * FROM dmx_fixtures WHERE id = :id"), {"id": str(fixture_id)}
+        text(f"{_FIXTURE_SELECT} WHERE f.id = :id"), {"id": str(fixture_id)}
     )
     row = result.fetchone()
     if not row:
@@ -543,7 +549,7 @@ async def update_fixture(
     updates = data.model_dump(exclude_unset=True)
     if not updates:
         result = await db.execute(
-            text("SELECT * FROM dmx_fixtures WHERE id = :id"), {"id": str(fixture_id)}
+            text(f"{_FIXTURE_SELECT} WHERE f.id = :id"), {"id": str(fixture_id)}
         )
         return _row_to_fixture(result.fetchone())
 
@@ -581,7 +587,7 @@ async def update_fixture(
     await db.commit()
 
     result = await db.execute(
-        text("SELECT * FROM dmx_fixtures WHERE id = :id"), {"id": str(fixture_id)}
+        text(f"{_FIXTURE_SELECT} WHERE f.id = :id"), {"id": str(fixture_id)}
     )
     return _row_to_fixture(result.fetchone())
 
@@ -627,7 +633,7 @@ async def get_fixture_by_entity(entity_id: UUID, db: AsyncSession = Depends(get_
     await _require_entity(entity_id, db)
 
     result = await db.execute(
-        text("SELECT * FROM dmx_fixtures WHERE entity_id = :entity_id LIMIT 1"),
+        text(f"{_FIXTURE_SELECT} WHERE f.entity_id = :entity_id LIMIT 1"),
         {"entity_id": str(entity_id)},
     )
     row = result.fetchone()

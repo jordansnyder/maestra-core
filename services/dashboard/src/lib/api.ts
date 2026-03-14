@@ -550,6 +550,9 @@ export const oflApi = {
   getFixture: (manufacturerKey: string, fixtureKey: string) =>
     fetchApi<OFLFixture>(`/ofl/fixtures/${manufacturerKey}/${fixtureKey}`),
 
+  getFixtureById: (id: string) =>
+    fetchApi<OFLFixture>(`/ofl/fixtures/by-id/${id}`),
+
   getSyncStatus: () => fetchApi<OFLSyncStatus>(`/ofl/sync/status`),
 }
 

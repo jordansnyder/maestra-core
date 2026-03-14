@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { DMXFixture, DMXNode, FixturePositionUpdate } from '@/lib/types'
 import { UNIVERSE_PALETTE } from '@/lib/dmx-constants'
 import { useDMXActivity } from '@/hooks/useDMXActivity'
+import { SlidersHorizontal } from '@/components/icons'
 import { FixtureNode } from './FixtureNode'
 import { ContextMenu } from './ContextMenu'
 
@@ -11,11 +12,13 @@ interface DMXCanvasProps {
   fixtures: DMXFixture[]
   nodes: DMXNode[]
   nodeSize: number
-  selectedId: string | null
-  onSelect: (id: string | null) => void
+  selectedIds: Set<string>
+  multiSelectGroup: Set<string>
+  onSelect: (id: string | null, shiftKey?: boolean) => void
   onEdit: (fixture: DMXFixture) => void
   onCopy: (fixture: DMXFixture) => void
   onDelete: (id: string) => void
+  onAdjustDMX: () => void
   onPositionsChange: (positions: FixturePositionUpdate[]) => void
 }
 
@@ -35,11 +38,13 @@ export function DMXCanvas({
   fixtures,
   nodes,
   nodeSize,
-  selectedId,
+  selectedIds,
+  multiSelectGroup,
   onSelect,
   onEdit,
   onCopy,
   onDelete,
+  onAdjustDMX,
   onPositionsChange,
 }: DMXCanvasProps) {
   const activeEntityIds = useDMXActivity()
@@ -103,14 +108,15 @@ export function DMXCanvas({
     dragOffsetRef.current = offset
     draggingRef.current = fixtureId
     setDragging(fixtureId)
-    onSelect(fixtureId)
   }
 
   const handleContextMenu = (e: React.MouseEvent, fixtureId: string) => {
     e.preventDefault()
     e.stopPropagation()
+    // Suppress context menu when multiple fixtures are selected
+    if (selectedIds.size > 1) return
     setCtxMenu({ x: e.clientX, y: e.clientY, fixtureId })
-    onSelect(fixtureId)
+    onSelect(fixtureId, false)
   }
 
   // Group fixtures by (node_id, universe) for noodle drawing
@@ -177,6 +183,23 @@ export function DMXCanvas({
         })}
       </svg>
 
+      {/* Adjust DMX — centered top overlay, visible when any fixture is selected */}
+      {selectedIds.size > 0 && (
+        <div
+          className="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-auto"
+          style={{ zIndex: 20 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={onAdjustDMX}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-900/70 border border-blue-700/60 hover:bg-blue-800/80 text-blue-200 backdrop-blur-sm transition-colors shadow-lg"
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            Adjust DMX
+          </button>
+        </div>
+      )}
+
       {/* Empty state */}
       {fixtures.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ zIndex: 7 }}>
@@ -189,7 +212,7 @@ export function DMXCanvas({
       {nodes.map((node) => {
         const nodeFixtures = fixtures.filter((f) => f.node_id === node.id)
         if (nodeFixtures.length === 0) return null
-        const isParentOfSelected = nodeFixtures.some((f) => f.id === selectedId)
+        const isParentOfSelected = nodeFixtures.some((f) => selectedIds.has(f.id))
         const livePositions = nodeFixtures.map((f) => getPos(f))
         const cx = livePositions.reduce((s, p) => s + p.x, 0) / livePositions.length
         const minY = Math.min(...livePositions.map((p) => p.y))
@@ -225,12 +248,13 @@ export function DMXCanvas({
             fixture={displayFixture}
             diameter={nodeSize}
             universeColor={getUniverseColor(nodes, fixture)}
-            selected={selectedId === fixture.id}
+            selected={selectedIds.has(fixture.id)}
+            multiSelectable={multiSelectGroup.has(fixture.id) && !selectedIds.has(fixture.id)}
             dragging={dragging === fixture.id}
             isActive={!!fixture.entity_id && activeEntityIds.has(fixture.entity_id)}
             onMouseDown={(e) => handleMouseDown(e, fixture.id)}
             onContextMenu={(e) => handleContextMenu(e, fixture.id)}
-            onClick={() => onSelect(fixture.id)}
+            onClick={(shiftKey) => onSelect(fixture.id, shiftKey)}
           />
         )
       })}
@@ -249,6 +273,7 @@ export function DMXCanvas({
             if (fixture) onCopy(fixture)
           }}
           onDelete={() => onDelete(ctxMenu.fixtureId)}
+          onAdjustDMX={onAdjustDMX}
           onClose={() => setCtxMenu(null)}
         />
       )}

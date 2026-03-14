@@ -280,6 +280,31 @@ async def list_fixtures(
     )
 
 
+@router.get("/fixtures/by-id/{fixture_id}", response_model=OFLFixture)
+async def get_fixture_by_id(
+    fixture_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a single OFL fixture by its UUID, with full mode details."""
+    result = await db.execute(text("""
+        SELECT
+            f.id, f.manufacturer_key, f.fixture_key, f.name, f.source,
+            f.categories, f.channel_count_min, f.channel_count_max,
+            f.physical, f.modes, f.ofl_last_modified, f.synced_at
+        FROM ofl_fixtures f
+        WHERE f.id = :id
+        LIMIT 1
+    """), {"id": fixture_id})
+
+    row = result.fetchone()
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail=f"OFL fixture with id '{fixture_id}' not found.",
+        )
+    return _row_to_fixture(row)
+
+
 @router.get("/fixtures/{manufacturer_key}/{fixture_key}", response_model=OFLFixture)
 async def get_fixture(
     manufacturer_key: str,

@@ -47,6 +47,12 @@ mapper: ChannelMapper = None
 senders: dict[str, ArtNetSender] = {}       # node_id -> ArtNetSender
 buffers: dict[str, UniverseBufferSet] = {}  # node_id -> UniverseBufferSet
 
+# When True, only messages with source='dashboard-dmx' reach fixtures
+_paused: bool = False
+
+# Source tag that the Maestra Dashboard uses — always allowed through
+DASHBOARD_SOURCE = 'dashboard-dmx'
+
 
 # ─── Config Management ────────────────────────────────────────────────────────
 
@@ -112,12 +118,34 @@ async def config_refresh_loop() -> None:
 
 # ─── NATS Message Handlers ────────────────────────────────────────────────────
 
+async def on_dmx_control(msg):
+    """Handle DMX pause/resume control messages from Fleet Manager."""
+    global _paused
+    try:
+        data = json.loads(msg.data.decode())
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return
+
+    action = data.get('action')
+    if action == 'pause':
+        _paused = True
+        logger.info("DMX output PAUSED — only dashboard-dmx source will be forwarded")
+    elif action == 'resume':
+        _paused = False
+        logger.info("DMX output RESUMED — all sources forwarded")
+
+
 async def on_entity_state(msg):
     """Handle entity state change messages from any Maestra client."""
+    global _paused
     try:
         data = json.loads(msg.data.decode())
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
         logger.warning(f"Failed to decode entity state message: {e}")
+        return
+
+    # When paused, only the dashboard's own adjustments pass through
+    if _paused and data.get('source') != DASHBOARD_SOURCE:
         return
 
     entity_path = data.get('entity_path') or data.get('path')
@@ -247,6 +275,7 @@ async def main():
 
     await nc.subscribe('maestra.entity.state.>', cb=on_entity_state)
     await nc.subscribe('maestra.to_artnet.universe.*', cb=on_raw_universe)
+    await nc.subscribe('maestra.dmx.control', cb=on_dmx_control)
     logger.info("Subscribed to NATS subjects")
 
     asyncio.create_task(keepalive_loop(hz=KEEPALIVE_HZ))

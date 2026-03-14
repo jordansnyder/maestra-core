@@ -22,8 +22,13 @@ from uuid import UUID, uuid4
 import json
 
 from database import get_db
+from redis_client import get_redis
+from state_manager import state_manager
 
 router = APIRouter(prefix="/dmx", tags=["DMX"])
+
+DMX_PAUSE_KEY = "dmx:output:paused"
+DMX_CONTROL_SUBJECT = "maestra.dmx.control"
 
 
 # =============================================================================
@@ -643,3 +648,50 @@ async def get_fixture_by_entity(entity_id: UUID, db: AsyncSession = Depends(get_
             detail=f"No DMX fixture is linked to entity '{entity_id}'.",
         )
     return _row_to_fixture(row)
+
+
+# =============================================================================
+# DMX Output Pause / Resume
+# =============================================================================
+
+async def _set_pause(paused: bool) -> None:
+    """Persist pause state to Redis and notify the DMX gateway via NATS."""
+    redis = get_redis()
+    if redis:
+        if paused:
+            await redis.set(DMX_PAUSE_KEY, "1")
+        else:
+            await redis.delete(DMX_PAUSE_KEY)
+
+    if state_manager.nc:
+        import json as _json
+        payload = _json.dumps({"action": "pause" if paused else "resume"}).encode()
+        await state_manager.nc.publish(DMX_CONTROL_SUBJECT, payload)
+
+
+@router.get("/pause-state")
+async def get_pause_state():
+    """Return whether DMX output is currently paused."""
+    redis = get_redis()
+    paused = False
+    if redis:
+        val = await redis.get(DMX_PAUSE_KEY)
+        paused = val is not None
+    return {"paused": paused}
+
+
+@router.post("/pause")
+async def pause_dmx_output():
+    """
+    Pause DMX output from external sources.
+    Only signals from source='dashboard-dmx' will be forwarded to fixtures.
+    """
+    await _set_pause(True)
+    return {"paused": True}
+
+
+@router.post("/resume")
+async def resume_dmx_output():
+    """Resume normal DMX output — all entity state sources are forwarded again."""
+    await _set_pause(False)
+    return {"paused": False}

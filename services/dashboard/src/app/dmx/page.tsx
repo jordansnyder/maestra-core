@@ -262,7 +262,6 @@ export default function DMXPage() {
             </button>
             {isPaused && (
               <>
-                <div className="w-px h-4 bg-slate-700" />
                 <button
                   onClick={() => setShowClearConfirm(true)}
                   disabled={clearLoading}

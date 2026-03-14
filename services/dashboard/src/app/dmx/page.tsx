@@ -7,8 +7,9 @@ import { DMXSidebar } from '@/components/dmx/DMXSidebar'
 import { NodeSetupForm } from '@/components/dmx/NodeSetupForm'
 import { AddFixtureModal } from '@/components/dmx/AddFixtureModal'
 import { DMXFixture, DMXNode, DMXNodeCreate, OFLSyncStatus } from '@/lib/types'
-import { Zap, Plus, Network, Settings, X } from '@/components/icons'
-import { oflApi } from '@/lib/api'
+import { Zap, Plus, Network, Settings, X, Trash2 } from '@/components/icons'
+import { oflApi, entitiesApi, devicesApi } from '@/lib/api'
+import { DeleteFixtureDialog } from '@/components/dmx/DeleteFixtureDialog'
 
 function formatRelativeTime(iso: string): string {
   const date = new Date(iso)
@@ -40,7 +41,7 @@ function getInitialScale(): number {
 }
 
 export default function DMXPage() {
-  const { nodes, fixtures, loading, error, createNode, updateNode, createFixture, updateFixture, deleteFixture, bulkUpdatePositions } = useDMX()
+  const { nodes, fixtures, loading, error, createNode, updateNode, deleteNode, createFixture, updateFixture, deleteFixture, bulkUpdatePositions } = useDMX()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showAddNode, setShowAddNode] = useState(false)
   const [showAddFixture, setShowAddFixture] = useState(false)
@@ -50,6 +51,9 @@ export default function DMXPage() {
   const [editingNode, setEditingNode] = useState<DMXNode | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [syncStatus, setSyncStatus] = useState<OFLSyncStatus | null>(null)
+  const [deletingFixture, setDeletingFixture] = useState<DMXFixture | null>(null)
+  const [confirmDeleteNode, setConfirmDeleteNode] = useState(false)
+  const [deleteNodeDevice, setDeleteNodeDevice] = useState(false)
 
   useEffect(() => {
     oflApi.getSyncStatus().then(setSyncStatus).catch(() => {})
@@ -66,6 +70,27 @@ export default function DMXPage() {
     let n = 2
     while (existingNames.includes(`${base} ${n}`)) n++
     setCopyingFixture({ fixture, name: `${base} ${n}` })
+  }
+
+  const handleDeleteRequest = (id: string) => {
+    const fixture = fixtures.find((f) => f.id === id)
+    if (fixture) setDeletingFixture(fixture)
+  }
+
+  const handleDeleteConfirm = async (deleteEntity: boolean) => {
+    if (!deletingFixture) return
+    try {
+      setActionError(null)
+      await deleteFixture(deletingFixture.id)
+      if (deleteEntity && deletingFixture.entity_id) {
+        await entitiesApi.delete(deletingFixture.entity_id)
+      }
+      if (selectedId === deletingFixture.id) setSelectedId(null)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Delete failed')
+    } finally {
+      setDeletingFixture(null)
+    }
   }
 
   if (loading) {
@@ -178,15 +203,7 @@ export default function DMXPage() {
             onSelect={setSelectedId}
             onEdit={(fixture) => setEditingFixture(fixture)}
             onCopy={handleCopy}
-            onDelete={async (id) => {
-              try {
-                setActionError(null)
-                await deleteFixture(id)
-                if (selectedId === id) setSelectedId(null)
-              } catch (e) {
-                setActionError(e instanceof Error ? e.message : 'Delete failed')
-              }
-            }}
+            onDelete={handleDeleteRequest}
             onPositionsChange={async (positions) => {
               try {
                 await bulkUpdatePositions(positions)
@@ -202,16 +219,8 @@ export default function DMXPage() {
           selectedFixtureId={selectedId}
           onSelect={setSelectedId}
           onEdit={(fixture) => setEditingFixture(fixture)}
-          onDelete={async (id) => {
-            try {
-              setActionError(null)
-              await deleteFixture(id)
-              if (selectedId === id) setSelectedId(null)
-            } catch (e) {
-              setActionError(e instanceof Error ? e.message : 'Delete failed')
-            }
-          }}
-          onEditNode={(node) => setEditingNode(node)}
+          onDelete={handleDeleteRequest}
+          onEditNode={(node) => { setEditingNode(node); setConfirmDeleteNode(false) }}
         />
       </div>
 
@@ -250,7 +259,10 @@ export default function DMXPage() {
                 <Network className="w-4 h-4 text-blue-400" />
                 <h2 className="text-sm font-semibold text-white">Edit Art-Net Node</h2>
               </div>
-              <button onClick={() => setEditingNode(null)} className="text-slate-500 hover:text-slate-300 transition-colors">
+              <button
+                onClick={() => { setEditingNode(null); setConfirmDeleteNode(false); setDeleteNodeDevice(false) }}
+                className="text-slate-500 hover:text-slate-300 transition-colors"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -261,8 +273,101 @@ export default function DMXPage() {
                   await updateNode(editingNode.id, data)
                   setEditingNode(null)
                 }}
-                onCancel={() => setEditingNode(null)}
+                onCancel={() => { setEditingNode(null); setConfirmDeleteNode(false); setDeleteNodeDevice(false) }}
               />
+
+              {/* Linked device badge */}
+              {editingNode.device_id && (
+                <a
+                  href={`/devices/${editingNode.device_id}`}
+                  className="mt-4 flex items-center justify-between w-full px-3 py-2 rounded-lg bg-blue-900/20 border border-blue-800/40 hover:bg-blue-900/30 transition-colors group"
+                >
+                  <div className="min-w-0">
+                    <div className="text-[9px] uppercase tracking-wider text-blue-600 font-medium">Linked Device</div>
+                    <div className="text-[10px] text-blue-400 font-mono truncate">{editingNode.device_id.slice(0, 8)}…</div>
+                  </div>
+                  <Network className="w-3 h-3 text-blue-600 group-hover:text-blue-400 shrink-0 ml-2" />
+                </a>
+              )}
+
+              {/* Delete node */}
+              <div className="mt-5 pt-4 border-t border-slate-800">
+                {!confirmDeleteNode ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirmDeleteNode(true)
+                      setDeleteNodeDevice(!!editingNode.device_id)
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs text-slate-500 hover:text-red-400 hover:bg-red-900/20 border border-slate-800 hover:border-red-900/50 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete Node
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    {(() => {
+                      const nodeFixtureCount = fixtures.filter((f) => f.node_id === editingNode.id).length
+                      if (nodeFixtureCount > 0) {
+                        return (
+                          <p className="text-xs text-amber-400 text-center">
+                            This node has {nodeFixtureCount} fixture{nodeFixtureCount !== 1 ? 's' : ''} assigned. Delete all fixtures before removing this node.
+                          </p>
+                        )
+                      }
+                      return (
+                        <>
+                          <p className="text-xs text-red-400 text-center">
+                            Delete <span className="font-medium">{editingNode.name}</span>? This cannot be undone.
+                          </p>
+                          {editingNode.device_id && (
+                            <label className="flex items-center gap-2 cursor-pointer select-none px-1">
+                              <input
+                                type="checkbox"
+                                checked={deleteNodeDevice}
+                                onChange={(e) => setDeleteNodeDevice(e.target.checked)}
+                                className="w-3.5 h-3.5 rounded accent-red-500 shrink-0"
+                              />
+                              <span className="text-xs text-slate-400">Also delete the linked device</span>
+                            </label>
+                          )}
+                        </>
+                      )
+                    })()}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setConfirmDeleteNode(false); setDeleteNodeDevice(false) }}
+                        className="flex-1 px-3 py-1.5 rounded-lg text-xs text-slate-400 bg-slate-800 hover:bg-slate-700 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={fixtures.some((f) => f.node_id === editingNode.id)}
+                        onClick={async () => {
+                          const deviceId = editingNode.device_id
+                          try {
+                            await deleteNode(editingNode.id)
+                            if (deleteNodeDevice && deviceId) {
+                              await devicesApi.delete(deviceId)
+                            }
+                            setEditingNode(null)
+                            setConfirmDeleteNode(false)
+                            setDeleteNodeDevice(false)
+                          } catch (e) {
+                            setActionError(e instanceof Error ? e.message : 'Delete failed')
+                            setConfirmDeleteNode(false)
+                          }
+                        }}
+                        className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-700 hover:bg-red-600 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Delete Node
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -302,6 +407,15 @@ export default function DMXPage() {
             setCopyingFixture(null)
           }}
           onClose={() => setCopyingFixture(null)}
+        />
+      )}
+
+      {/* Delete Fixture Confirmation */}
+      {deletingFixture && (
+        <DeleteFixtureDialog
+          fixture={deletingFixture}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeletingFixture(null)}
         />
       )}
     </div>

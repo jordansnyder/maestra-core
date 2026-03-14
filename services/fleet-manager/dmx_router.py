@@ -139,6 +139,7 @@ def _row_to_node(row) -> dict:
         "poe_powered": row.poe_powered,
         "firmware_version": row.firmware_version,
         "notes": row.notes,
+        "device_id": str(row.device_id) if row.device_id else None,
         "metadata": row.metadata if row.metadata else {},
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
@@ -287,20 +288,39 @@ async def list_nodes(db: AsyncSession = Depends(get_db)):
 
 @router.post("/nodes", status_code=201)
 async def create_node(data: DMXNodeCreate, db: AsyncSession = Depends(get_db)):
-    """Register a new Art-Net node (hardware DMX converter)."""
+    """Register a new Art-Net node and auto-create a linked Maestra device."""
     node_id = str(uuid4())
+    device_id = str(uuid4())
     universes_json = json.dumps([u.model_dump() for u in data.universes])
     metadata_json = json.dumps(data.metadata)
+
+    # Auto-create a linked device record for this Art-Net node
+    hardware_id = data.mac_address or data.ip_address
+    device_meta = json.dumps({
+        "artnet_node": True,
+        "ip_address": data.ip_address,
+        "artnet_port": data.artnet_port,
+    })
+    await db.execute(text("""
+        INSERT INTO devices (id, name, device_type, hardware_id, ip_address, status, metadata)
+        VALUES (:id, :name, 'artnet_node', :hardware_id, :ip_address, 'online', CAST(:metadata AS jsonb))
+    """), {
+        "id": device_id,
+        "name": data.name,
+        "hardware_id": hardware_id,
+        "ip_address": data.ip_address,
+        "metadata": device_meta,
+    })
 
     await db.execute(text("""
         INSERT INTO dmx_nodes (
             id, name, manufacturer, model, ip_address, mac_address,
             artnet_port, universe_count, universes, poe_powered,
-            firmware_version, notes, metadata
+            firmware_version, notes, device_id, metadata
         ) VALUES (
             :id, :name, :manufacturer, :model, :ip_address, :mac_address,
             :artnet_port, :universe_count, CAST(:universes AS jsonb), :poe_powered,
-            :firmware_version, :notes, CAST(:metadata AS jsonb)
+            :firmware_version, :notes, :device_id, CAST(:metadata AS jsonb)
         )
     """), {
         "id": node_id,
@@ -315,6 +335,7 @@ async def create_node(data: DMXNodeCreate, db: AsyncSession = Depends(get_db)):
         "poe_powered": data.poe_powered,
         "firmware_version": data.firmware_version,
         "notes": data.notes,
+        "device_id": device_id,
         "metadata": metadata_json,
     })
     await db.commit()

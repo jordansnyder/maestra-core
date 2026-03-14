@@ -408,6 +408,7 @@ export interface DMXNode {
   poe_powered: boolean
   firmware_version?: string
   notes?: string
+  device_id?: string
   metadata: Record<string, unknown>
   created_at: string
   updated_at: string

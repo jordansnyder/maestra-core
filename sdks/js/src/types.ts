@@ -214,3 +214,29 @@ export interface StreamRegistryState {
 
 export type StreamEventCallback = (stream: StreamInfo) => void
 export type SessionEventCallback = (session: StreamSession) => void
+
+// ===== Discovery & Provisioning Types =====
+
+export interface DiscoveryConfig {
+  apiUrl: string
+  natsUrl?: string
+  mqttUrl?: string
+  wsUrl?: string
+  mqttPort?: number
+}
+
+export interface ProvisionConfig {
+  deviceId: string
+  entityId?: string
+  envVars?: Record<string, string>
+  connectionConfig?: ConnectionConfig
+  provisionStatus: string
+}
+
+export interface AdvertiseDeviceOptions {
+  hardwareId: string
+  deviceType: string
+  name?: string
+  apiUrl: string
+  metadata?: Record<string, string>
+}

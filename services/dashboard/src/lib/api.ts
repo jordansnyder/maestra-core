@@ -441,10 +441,11 @@ export const dmxApi = {
       body: JSON.stringify(positions),
     }),
 
-  // DMX Output Pause / Resume
+  // DMX Output Pause / Resume / Clear
   getPauseState: () => fetchApi<{ paused: boolean }>('/dmx/pause-state'),
   pauseOutput: () => fetchApi<{ paused: boolean }>('/dmx/pause', { method: 'POST' }),
   resumeOutput: () => fetchApi<{ paused: boolean }>('/dmx/resume', { method: 'POST' }),
+  clearOutput: () => fetchApi<{ cleared: number; universes: number[] }>('/dmx/clear', { method: 'POST' }),
 }
 
 // OFL Fixture Library API

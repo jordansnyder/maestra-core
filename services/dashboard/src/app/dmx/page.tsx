@@ -8,7 +8,7 @@ import { NodeSetupForm } from '@/components/dmx/NodeSetupForm'
 import { AddFixtureModal } from '@/components/dmx/AddFixtureModal'
 import { DMXFixture, DMXNode, DMXNodeCreate, OFLSyncStatus } from '@/lib/types'
 import { DMXChannelModal } from '@/components/dmx/DMXChannelModal'
-import { Zap, Plus, Network, Settings, X, Trash2, Pause, Play } from '@/components/icons'
+import { Zap, Plus, Network, Settings, X, Trash2, Pause, Play, AlertTriangle } from '@/components/icons'
 import { oflApi, entitiesApi, devicesApi, dmxApi } from '@/lib/api'
 import { DeleteFixtureDialog } from '@/components/dmx/DeleteFixtureDialog'
 
@@ -58,6 +58,8 @@ export default function DMXPage() {
   const [deleteNodeDevice, setDeleteNodeDevice] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [pauseLoading, setPauseLoading] = useState(false)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [clearLoading, setClearLoading] = useState(false)
 
   // Multi-select group: fixtures with same OFL profile + universe as primary selection
   const primaryId = selectedIds.size > 0 ? [...selectedIds][0] : null
@@ -127,6 +129,18 @@ export default function DMXPage() {
       // silently ignore — state remains unchanged
     } finally {
       setPauseLoading(false)
+    }
+  }
+
+  const handleClearDMX = async () => {
+    setClearLoading(true)
+    try {
+      await dmxApi.clearOutput()
+    } catch {
+      // silently ignore — zeros were best-effort
+    } finally {
+      setClearLoading(false)
+      setShowClearConfirm(false)
     }
   }
 
@@ -230,7 +244,7 @@ export default function DMXPage() {
             <span className="text-xs text-red-400">{actionError}</span>
           )}
 
-          {/* DMX Pause / Resume */}
+          {/* DMX Pause / Resume / Clear */}
           <div className="flex items-center rounded-lg overflow-hidden border border-slate-700">
             <button
               onClick={handleTogglePause}
@@ -246,6 +260,19 @@ export default function DMXPage() {
                 : <><Pause className="w-3 h-3" /> Pause</>
               }
             </button>
+            {isPaused && (
+              <>
+                <div className="w-px h-4 bg-slate-700" />
+                <button
+                  onClick={() => setShowClearConfirm(true)}
+                  disabled={clearLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400 bg-slate-800 hover:bg-red-900/30 hover:text-red-300 transition-colors disabled:opacity-50"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Clear
+                </button>
+              </>
+            )}
           </div>
           {isPaused && (
             <span className="flex items-center gap-1.5 text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1.5 rounded-lg">
@@ -527,6 +554,47 @@ export default function DMXPage() {
           fixtures={selectedFixtures}
           onClose={() => setShowDMXAdjust(false)}
         />
+      )}
+
+      {/* Clear DMX Confirmation */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800">
+              <div className="w-8 h-8 rounded-full bg-red-900/40 border border-red-800/50 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4 text-red-400" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-white">Clear All DMX Output</h2>
+                <p className="text-xs text-slate-400 mt-0.5">This will zero all channels</p>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-slate-300">
+                All DMX channel values for every configured fixture and universe will be set to <span className="font-medium text-white">0</span>.
+                This affects live hardware immediately.
+              </p>
+              <p className="text-xs text-slate-500">
+                You can restore values by using the Adjust DMX sliders or resuming external signals.
+              </p>
+            </div>
+            <div className="flex gap-2 px-5 pb-5">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="flex-1 px-3 py-2 rounded-lg text-xs text-slate-400 bg-slate-800 hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearDMX}
+                disabled={clearLoading}
+                className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-red-700 hover:bg-red-600 text-white transition-colors disabled:opacity-50"
+              >
+                {clearLoading ? 'Clearing…' : 'Clear All Channels'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

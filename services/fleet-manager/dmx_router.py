@@ -695,3 +695,59 @@ async def resume_dmx_output():
     """Resume normal DMX output — all entity state sources are forwarded again."""
     await _set_pause(False)
     return {"paused": False}
+
+
+@router.post("/clear")
+async def clear_dmx_output(db: AsyncSession = Depends(get_db)):
+    """
+    Send all-zeros to every Art-Net universe that has at least one fixture configured.
+    Uses the raw universe bypass (maestra.to_artnet.universe.*) which is always active.
+    """
+    if not state_manager.nc:
+        raise HTTPException(status_code=503, detail="NATS not connected")
+
+    # Collect all (node_id, dmx_universe) pairs from configured fixtures
+    rows = await db.execute(text("""
+        SELECT DISTINCT f.node_id, f.universe
+        FROM dmx_fixtures f
+    """))
+    fixture_universes = rows.fetchall()
+
+    if not fixture_universes:
+        return {"cleared": 0}
+
+    # For each node, load its universe config so we can resolve the Art-Net universe number
+    node_ids = list({r.node_id for r in fixture_universes})
+    node_rows = await db.execute(text("""
+        SELECT id, universes FROM dmx_nodes WHERE id = ANY(:ids)
+    """), {"ids": node_ids})
+
+    # Build map: node_id -> {dmx_universe -> artnet_universe}
+    node_universe_map: dict[str, dict[int, int]] = {}
+    for nr in node_rows.fetchall():
+        universes_cfg = nr.universes or []
+        # universes_cfg is a list of dicts with keys: id (dmx), artnet_universe
+        mapping = {}
+        for uc in universes_cfg:
+            if isinstance(uc, dict):
+                mapping[uc.get("id", 0)] = uc.get("artnet_universe", 0)
+        node_universe_map[nr.id] = mapping
+
+    # Collect unique Art-Net universe numbers to zero out
+    artnet_universes: set[int] = set()
+    for row in fixture_universes:
+        node_map = node_universe_map.get(row.node_id, {})
+        artnet_u = node_map.get(row.universe, row.universe)  # fallback: dmx == artnet
+        artnet_universes.add(artnet_u)
+
+    import json as _json
+    zeros = [0] * 512
+    payload = _json.dumps({"channels": zeros}).encode()
+
+    cleared = 0
+    for artnet_u in artnet_universes:
+        subject = f"maestra.to_artnet.universe.{artnet_u}"
+        await state_manager.nc.publish(subject, payload)
+        cleared += 1
+
+    return {"cleared": cleared, "universes": sorted(artnet_universes)}

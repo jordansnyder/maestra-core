@@ -65,7 +65,7 @@ export function useWebSocket(autoConnect = true) {
     }
   }, [])
 
-  const send = useCallback((data: any) => {
+  const send = useCallback((data: unknown) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(data))
     } else {
@@ -80,7 +80,7 @@ export function useWebSocket(autoConnect = true) {
     })
   }, [send])
 
-  const publish = useCallback((subject: string, data: any) => {
+  const publish = useCallback((subject: string, data: unknown) => {
     send({
       type: 'publish',
       subject,

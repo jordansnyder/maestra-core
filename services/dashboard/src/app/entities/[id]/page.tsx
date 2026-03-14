@@ -338,12 +338,6 @@ export default function EntityDetailPage() {
                       <span className="text-slate-300">{linkedFixture.label}</span>
                     </div>
                   )}
-                  {(linkedFixture.manufacturer || linkedFixture.model) && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Device</span>
-                      <span className="text-slate-300">{[linkedFixture.manufacturer, linkedFixture.model].filter(Boolean).join(' ')}</span>
-                    </div>
-                  )}
                   <div className="flex justify-between">
                     <span className="text-slate-500">Universe</span>
                     <span className="text-slate-300 font-mono">U{linkedFixture.universe}</span>

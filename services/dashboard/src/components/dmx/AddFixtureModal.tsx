@@ -1,18 +1,34 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { DMXNode, DMXFixture, DMXFixtureCreate, Entity, EntityType, OFLManufacturer, OFLFixture, OFLFixtureMode } from '@/lib/types'
-import { X, Search, ChevronDown } from '@/components/icons'
+import { DMXNode, DMXFixture, DMXFixtureCreate, ChannelMapping, Entity, EntityType, OFLManufacturer, OFLFixture, OFLFixtureMode } from '@/lib/types'
+import { X, Search, ChevronDown, ExternalLink } from '@/components/icons'
 import { entitiesApi, entityTypesApi, oflApi } from '@/lib/api'
 
 interface AddFixtureModalProps {
   nodes: DMXNode[]
+  fixtures: DMXFixture[]      // all existing fixtures, used to suggest start channel
   fixture?: DMXFixture        // edit mode: pre-filled, saves as update
   copyOf?: DMXFixture         // copy mode: pre-filled, saves as new create
   initialName?: string        // override the initial name field (used for copy)
   defaultPosition?: { x: number; y: number }
   onSubmit: (data: DMXFixtureCreate) => Promise<void>
   onClose: () => void
+}
+
+/** Find the first available start channel that fits channelCount without overlapping existing fixtures. */
+function suggestStartChannel(fixtures: DMXFixture[], nodeId: string, universe: number, channelCount: number, excludeId?: string): number {
+  const occupied = fixtures
+    .filter((f) => f.node_id === nodeId && f.universe === universe && f.id !== excludeId)
+    .map((f) => ({ start: f.start_channel, end: f.start_channel + f.channel_count - 1 }))
+    .sort((a, b) => a.start - b.start)
+
+  let candidate = 1
+  for (const range of occupied) {
+    if (candidate + channelCount - 1 < range.start) break
+    candidate = Math.max(candidate, range.end + 1)
+  }
+  return Math.min(candidate, 513 - channelCount)
 }
 
 // Entity type preference order for auto-created fixture entities
@@ -26,7 +42,7 @@ function sanitizeName(raw: string): string {
     .replace(/^_+|_+$/g, '')
 }
 
-export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPosition, onSubmit, onClose }: AddFixtureModalProps) {
+export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName, defaultPosition, onSubmit, onClose }: AddFixtureModalProps) {
   const isEditing = !!fixture
   const isCopying = !!copyOf
   // source to pre-fill from (edit uses fixture, copy uses copyOf)
@@ -36,13 +52,17 @@ export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPo
 
   const [name, setName] = useState(initialName ?? source?.name ?? '')
   const [label, setLabel] = useState(source?.label ?? '')
-  const [manufacturer, setManufacturer] = useState(source?.manufacturer ?? '')
-  const [model, setModel] = useState(source?.model ?? '')
   const [fixtureMode, setFixtureMode] = useState(source?.fixture_mode ?? '')
-  const [nodeId, setNodeId] = useState(source?.node_id ?? nodes[0]?.id ?? '')
-  const [universe, setUniverse] = useState(source?.universe ?? 1)
-  const [startChannel, setStartChannel] = useState(source?.start_channel ?? 1)
-  const [channelCount, setChannelCount] = useState(source?.channel_count ?? 1)
+  const initialNodeId = source?.node_id ?? nodes[0]?.id ?? ''
+  const initialUniverse = source?.universe ?? 1
+  const initialChannelCount = source?.channel_count ?? 1
+  const [nodeId, setNodeId] = useState(initialNodeId)
+  const [universe, setUniverse] = useState(initialUniverse)
+  const [startChannel, setStartChannel] = useState(() => {
+    if (isEditing) return String(source?.start_channel ?? 1)
+    return String(suggestStartChannel(fixtures, initialNodeId, initialUniverse, initialChannelCount, source?.id))
+  })
+  const [channelCount, setChannelCount] = useState(String(initialChannelCount))
 
   // OFL Library state (not shown in edit mode)
   const [mfrSearch, setMfrSearch] = useState('')
@@ -59,6 +79,9 @@ export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPo
 
   const [selectedMode, setSelectedMode] = useState<OFLFixtureMode | null>(null)
   const [oflFixtureId, setOflFixtureId] = useState<string | undefined>(undefined)
+
+  // Edit mode: OFL profile loaded by ID for mode dropdown
+  const [editOFLFixture, setEditOFLFixture] = useState<OFLFixture | null>(null)
 
   // Edit mode only: entity picker
   const [entityId, setEntityId] = useState(fixture?.entity_id ?? '')
@@ -85,6 +108,31 @@ export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPo
       setEntityTypes(types)
     }).catch(() => {})
   }, [])
+
+  // Re-suggest start channel when node, universe, or channel count changes (add/copy only)
+  useEffect(() => {
+    if (isEditing) return
+    const cc = parseInt(channelCount, 10)
+    if (isNaN(cc) || cc < 1) return
+    setStartChannel(String(suggestStartChannel(fixtures, nodeId, universe, cc, source?.id)))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeId, universe, channelCount])
+
+  // In edit mode, load OFL fixture profile if linked
+  useEffect(() => {
+    if (!isEditing || !fixture?.ofl_fixture_id) return
+    oflApi.getFixtureById(fixture.ofl_fixture_id)
+      .then((oflFixture) => {
+        setEditOFLFixture(oflFixture)
+        // Pre-select the mode matching the current fixture_mode
+        const match = oflFixture.modes.find((m) => m.shortName === fixture.fixture_mode)
+          ?? oflFixture.modes[0]
+          ?? null
+        if (match) setSelectedMode(match)
+      })
+      .catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, fixture?.ofl_fixture_id])
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -122,7 +170,7 @@ export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPo
 
   // Debounced manufacturer search
   useEffect(() => {
-    if (isEditing || isCopying) return
+    if (isEditing) return
     const timer = setTimeout(() => {
       setMfrLoading(true)
       oflApi.getManufacturers(mfrSearch || undefined)
@@ -131,17 +179,17 @@ export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPo
         .finally(() => setMfrLoading(false))
     }, 300)
     return () => clearTimeout(timer)
-  }, [mfrSearch, isEditing, isCopying])
+  }, [mfrSearch, isEditing])
 
   // Fetch fixtures when manufacturer changes or fixture search changes
   useEffect(() => {
-    if (!selectedMfr || isEditing || isCopying) return
+    if (!selectedMfr || isEditing) return
     setFixtureLoading(true)
     oflApi.getFixtures({ manufacturer: selectedMfr.key, q: fixtureSearch || undefined, limit: 100 })
       .then((res) => setOflFixtures(res.items))
       .catch(() => setOflFixtures([]))
       .finally(() => setFixtureLoading(false))
-  }, [selectedMfr, fixtureSearch, isEditing, isCopying])
+  }, [selectedMfr, fixtureSearch, isEditing])
 
   // Reset fixture search when manufacturer changes
   useEffect(() => {
@@ -175,9 +223,6 @@ export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPo
     setSelectedOFLFixture(oflFixture)
     setFixtureOpen(false)
 
-    // Populate text fields
-    if (selectedMfr) setManufacturer(selectedMfr.name)
-    setModel(oflFixture.name)
     setOflFixtureId(oflFixture.id)
 
     // Auto-select first mode
@@ -185,7 +230,7 @@ export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPo
     if (firstMode) {
       setSelectedMode(firstMode)
       setFixtureMode(firstMode.shortName)
-      setChannelCount(firstMode.channel_count)
+      setChannelCount(String(firstMode.channel_count))
     }
 
     // Auto-populate name: find duplicates of same model and increment
@@ -205,14 +250,17 @@ export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPo
   const handleSelectMode = (mode: OFLFixtureMode) => {
     setSelectedMode(mode)
     setFixtureMode(mode.shortName)
-    setChannelCount(mode.channel_count)
+    setChannelCount(String(mode.channel_count))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) { setError('Name is required'); return }
     if (!nodeId) { setError('Select an Art-Net node'); return }
-    if (startChannel < 1 || startChannel > 512) { setError('Start channel must be 1–512'); return }
+    const sc = parseInt(startChannel, 10)
+    const cc = parseInt(channelCount, 10)
+    if (isNaN(sc) || sc < 1 || sc > 512) { setError('Start channel must be 1–512'); return }
+    if (isNaN(cc) || cc < 1 || cc > 512) { setError('Channel count must be 1–512'); return }
 
     setSubmitting(true)
     setError(null)
@@ -228,7 +276,7 @@ export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPo
             const created = await entitiesApi.create({
               name: name.trim(),
               entity_type_id: typeId,
-              description: `DMX fixture — ${[manufacturer, model].filter(Boolean).join(' ') || 'linked fixture'}`,
+              description: `DMX fixture — ${selectedOFLFixture ? `${selectedMfr?.name ?? ''} ${selectedOFLFixture.name}`.trim() : name.trim() || 'linked fixture'}`,
               metadata: { dmx_fixture: true },
             })
             resolvedEntityId = created.id
@@ -258,18 +306,29 @@ export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPo
         }
       }
 
+      // When editing an OFL-linked fixture and a mode is selected, compute channel_map
+      let editChannelMap: Record<string, ChannelMapping> | undefined
+      if (isEditing && selectedMode && selectedMode.channels.length > 0) {
+        editChannelMap = {}
+        selectedMode.channels.forEach((ch, i) => {
+          const key = sanitizeName(ch.name)
+          if (!key || editChannelMap![key]) return
+          editChannelMap![key] = { offset: i + 1, type: 'range', label: ch.name }
+        })
+        if (Object.keys(editChannelMap).length === 0) editChannelMap = undefined
+      }
+
       await onSubmit({
         name: name.trim(),
         label: label.trim() || undefined,
-        manufacturer: manufacturer.trim() || undefined,
-        model: model.trim() || undefined,
         fixture_mode: fixtureMode.trim() || undefined,
         node_id: nodeId,
         universe,
-        start_channel: startChannel,
-        channel_count: channelCount,
+        start_channel: sc,
+        channel_count: cc,
         entity_id: resolvedEntityId,
-        ofl_fixture_id: oflFixtureId,
+        ofl_fixture_id: oflFixtureId ?? (isEditing ? fixture?.ofl_fixture_id : undefined),
+        channel_map: editChannelMap,
         position_x: (isCopying ? (copyOf!.position_x + 40) : fixture?.position_x) ?? defaultPosition?.x ?? 200,
         position_y: (isCopying ? (copyOf!.position_y + 40) : fixture?.position_y) ?? defaultPosition?.y ?? 200,
       })
@@ -483,37 +542,34 @@ export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPo
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
                 />
               </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Fixture Mode</label>
-                <input
-                  value={fixtureMode}
-                  onChange={(e) => setFixtureMode(e.target.value)}
-                  placeholder="e.g. 15ch, 8ch"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* Manufacturer / model */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Manufacturer</label>
-                <input
-                  value={manufacturer}
-                  onChange={(e) => setManufacturer(e.target.value)}
-                  placeholder="e.g. Chauvet"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Model</label>
-                <input
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  placeholder="e.g. SlimPAR T12"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
-                />
-              </div>
+              {isEditing && editOFLFixture && editOFLFixture.modes.length > 0 && (
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1 flex items-center gap-2">
+                    Fixture Mode
+                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-900/40 border border-emerald-800/50 text-emerald-400 normal-case tracking-normal">
+                      OFL
+                    </span>
+                  </label>
+                  <select
+                    value={selectedMode?.shortName ?? ''}
+                    onChange={(e) => {
+                      const mode = editOFLFixture.modes.find((m) => m.shortName === e.target.value)
+                      if (mode) {
+                        setSelectedMode(mode)
+                        setFixtureMode(mode.shortName)
+                        setChannelCount(String(mode.channel_count))
+                      }
+                    }}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                  >
+                    {editOFLFixture.modes.map((mode) => (
+                      <option key={mode.shortName} value={mode.shortName}>
+                        {mode.name} ({mode.channel_count} ch)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Art-Net node / universe / channel */}
@@ -560,31 +616,24 @@ export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPo
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Start Channel</label>
                 <input
-                  type="number"
-                  min={1}
-                  max={512}
+                  type="text"
+                  inputMode="numeric"
                   value={startChannel}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10)
-                    setStartChannel(isNaN(v) ? 1 : Math.max(1, Math.min(512, v)))
-                  }}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 font-mono"
-                  required
+                  onChange={(e) => setStartChannel(e.target.value)}
+                  placeholder="1"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
                 />
               </div>
 
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Channel Count</label>
                 <input
-                  type="number"
-                  min={1}
-                  max={512}
+                  type="text"
+                  inputMode="numeric"
                   value={channelCount}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10)
-                    setChannelCount(isNaN(v) ? 1 : Math.max(1, Math.min(512, v)))
-                  }}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 font-mono"
+                  onChange={(e) => setChannelCount(e.target.value)}
+                  placeholder="1"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
                 />
               </div>
             </div>
@@ -592,6 +641,23 @@ export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPo
             {/* Entity link — edit mode only (create mode auto-links) */}
             {isEditing && (
               <div>
+                {fixture?.entity_id ? (
+                  <a
+                    href={`/entities/${fixture.entity_id}`}
+                    className="mb-3 flex items-center justify-between w-full px-3 py-2 rounded-lg bg-amber-900/20 border border-amber-800/40 hover:bg-amber-900/30 transition-colors group"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[9px] uppercase tracking-wider text-amber-600 font-medium">Linked Entity</div>
+                      <div className="text-[10px] text-amber-400 font-mono truncate">{fixture.entity_id.slice(0, 8)}…</div>
+                    </div>
+                    <ExternalLink className="w-3 h-3 text-amber-600 group-hover:text-amber-400 shrink-0 ml-2" />
+                  </a>
+                ) : (
+                  <div className="mb-3 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                    <span className="text-[10px] text-slate-600">No entity linked</span>
+                  </div>
+                )}
                 <label className="block text-xs text-slate-400 mb-1">
                   Linked Entity
                   <span className="ml-1.5 text-slate-600 font-normal normal-case tracking-normal">
@@ -664,6 +730,22 @@ export function AddFixtureModal({ nodes, fixture, copyOf, initialName, defaultPo
                       </div>
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* OFL channel preview in edit mode */}
+            {isEditing && selectedMode && selectedMode.channels.length > 0 && (
+              <div className="bg-slate-800/50 rounded-lg p-3">
+                <div className="text-xs text-slate-500 mb-2">
+                  {selectedMode.channel_count} channels — {selectedMode.name}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {selectedMode.channels.map((ch, i) => (
+                    <span key={i} className="text-[10px] bg-slate-700 px-1.5 py-0.5 rounded text-slate-300">
+                      {i + 1}: {ch.name}
+                    </span>
+                  ))}
                 </div>
               </div>
             )}

@@ -213,7 +213,7 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
             className={`w-3.5 h-3.5 transition-transform duration-150 ${showOptions ? 'rotate-180' : ''}`}
           />
           Options
-          {!showOptions && (manufacturer || model || macAddress || firmwareVersion || poePowered || notes) && (
+          {!showOptions && notes && (
             <span className="ml-1 text-blue-500">•</span>
           )}
         </button>
@@ -232,73 +232,6 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
                 className="w-24 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
-
-            <div className="flex items-center gap-3">
-              <label className="text-xs text-slate-400 w-28 shrink-0">Total Universes</label>
-              <input
-                type="number"
-                min={1}
-                max={16}
-                value={universeCount}
-                onChange={(e) => {
-                  const v = parseInt(e.target.value, 10)
-                  setUniverseCount(isNaN(v) ? 4 : Math.max(1, v))
-                }}
-                className="w-16 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500 font-mono"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Manufacturer</label>
-                <input
-                  value={manufacturer}
-                  onChange={(e) => setManufacturer(e.target.value)}
-                  placeholder="e.g. ENTTEC"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Model</label>
-                <input
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  placeholder="e.g. ODE Mk3"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">MAC Address</label>
-                <input
-                  value={macAddress}
-                  onChange={(e) => setMacAddress(e.target.value)}
-                  placeholder="AA:BB:CC:DD:EE:FF"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Firmware Version</label>
-                <input
-                  value={firmwareVersion}
-                  onChange={(e) => setFirmwareVersion(e.target.value)}
-                  placeholder="e.g. 2.1.0"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={poePowered}
-                onChange={(e) => setPoePowered(e.target.checked)}
-                className="w-4 h-4 rounded accent-blue-500"
-              />
-              <span className="text-sm text-slate-300">PoE Powered</span>
-            </label>
 
             <div>
               <label className="block text-xs text-slate-400 mb-1">Notes</label>

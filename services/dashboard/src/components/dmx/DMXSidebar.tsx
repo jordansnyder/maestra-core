@@ -97,10 +97,11 @@ export function DMXSidebar({
   const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null)
   const dragNodeCounter = useRef(0)
 
-  // ── Fixture drag state ─────────────────────────────────────────────────────
+  // ── Fixture drag + filter state ────────────────────────────────────────────
   const [draggedFixtureId, setDraggedFixtureId] = useState<string | null>(null)
   const [dragOverFixtureId, setDragOverFixtureId] = useState<string | null>(null)
   const dragFixtureCounter = useRef(0)
+  const [filterUniverse, setFilterUniverse] = useState<number | null>(null)
 
   // ── Save cue form state ────────────────────────────────────────────────────
   const [showSaveCueForm, setShowSaveCueForm] = useState(false)
@@ -339,94 +340,157 @@ export function DMXSidebar({
               {fixtures.length === 0 ? (
                 <p className="text-xs text-slate-600">No fixtures added yet</p>
               ) : (
-                <div className="space-y-1">
-                  {fixtures.map((fixture) => {
-                    const node = nodes.find((n) => n.id === fixture.node_id)
-                    const isSelected = selectedIds.has(fixture.id)
-                    const isGroupable = multiSelectGroup.has(fixture.id)
-                    const isMultiSelectable = isGroupable && !isSelected
-                    const isDraggedOver = dragOverFixtureId === fixture.id && draggedFixtureId !== fixture.id
-
+                <>
+                  {/* Universe filter chips — only when multiple universes exist */}
+                  {(() => {
+                    const universes = [...new Set(fixtures.map(f => f.universe))].sort((a, b) => a - b)
+                    if (universes.length <= 1) return null
                     return (
-                      <div
-                        key={fixture.id}
-                        draggable
-                        onDragStart={(e) => { setDraggedFixtureId(fixture.id); e.dataTransfer.effectAllowed = 'move' }}
-                        onDragEnd={() => { setDraggedFixtureId(null); setDragOverFixtureId(null); dragFixtureCounter.current = 0 }}
-                        onDragEnter={() => { dragFixtureCounter.current++; setDragOverFixtureId(fixture.id) }}
-                        onDragLeave={() => { dragFixtureCounter.current--; if (dragFixtureCounter.current === 0) setDragOverFixtureId(null) }}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => {
-                          dragFixtureCounter.current = 0; setDragOverFixtureId(null)
-                          if (draggedFixtureId && draggedFixtureId !== fixture.id) onReorderFixtures(draggedFixtureId, fixture.id)
-                          setDraggedFixtureId(null)
-                        }}
-                        className={`group relative rounded-lg px-3 py-2 border transition-colors cursor-pointer select-none ${
-                          draggedFixtureId === fixture.id
-                            ? 'opacity-40 border-transparent'
-                            : isDraggedOver
-                            ? 'bg-slate-700/50 border-slate-500 border-dashed'
-                            : isSelected
-                            ? 'bg-slate-700 border-transparent'
-                            : isMultiSelectable
-                            ? 'bg-slate-800/40 border-dashed border-slate-600/60 hover:border-slate-500/80 hover:bg-slate-800/70'
-                            : 'border-transparent hover:bg-slate-800/70'
-                        }`}
-                        onClick={(e) => onSelect(fixture.id, e.shiftKey)}
-                      >
-                        {/* Row 1: grip · name · actions */}
-                        <div className="flex items-center gap-1">
-                          <GripVertical className="w-3 h-3 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
-                          <div className="text-xs font-medium text-slate-200 truncate flex-1">{fixture.label || fixture.name}</div>
-                          <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        <button
+                          onClick={() => setFilterUniverse(null)}
+                          className={`text-[9px] font-mono px-1.5 py-0.5 rounded transition-colors ${
+                            filterUniverse === null
+                              ? 'bg-slate-600 text-slate-200'
+                              : 'bg-slate-800 text-slate-500 hover:text-slate-400'
+                          }`}
+                        >
+                          All
+                        </button>
+                        {universes.map(u => {
+                          const rep = fixtures.find(f => f.universe === u)!
+                          const uColor = getUniverseColor(nodes, rep)
+                          const isActive = filterUniverse === u
+                          return (
                             <button
-                              onClick={(e) => { e.stopPropagation(); onAdjustDMX(); onSelect(fixture.id) }}
-                              title="Adjust DMX channels"
-                              className="text-slate-600 hover:text-blue-400 transition-colors"
+                              key={u}
+                              onClick={() => setFilterUniverse(isActive ? null : u)}
+                              className="text-[9px] font-mono px-1.5 py-0.5 rounded transition-all"
+                              style={{
+                                background: isActive ? `${uColor}33` : `${uColor}11`,
+                                color: isActive ? uColor : `${uColor}88`,
+                                border: `1px solid ${isActive ? `${uColor}66` : `${uColor}33`}`,
+                              }}
                             >
-                              <SlidersHorizontal className="w-3 h-3" />
+                              U{u}
                             </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); onEdit(fixture) }}
-                              title="Edit fixture"
-                              className="text-slate-600 hover:text-slate-300 transition-colors"
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                        {/* Row 2: manufacturer · model (combined) */}
-                        {(fixture.ofl_manufacturer || fixture.ofl_model) && (
-                          <div className="text-[10px] text-slate-500 truncate mt-0.5 pl-4">
-                            {[fixture.ofl_manufacturer, fixture.ofl_model].filter(Boolean).join(' · ')}
-                          </div>
-                        )}
-                        {/* Row 3: universe badge · ch · short ID · node name */}
-                        <div className="flex items-center gap-1.5 mt-0.5 pl-4">
-                          {(() => {
-                            const uColor = getUniverseColor(nodes, fixture)
-                            return (
-                              <span
-                                className="text-[9px] font-mono font-medium px-1 py-px rounded shrink-0 leading-none"
-                                style={{ background: `${uColor}22`, color: uColor, border: `1px solid ${uColor}55` }}
-                              >
-                                U{fixture.universe}
-                              </span>
-                            )
-                          })()}
-                          <span className="text-[10px] font-mono text-slate-500 shrink-0">{fixture.start_channel}–{fixture.start_channel + fixture.channel_count - 1}</span>
-                          <span className="text-[9px] font-mono text-slate-700 shrink-0">#{fixture.id.replace(/-/g, '').slice(0, 7)}</span>
-                          {!isMultiSelectable && node && (
-                            <span className="text-[9px] text-slate-700 truncate">{node.name}</span>
-                          )}
-                          {isMultiSelectable && (
-                            <span className="text-[9px] text-slate-600 truncate">shift+click to add</span>
-                          )}
-                        </div>
+                          )
+                        })}
                       </div>
                     )
-                  })}
-                </div>
+                  })()}
+
+                  {/* Fixtures grouped by universe */}
+                  {(() => {
+                    const allUniverses = [...new Set(fixtures.map(f => f.universe))].sort((a, b) => a - b)
+                    const showHeaders = allUniverses.length > 1
+                    const visibleUniverses = filterUniverse !== null ? [filterUniverse] : allUniverses
+
+                    return visibleUniverses.map(u => {
+                      const universeFixtures = fixtures.filter(f => f.universe === u)
+                      if (universeFixtures.length === 0) return null
+                      const uColor = getUniverseColor(nodes, universeFixtures[0])
+
+                      return (
+                        <div key={u} className="space-y-1 mb-2 last:mb-0">
+                          {showHeaders && (
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <div className="h-px flex-1" style={{ background: `${uColor}33` }} />
+                              <span className="text-[9px] font-mono" style={{ color: `${uColor}99` }}>Universe {u}</span>
+                              <div className="h-px flex-1" style={{ background: `${uColor}33` }} />
+                            </div>
+                          )}
+                          {universeFixtures.map((fixture) => {
+                            const node = nodes.find((n) => n.id === fixture.node_id)
+                            const isSelected = selectedIds.has(fixture.id)
+                            const isGroupable = multiSelectGroup.has(fixture.id)
+                            const isMultiSelectable = isGroupable && !isSelected
+                            const isDraggedOver = dragOverFixtureId === fixture.id && draggedFixtureId !== fixture.id
+
+                            return (
+                              <div
+                                key={fixture.id}
+                                draggable
+                                onDragStart={(e) => { setDraggedFixtureId(fixture.id); e.dataTransfer.effectAllowed = 'move' }}
+                                onDragEnd={() => { setDraggedFixtureId(null); setDragOverFixtureId(null); dragFixtureCounter.current = 0 }}
+                                onDragEnter={() => { dragFixtureCounter.current++; setDragOverFixtureId(fixture.id) }}
+                                onDragLeave={() => { dragFixtureCounter.current--; if (dragFixtureCounter.current === 0) setDragOverFixtureId(null) }}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={() => {
+                                  dragFixtureCounter.current = 0; setDragOverFixtureId(null)
+                                  if (draggedFixtureId && draggedFixtureId !== fixture.id) onReorderFixtures(draggedFixtureId, fixture.id)
+                                  setDraggedFixtureId(null)
+                                }}
+                                className={`group relative rounded-lg px-3 py-2 border transition-colors cursor-pointer select-none ${
+                                  draggedFixtureId === fixture.id
+                                    ? 'opacity-40 border-transparent'
+                                    : isDraggedOver
+                                    ? 'bg-slate-700/50 border-slate-500 border-dashed'
+                                    : isSelected
+                                    ? 'bg-slate-700 border-transparent'
+                                    : isMultiSelectable
+                                    ? 'bg-slate-800/40 border-dashed border-slate-600/60 hover:border-slate-500/80 hover:bg-slate-800/70'
+                                    : 'border-transparent hover:bg-slate-800/70'
+                                }`}
+                                onClick={(e) => onSelect(fixture.id, e.shiftKey)}
+                              >
+                                {/* Row 1: grip · name · actions */}
+                                <div className="flex items-center gap-1">
+                                  <GripVertical className="w-3 h-3 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
+                                  <div className="text-xs font-medium text-slate-200 truncate flex-1">{fixture.label || fixture.name}</div>
+                                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); onAdjustDMX(); onSelect(fixture.id) }}
+                                      title="Adjust DMX channels"
+                                      className="text-slate-600 hover:text-blue-400 transition-colors"
+                                    >
+                                      <SlidersHorizontal className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); onEdit(fixture) }}
+                                      title="Edit fixture"
+                                      className="text-slate-600 hover:text-slate-300 transition-colors"
+                                    >
+                                      <Pencil className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </div>
+                                {/* Row 2: manufacturer · model (combined) */}
+                                {(fixture.ofl_manufacturer || fixture.ofl_model) && (
+                                  <div className="text-[10px] text-slate-500 truncate mt-0.5 pl-4">
+                                    {[fixture.ofl_manufacturer, fixture.ofl_model].filter(Boolean).join(' · ')}
+                                  </div>
+                                )}
+                                {/* Row 3: universe badge · ch · short ID · node name */}
+                                <div className="flex items-center gap-1.5 mt-0.5 pl-4">
+                                  {(() => {
+                                    const uColor = getUniverseColor(nodes, fixture)
+                                    return (
+                                      <span
+                                        className="text-[9px] font-mono font-medium px-1 py-px rounded shrink-0 leading-none"
+                                        style={{ background: `${uColor}22`, color: uColor, border: `1px solid ${uColor}55` }}
+                                      >
+                                        U{fixture.universe}
+                                      </span>
+                                    )
+                                  })()}
+                                  <span className="text-[10px] font-mono text-slate-500 shrink-0">{fixture.start_channel}–{fixture.start_channel + fixture.channel_count - 1}</span>
+                                  <span className="text-[9px] font-mono text-slate-700 shrink-0">#{fixture.id.replace(/-/g, '').slice(0, 7)}</span>
+                                  {!isMultiSelectable && node && (
+                                    <span className="text-[9px] text-slate-700 truncate">{node.name}</span>
+                                  )}
+                                  {isMultiSelectable && (
+                                    <span className="text-[9px] text-slate-600 truncate">shift+click to add</span>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    })
+                  })()}
+                </>
               )}
             </div>
           </div>

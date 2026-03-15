@@ -131,10 +131,7 @@ export function DMXCanvas({
       }
       groups.get(key)!.fixtures.push(f)
     }
-    // Sort each group by start_channel for daisy-chain ordering
-    for (const g of groups.values()) {
-      g.fixtures.sort((a, b) => a.start_channel - b.start_channel)
-    }
+    // Preserve fixtures array order — it already reflects sidebar sort_order
     return groups
   }, [fixtures, nodes])
 

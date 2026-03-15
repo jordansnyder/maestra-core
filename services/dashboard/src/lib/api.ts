@@ -11,6 +11,7 @@ import {
   BlockedDevice, DeviceProvision, DeviceApproval,
   DMXNode, DMXNodeCreate, DMXNodeUpdate,
   DMXFixture, DMXFixtureCreate, DMXFixtureUpdate, FixturePositionUpdate,
+  DMXCue, DMXCueRecallResult,
   OFLManufacturer, OFLFixture, OFLSyncStatus,
 } from './types'
 
@@ -533,6 +534,21 @@ export const dmxApi = {
   pauseOutput: () => fetchApi<{ paused: boolean }>('/dmx/pause', { method: 'POST' }),
   resumeOutput: () => fetchApi<{ paused: boolean }>('/dmx/resume', { method: 'POST' }),
   clearOutput: () => fetchApi<{ cleared: number; universes: number[] }>('/dmx/clear', { method: 'POST' }),
+
+  // DMX Cues
+  listCues: () => fetchApi<DMXCue[]>('/dmx/cues'),
+  saveCue: (name: string) =>
+    fetchApi<DMXCue>('/dmx/cues', { method: 'POST', body: JSON.stringify({ name }) }),
+  recallCue: (id: string) =>
+    fetchApi<DMXCueRecallResult>(`/dmx/cues/${id}/recall`, { method: 'POST' }),
+  updateCueSnapshot: (id: string) =>
+    fetchApi<DMXCue>(`/dmx/cues/${id}/snapshot`, { method: 'POST' }),
+  reorderCues: (ids: string[]) =>
+    fetchApi<{ reordered: number }>('/dmx/cues/reorder', { method: 'PUT', body: JSON.stringify(ids) }),
+  renameCue: (id: string, name: string) =>
+    fetchApi<DMXCue>(`/dmx/cues/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
+  deleteCue: (id: string) =>
+    fetchApi<{ status: string; id: string }>(`/dmx/cues/${id}`, { method: 'DELETE' }),
 }
 
 // OFL Fixture Library API

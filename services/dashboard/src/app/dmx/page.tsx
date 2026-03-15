@@ -6,9 +6,9 @@ import { DMXCanvas } from '@/components/dmx/DMXCanvas'
 import { DMXSidebar } from '@/components/dmx/DMXSidebar'
 import { NodeSetupForm } from '@/components/dmx/NodeSetupForm'
 import { AddFixtureModal } from '@/components/dmx/AddFixtureModal'
-import { DMXFixture, DMXNode, DMXNodeCreate, OFLSyncStatus } from '@/lib/types'
+import { DMXFixture, DMXNode, DMXNodeCreate, OFLSyncStatus, DMXCue } from '@/lib/types'
 import { DMXChannelModal } from '@/components/dmx/DMXChannelModal'
-import { Zap, Plus, Network, Settings, X, Trash2, Pause, Play, AlertTriangle } from '@/components/icons'
+import { Zap, Plus, Network, Settings, X, Trash2, Pause, Play, AlertTriangle, BookOpen } from '@/components/icons'
 import { oflApi, entitiesApi, devicesApi, dmxApi } from '@/lib/api'
 import { DeleteFixtureDialog } from '@/components/dmx/DeleteFixtureDialog'
 
@@ -60,6 +60,14 @@ export default function DMXPage() {
   const [pauseLoading, setPauseLoading] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [clearLoading, setClearLoading] = useState(false)
+  const [cues, setCues] = useState<DMXCue[]>([])
+  const [showSaveCuePopover, setShowSaveCuePopover] = useState(false)
+  const [newCueName, setNewCueName] = useState('')
+  const [saveCueLoading, setSaveCueLoading] = useState(false)
+  const [cueError, setCueError] = useState<string | null>(null)
+  const [activeCueId, setActiveCueId] = useState<string | null>(null)
+  const [editingCueId, setEditingCueId] = useState<string | null>(null)
+  const [updateCueLoading, setUpdateCueLoading] = useState(false)
 
   // Multi-select group: fixtures with same OFL profile + universe as primary selection
   const primaryId = selectedIds.size > 0 ? [...selectedIds][0] : null
@@ -113,6 +121,7 @@ export default function DMXPage() {
   useEffect(() => {
     oflApi.getSyncStatus().then(setSyncStatus).catch(() => {})
     dmxApi.getPauseState().then((r) => setIsPaused(r.paused)).catch(() => {})
+    dmxApi.listCues().then(setCues).catch(() => {})
   }, [])
 
   const setScale = (diameter: number) => {
@@ -130,6 +139,102 @@ export default function DMXPage() {
     } finally {
       setPauseLoading(false)
     }
+  }
+
+  const handleSaveCue = async () => {
+    if (!newCueName.trim()) return
+    setSaveCueLoading(true)
+    setCueError(null)
+    try {
+      const cue = await dmxApi.saveCue(newCueName.trim())
+      setCues((prev) => [cue, ...prev])
+      setShowSaveCuePopover(false)
+      setNewCueName('')
+    } catch (e) {
+      setCueError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setSaveCueLoading(false)
+    }
+  }
+
+  const handleRecallCue = async (id: string) => {
+    // Toggle: clicking an already-active cue deselects it
+    if (activeCueId === id) {
+      setActiveCueId(null)
+      return
+    }
+    try {
+      await dmxApi.recallCue(id)
+      setActiveCueId(id)
+      // If we're editing a different cue, exit that edit mode
+      if (editingCueId && editingCueId !== id) setEditingCueId(null)
+    } catch {
+      // silently ignore — partial recall is acceptable
+    }
+  }
+
+  const handleEnterEditCue = async (id: string) => {
+    // Recall the cue so DMX state matches, then enter edit mode
+    try {
+      await dmxApi.recallCue(id)
+    } catch { /* silently ignore */ }
+    setEditingCueId(id)
+    setActiveCueId(null)
+  }
+
+  const handleExitEditCue = () => {
+    setEditingCueId(null)
+  }
+
+  const handleUpdateCue = async () => {
+    if (!editingCueId) return
+    setUpdateCueLoading(true)
+    try {
+      const updated = await dmxApi.updateCueSnapshot(editingCueId)
+      setCues((prev) => prev.map((c) => (c.id === editingCueId ? updated : c)))
+      setActiveCueId(editingCueId)
+      setEditingCueId(null)
+    } catch {
+      // silently ignore
+    } finally {
+      setUpdateCueLoading(false)
+    }
+  }
+
+  const handleDMXChannelChange = useCallback(() => {
+    // Clear active cue highlight on any slider change (unless in edit mode)
+    if (editingCueId === null) setActiveCueId(null)
+  }, [editingCueId])
+
+  const handleRenameCue = async (id: string, name: string) => {
+    try {
+      const updated = await dmxApi.renameCue(id, name)
+      setCues((prev) => prev.map((c) => (c.id === id ? updated : c)))
+    } catch {
+      // silently ignore
+    }
+  }
+
+  const handleDeleteCue = async (id: string) => {
+    try {
+      await dmxApi.deleteCue(id)
+      setCues((prev) => prev.filter((c) => c.id !== id))
+      if (activeCueId === id) setActiveCueId(null)
+      if (editingCueId === id) setEditingCueId(null)
+    } catch {
+      // silently ignore
+    }
+  }
+
+  const handleReorderCues = async (draggedId: string, targetId: string) => {
+    const draggedIdx = cues.findIndex((c) => c.id === draggedId)
+    const targetIdx = cues.findIndex((c) => c.id === targetId)
+    if (draggedIdx === targetIdx || draggedIdx === -1 || targetIdx === -1) return
+    const next = [...cues]
+    const [removed] = next.splice(draggedIdx, 1)
+    next.splice(targetIdx, 0, removed)
+    setCues(next)
+    await dmxApi.reorderCues(next.map((c) => c.id)).catch(() => {})
   }
 
   const handleClearDMX = async () => {
@@ -280,6 +385,73 @@ export default function DMXPage() {
             </span>
           )}
 
+          {/* Cue save button — "Update Cue" when editing, "Save Cue" when paused */}
+          {editingCueId ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-indigo-400 truncate max-w-[120px]">
+                Editing: {cues.find((c) => c.id === editingCueId)?.name}
+              </span>
+              <button
+                onClick={handleUpdateCue}
+                disabled={updateCueLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                {updateCueLoading ? 'Saving…' : 'Update Cue'}
+              </button>
+              <button
+                onClick={handleExitEditCue}
+                className="text-slate-500 hover:text-slate-300 transition-colors p-1"
+                title="Exit edit mode"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : isPaused ? (
+            <div className="relative">
+              <button
+                onClick={() => { setShowSaveCuePopover((v) => !v); setCueError(null) }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-600 hover:bg-amber-500 text-white transition-colors"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                Save Cue
+              </button>
+              {showSaveCuePopover && (
+                <div className="absolute right-0 top-full mt-1.5 z-40 w-56 bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-3">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Name this cue</p>
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newCueName}
+                    onChange={(e) => setNewCueName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveCue()
+                      if (e.key === 'Escape') setShowSaveCuePopover(false)
+                    }}
+                    placeholder="e.g. Opening Scene"
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-500"
+                  />
+                  {cueError && <p className="text-[10px] text-red-400 mt-1">{cueError}</p>}
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => { setShowSaveCuePopover(false); setNewCueName('') }}
+                      className="flex-1 px-2 py-1.5 rounded text-[11px] text-slate-400 bg-slate-700 hover:bg-slate-600 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveCue}
+                      disabled={saveCueLoading || !newCueName.trim()}
+                      className="flex-1 px-2 py-1.5 rounded text-[11px] font-medium bg-amber-600 hover:bg-amber-500 text-white transition-colors disabled:opacity-50"
+                    >
+                      {saveCueLoading ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
+
           {/* Node scale picker */}
           <div className="flex items-center rounded-lg overflow-hidden border border-slate-700">
             {NODE_SCALES.map((scale) => (
@@ -346,6 +518,16 @@ export default function DMXPage() {
           onDelete={handleDeleteRequest}
           onEditNode={(node) => { setEditingNode(node); setConfirmDeleteNode(false) }}
           onAdjustDMX={() => setShowDMXAdjust(true)}
+          cues={cues}
+          activeCueId={activeCueId}
+          editingCueId={editingCueId}
+          onRecallCue={handleRecallCue}
+          onEnterEditCue={handleEnterEditCue}
+          onExitEditCue={handleExitEditCue}
+          onRenameCue={handleRenameCue}
+          onDeleteCue={handleDeleteCue}
+          onReorderCues={handleReorderCues}
+          onOpenCues={() => dmxApi.listCues().then(setCues).catch(() => {})}
         />
       </div>
 
@@ -552,6 +734,7 @@ export default function DMXPage() {
         <DMXChannelModal
           fixtures={selectedFixtures}
           onClose={() => setShowDMXAdjust(false)}
+          onDMXChannelChange={handleDMXChannelChange}
         />
       )}
 

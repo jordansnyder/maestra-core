@@ -801,3 +801,256 @@ async def clear_dmx_output(db: AsyncSession = Depends(get_db)):
         "cleared_universes": len(artnet_universes),
         "universes": sorted(artnet_universes),
     }
+
+
+# =============================================================================
+# DMX Cues
+# =============================================================================
+
+class DMXCueCreate(BaseModel):
+    name: str
+
+class DMXCueRename(BaseModel):
+    name: str
+
+
+def _row_to_cue(row) -> dict:
+    return {
+        "id": str(row.id),
+        "name": row.name,
+        "sort_order": getattr(row, "sort_order", 0),
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+@router.get("/cues")
+async def list_cues(db: AsyncSession = Depends(get_db)):
+    """List all saved cues ordered by sort_order, then created_at."""
+    rows = await db.execute(text("""
+        SELECT id, name, sort_order, created_at, updated_at
+        FROM dmx_cues ORDER BY sort_order ASC, created_at ASC
+    """))
+    return [_row_to_cue(r) for r in rows.fetchall()]
+
+
+@router.post("/cues")
+async def save_cue(data: DMXCueCreate, db: AsyncSession = Depends(get_db)):
+    """Snapshot current entity states for all linked fixtures into a new named cue."""
+    # Collect all fixtures with a linked entity and a channel map
+    fixture_rows = await db.execute(text("""
+        SELECT f.id, f.entity_id, f.channel_map
+        FROM dmx_fixtures f
+        WHERE f.entity_id IS NOT NULL
+          AND f.channel_map IS NOT NULL
+          AND f.channel_map != '{}'::jsonb
+    """))
+    fixtures = fixture_rows.fetchall()
+
+    # Fetch current entity states in one query
+    entity_ids = [r.entity_id for r in fixtures]
+    entity_state_map: dict[str, dict] = {}
+    if entity_ids:
+        entity_rows = await db.execute(text("""
+            SELECT id, state FROM entities WHERE id = ANY(:ids)
+        """), {"ids": entity_ids})
+        for er in entity_rows.fetchall():
+            entity_state_map[str(er.id)] = er.state or {}
+
+    # Create cue header
+    cue_row = await db.execute(text("""
+        INSERT INTO dmx_cues (name) VALUES (:name)
+        RETURNING id, name, created_at, updated_at
+    """), {"name": data.name})
+    cue = cue_row.fetchone()
+
+    import json as _json
+
+    # Insert per-fixture snapshot rows
+    for fx in fixtures:
+        entity_state = entity_state_map.get(str(fx.entity_id), {})
+        channel_map = fx.channel_map or {}
+        # Only snapshot keys that belong to the channel map
+        state_snapshot = {k: (entity_state.get(k) or 0) for k in channel_map.keys()}
+        await db.execute(text("""
+            INSERT INTO dmx_cue_fixtures (cue_id, fixture_id, entity_id, state)
+            VALUES (:cue_id, :fixture_id, :entity_id, CAST(:state AS jsonb))
+        """), {
+            "cue_id": str(cue.id),
+            "fixture_id": str(fx.id),
+            "entity_id": str(fx.entity_id),
+            "state": _json.dumps(state_snapshot),
+        })
+
+    await db.commit()
+    return _row_to_cue(cue)
+
+
+@router.post("/cues/{cue_id}/recall")
+async def recall_cue(cue_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Restore all fixture entity states from a saved cue snapshot."""
+    from database import EntityDB, EntityTypeDB
+    from sqlalchemy import select as sa_select
+    from datetime import datetime
+
+    # Load cue fixture snapshot rows
+    snap_rows = await db.execute(text("""
+        SELECT entity_id, state FROM dmx_cue_fixtures WHERE cue_id = :cue_id
+    """), {"cue_id": str(cue_id)})
+    snapshots = snap_rows.fetchall()
+
+    if not snapshots:
+        # Still valid — cue may have been saved with no linked fixtures
+        cue_row = await db.execute(text("SELECT name FROM dmx_cues WHERE id = :id"), {"id": str(cue_id)})
+        cue = cue_row.fetchone()
+        if not cue:
+            raise HTTPException(status_code=404, detail="Cue not found")
+        return {"recalled": 0, "skipped": 0, "cue_id": str(cue_id), "cue_name": cue.name}
+
+    entity_ids = [r.entity_id for r in snapshots]
+
+    entity_result = await db.execute(
+        sa_select(EntityDB, EntityTypeDB)
+        .join(EntityTypeDB, EntityDB.entity_type_id == EntityTypeDB.id)
+        .where(EntityDB.id.in_(entity_ids))
+    )
+    entity_map = {str(row.EntityDB.id): (row.EntityDB, row.EntityTypeDB) for row in entity_result}
+
+    recalled = 0
+    skipped = 0
+
+    for snap in snapshots:
+        entry = entity_map.get(str(snap.entity_id))
+        if not entry:
+            skipped += 1
+            continue
+
+        db_entity, entity_type = entry
+        new_state = dict(snap.state) if snap.state else {}
+        previous_state = db_entity.state or {}
+
+        db_entity.state = new_state
+        db_entity.state_updated_at = datetime.utcnow()
+
+        await state_manager.broadcast_state_change(
+            entity_id=db_entity.id,
+            entity_slug=db_entity.slug,
+            entity_type=entity_type.name,
+            entity_path=db_entity.path,
+            previous_state=previous_state,
+            new_state=new_state,
+            source="dashboard-dmx",
+            entity_metadata=db_entity.entity_metadata,
+        )
+        recalled += 1
+
+    await db.commit()
+
+    cue_row = await db.execute(text("SELECT name FROM dmx_cues WHERE id = :id"), {"id": str(cue_id)})
+    cue = cue_row.fetchone()
+
+    return {
+        "recalled": recalled,
+        "skipped": skipped,
+        "cue_id": str(cue_id),
+        "cue_name": cue.name if cue else "",
+    }
+
+
+@router.put("/cues/reorder")
+async def reorder_cues(ids: List[str], db: AsyncSession = Depends(get_db)):
+    """Persist a new cue order by assigning sort_order = array index."""
+    for i, cue_id in enumerate(ids):
+        await db.execute(text("""
+            UPDATE dmx_cues SET sort_order = :order WHERE id = :id
+        """), {"order": i, "id": cue_id})
+    await db.commit()
+    return {"reordered": len(ids)}
+
+
+@router.post("/cues/{cue_id}/snapshot")
+async def update_cue_snapshot(cue_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Replace a cue's fixture snapshot with current entity states (for Edit Mode save)."""
+    import json as _json
+
+    # Verify cue exists
+    cue_check = await db.execute(text("""
+        SELECT id, name, sort_order, created_at, updated_at FROM dmx_cues WHERE id = :id
+    """), {"id": str(cue_id)})
+    cue = cue_check.fetchone()
+    if not cue:
+        raise HTTPException(status_code=404, detail="Cue not found")
+
+    # Re-snapshot current entity states (same logic as save_cue)
+    fixture_rows = await db.execute(text("""
+        SELECT f.id, f.entity_id, f.channel_map
+        FROM dmx_fixtures f
+        WHERE f.entity_id IS NOT NULL
+          AND f.channel_map IS NOT NULL
+          AND f.channel_map != '{}'::jsonb
+    """))
+    fixtures = fixture_rows.fetchall()
+
+    entity_ids = [r.entity_id for r in fixtures]
+    entity_state_map: dict[str, dict] = {}
+    if entity_ids:
+        entity_rows = await db.execute(text("""
+            SELECT id, state FROM entities WHERE id = ANY(:ids)
+        """), {"ids": entity_ids})
+        for er in entity_rows.fetchall():
+            entity_state_map[str(er.id)] = er.state or {}
+
+    # Replace existing fixture rows
+    await db.execute(text("DELETE FROM dmx_cue_fixtures WHERE cue_id = :cue_id"), {"cue_id": str(cue_id)})
+
+    for fx in fixtures:
+        entity_state = entity_state_map.get(str(fx.entity_id), {})
+        channel_map = fx.channel_map or {}
+        state_snapshot = {k: (entity_state.get(k) or 0) for k in channel_map.keys()}
+        await db.execute(text("""
+            INSERT INTO dmx_cue_fixtures (cue_id, fixture_id, entity_id, state)
+            VALUES (:cue_id, :fixture_id, :entity_id, CAST(:state AS jsonb))
+        """), {
+            "cue_id": str(cue_id),
+            "fixture_id": str(fx.id),
+            "entity_id": str(fx.entity_id),
+            "state": _json.dumps(state_snapshot),
+        })
+
+    await db.execute(text("""
+        UPDATE dmx_cues SET updated_at = NOW() WHERE id = :id
+    """), {"id": str(cue_id)})
+
+    await db.commit()
+
+    updated = await db.execute(text("""
+        SELECT id, name, sort_order, created_at, updated_at FROM dmx_cues WHERE id = :id
+    """), {"id": str(cue_id)})
+    return _row_to_cue(updated.fetchone())
+
+
+@router.put("/cues/{cue_id}")
+async def rename_cue(cue_id: UUID, data: DMXCueRename, db: AsyncSession = Depends(get_db)):
+    """Rename a cue."""
+    row = await db.execute(text("""
+        UPDATE dmx_cues SET name = :name WHERE id = :id
+        RETURNING id, name, sort_order, created_at, updated_at
+    """), {"name": data.name, "id": str(cue_id)})
+    cue = row.fetchone()
+    if not cue:
+        raise HTTPException(status_code=404, detail="Cue not found")
+    await db.commit()
+    return _row_to_cue(cue)
+
+
+@router.delete("/cues/{cue_id}")
+async def delete_cue(cue_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Delete a cue and all its fixture snapshot rows (cascaded)."""
+    row = await db.execute(text("""
+        DELETE FROM dmx_cues WHERE id = :id RETURNING id
+    """), {"id": str(cue_id)})
+    deleted = row.fetchone()
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Cue not found")
+    await db.commit()
+    return {"status": "deleted", "id": str(cue_id)}

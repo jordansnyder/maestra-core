@@ -480,6 +480,21 @@ export interface FixturePositionUpdate {
   position_y: number
 }
 
+export interface DMXCue {
+  id: string
+  name: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface DMXCueRecallResult {
+  recalled: number
+  skipped: number
+  cue_id: string
+  cue_name: string
+}
+
 export interface DataPreviewData {
   type: string
   _seq: number

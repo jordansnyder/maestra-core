@@ -94,6 +94,8 @@ export {
   Network,
   Layers,
   Copy,
+  GripVertical,
+  Check,
 } from 'lucide-react'
 
 // Device type icon lookup

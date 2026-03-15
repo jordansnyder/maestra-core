@@ -12,6 +12,7 @@ import {
   DMXNode, DMXNodeCreate, DMXNodeUpdate,
   DMXFixture, DMXFixtureCreate, DMXFixtureUpdate, FixturePositionUpdate,
   DMXCue, DMXCueRecallResult,
+  DMXSequence, DMXCuePlacement, DMXCueFixtureSnapshot,
   OFLManufacturer, OFLFixture, OFLSyncStatus,
 } from './types'
 
@@ -505,6 +506,8 @@ export const dmxApi = {
     fetchApi<DMXNode>(`/dmx/nodes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteNode: (id: string) =>
     fetchApi<{ status: string; id: string }>(`/dmx/nodes/${id}`, { method: 'DELETE' }),
+  reorderNodes: (ids: string[]) =>
+    fetchApi<{ reordered: number }>('/dmx/nodes/reorder', { method: 'PUT', body: JSON.stringify(ids) }),
 
   // DMX Fixtures
   listFixtures: (filters?: { nodeId?: string; entityId?: string }) => {
@@ -523,6 +526,8 @@ export const dmxApi = {
     fetchApi<DMXFixture>(`/dmx/fixtures/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteFixture: (id: string) =>
     fetchApi<{ status: string; id: string }>(`/dmx/fixtures/${id}`, { method: 'DELETE' }),
+  reorderFixtures: (ids: string[]) =>
+    fetchApi<{ reordered: number }>('/dmx/fixtures/reorder', { method: 'PUT', body: JSON.stringify(ids) }),
   bulkUpdatePositions: (positions: FixturePositionUpdate[]) =>
     fetchApi<{ status: string; count: number }>('/dmx/fixtures/positions/bulk', {
       method: 'PUT',
@@ -549,6 +554,27 @@ export const dmxApi = {
     fetchApi<DMXCue>(`/dmx/cues/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
   deleteCue: (id: string) =>
     fetchApi<{ status: string; id: string }>(`/dmx/cues/${id}`, { method: 'DELETE' }),
+  getCueFixtures: (id: string) =>
+    fetchApi<DMXCueFixtureSnapshot[]>(`/dmx/cues/${id}/fixtures`),
+
+  // DMX Sequences
+  listSequences: () => fetchApi<DMXSequence[]>('/dmx/sequences'),
+  createSequence: (name: string) =>
+    fetchApi<DMXSequence>('/dmx/sequences', { method: 'POST', body: JSON.stringify({ name }) }),
+  reorderSequences: (ids: string[]) =>
+    fetchApi<{ reordered: number }>('/dmx/sequences/reorder', { method: 'PUT', body: JSON.stringify(ids) }),
+  renameSequence: (id: string, name: string) =>
+    fetchApi<DMXSequence>(`/dmx/sequences/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
+  deleteSequence: (id: string) =>
+    fetchApi<{ status: string; id: string }>(`/dmx/sequences/${id}`, { method: 'DELETE' }),
+  addCueToSequence: (sequenceId: string, cueId: string) =>
+    fetchApi<DMXCuePlacement[]>(`/dmx/sequences/${sequenceId}/cues`, { method: 'POST', body: JSON.stringify({ cue_id: cueId }) }),
+  reorderSequenceCues: (sequenceId: string, ids: string[]) =>
+    fetchApi<DMXCuePlacement[]>(`/dmx/sequences/${sequenceId}/cues/reorder`, { method: 'PUT', body: JSON.stringify(ids) }),
+  updateCuePlacement: (sequenceId: string, placementId: string, data: { transition_time?: number; hold_duration?: number }) =>
+    fetchApi<DMXCuePlacement[]>(`/dmx/sequences/${sequenceId}/cues/${placementId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  removeCueFromSequence: (sequenceId: string, placementId: string) =>
+    fetchApi<DMXCuePlacement[]>(`/dmx/sequences/${sequenceId}/cues/${placementId}`, { method: 'DELETE' }),
 }
 
 // OFL Fixture Library API

@@ -101,6 +101,10 @@ export {
   Copy,
   GripVertical,
   Check,
+  Square,
+  ListOrdered,
+  Repeat,
+  Sunset,
 } from 'lucide-react'
 
 // Device type icon lookup

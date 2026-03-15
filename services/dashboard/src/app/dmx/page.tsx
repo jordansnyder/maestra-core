@@ -6,11 +6,13 @@ import { DMXCanvas } from '@/components/dmx/DMXCanvas'
 import { DMXSidebar } from '@/components/dmx/DMXSidebar'
 import { NodeSetupForm } from '@/components/dmx/NodeSetupForm'
 import { AddFixtureModal } from '@/components/dmx/AddFixtureModal'
-import { DMXFixture, DMXNode, DMXNodeCreate, OFLSyncStatus, DMXCue } from '@/lib/types'
+import { DMXFixture, DMXNode, DMXNodeCreate, OFLSyncStatus, DMXCue, DMXSequence, DMXCuePlacement } from '@/lib/types'
 import { DMXChannelModal } from '@/components/dmx/DMXChannelModal'
-import { Zap, Plus, Network, Settings, X, Trash2, Pause, Play, AlertTriangle, BookOpen } from '@/components/icons'
+import { Zap, Network, X, Trash2, Pause, Play, AlertTriangle } from '@/components/icons'
 import { oflApi, entitiesApi, devicesApi, dmxApi } from '@/lib/api'
 import { DeleteFixtureDialog } from '@/components/dmx/DeleteFixtureDialog'
+import { useSequencePlayback } from '@/hooks/useSequencePlayback'
+import { useCueFade } from '@/hooks/useCueFade'
 
 function formatRelativeTime(iso: string): string {
   const date = new Date(iso)
@@ -42,7 +44,7 @@ function getInitialScale(): number {
 }
 
 export default function DMXPage() {
-  const { nodes, fixtures, loading, error, createNode, updateNode, deleteNode, createFixture, updateFixture, deleteFixture, bulkUpdatePositions } = useDMX()
+  const { nodes, fixtures, loading, error, createNode, updateNode, deleteNode, createFixture, updateFixture, deleteFixture, bulkUpdatePositions, reorderNodes, reorderFixtures } = useDMX()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showDMXAdjust, setShowDMXAdjust] = useState(false)
   const [showAddNode, setShowAddNode] = useState(false)
@@ -61,13 +63,14 @@ export default function DMXPage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [clearLoading, setClearLoading] = useState(false)
   const [cues, setCues] = useState<DMXCue[]>([])
-  const [showSaveCuePopover, setShowSaveCuePopover] = useState(false)
-  const [newCueName, setNewCueName] = useState('')
-  const [saveCueLoading, setSaveCueLoading] = useState(false)
-  const [cueError, setCueError] = useState<string | null>(null)
   const [activeCueId, setActiveCueId] = useState<string | null>(null)
   const [editingCueId, setEditingCueId] = useState<string | null>(null)
   const [updateCueLoading, setUpdateCueLoading] = useState(false)
+  const [sequences, setSequences] = useState<DMXSequence[]>([])
+  const [deleteSequenceTarget, setDeleteSequenceTarget] = useState<DMXSequence | null>(null)
+  const [openSequencesSignal, setOpenSequencesSignal] = useState(0)
+  const { status: playbackStatus, play: playSequence, pause: pauseSequence, resume: resumeSequence, stop: stopSequence, toggleLoop, fadeOut } = useSequencePlayback()
+  const { fadeProgress: cueFadeProgress, fadeTo: fadeCueTo, cancelFade: cancelCueFade } = useCueFade()
 
   // Multi-select group: fixtures with same OFL profile + universe as primary selection
   const primaryId = selectedIds.size > 0 ? [...selectedIds][0] : null
@@ -122,6 +125,7 @@ export default function DMXPage() {
     oflApi.getSyncStatus().then(setSyncStatus).catch(() => {})
     dmxApi.getPauseState().then((r) => setIsPaused(r.paused)).catch(() => {})
     dmxApi.listCues().then(setCues).catch(() => {})
+    dmxApi.listSequences().then(setSequences).catch(() => {})
   }, [])
 
   const setScale = (diameter: number) => {
@@ -141,33 +145,18 @@ export default function DMXPage() {
     }
   }
 
-  const handleSaveCue = async () => {
-    if (!newCueName.trim()) return
-    setSaveCueLoading(true)
-    setCueError(null)
-    try {
-      const cue = await dmxApi.saveCue(newCueName.trim())
-      setCues((prev) => [cue, ...prev])
-      setShowSaveCuePopover(false)
-      setNewCueName('')
-    } catch (e) {
-      setCueError(e instanceof Error ? e.message : 'Save failed')
-    } finally {
-      setSaveCueLoading(false)
-    }
-  }
-
-  const handleRecallCue = async (id: string) => {
+  const handleRecallCue = async (id: string, fadeDuration: number = 0) => {
     // Toggle: clicking an already-active cue deselects it
     if (activeCueId === id) {
       setActiveCueId(null)
+      cancelCueFade()
       return
     }
+    // If we're editing a different cue, exit that edit mode
+    if (editingCueId && editingCueId !== id) setEditingCueId(null)
+    setActiveCueId(id)
     try {
-      await dmxApi.recallCue(id)
-      setActiveCueId(id)
-      // If we're editing a different cue, exit that edit mode
-      if (editingCueId && editingCueId !== id) setEditingCueId(null)
+      await fadeCueTo(activeCueId, id, fadeDuration * 1000)
     } catch {
       // silently ignore — partial recall is acceptable
     }
@@ -223,6 +212,97 @@ export default function DMXPage() {
       if (editingCueId === id) setEditingCueId(null)
     } catch {
       // silently ignore
+    }
+  }
+
+  // ── Sequence handlers ──────────────────────────────────────────────────────
+
+  const handleCreateSequence = async () => {
+    const names = sequences.map((s) => s.name)
+    let base = 'New Sequence'; let n = 1
+    while (names.includes(n === 1 ? base : `${base} ${n}`)) n++
+    const name = n === 1 ? base : `${base} ${n}`
+    try {
+      const seq = await dmxApi.createSequence(name)
+      setSequences((prev) => [...prev, seq])
+      setOpenSequencesSignal((s) => s + 1)
+    } catch (err) { console.error('Failed to create sequence:', err) }
+  }
+
+  const handleRenameSequence = async (id: string, name: string) => {
+    try {
+      const updated = await dmxApi.renameSequence(id, name)
+      setSequences((prev) => prev.map((s) => (s.id === id ? updated : s)))
+    } catch { /* silently ignore */ }
+  }
+
+  const handleDeleteSequence = async (id: string) => {
+    try {
+      await dmxApi.deleteSequence(id)
+      setSequences((prev) => prev.filter((s) => s.id !== id))
+      if (playbackStatus.sequenceId === id) stopSequence()
+      setDeleteSequenceTarget(null)
+    } catch { /* silently ignore */ }
+  }
+
+  const handleRequestDeleteSequence = (seq: DMXSequence) => {
+    if (seq.cue_placements.length > 0) {
+      setDeleteSequenceTarget(seq)
+    } else {
+      handleDeleteSequence(seq.id)
+    }
+  }
+
+  const handleReorderSequences = async (draggedId: string, targetId: string) => {
+    const di = sequences.findIndex((s) => s.id === draggedId)
+    const ti = sequences.findIndex((s) => s.id === targetId)
+    if (di === ti || di === -1 || ti === -1) return
+    const next = [...sequences]
+    const [removed] = next.splice(di, 1)
+    next.splice(ti, 0, removed)
+    setSequences(next)
+    await dmxApi.reorderSequences(next.map((s) => s.id)).catch(() => {})
+  }
+
+  const handleAddCueToSequence = async (sequenceId: string, cueId: string) => {
+    try {
+      const placements = await dmxApi.addCueToSequence(sequenceId, cueId)
+      setSequences((prev) => prev.map((s) => (s.id === sequenceId ? { ...s, cue_placements: placements } : s)))
+    } catch { /* silently ignore */ }
+  }
+
+  const handleReorderSequenceCues = async (sequenceId: string, draggedId: string, targetId: string) => {
+    const seq = sequences.find((s) => s.id === sequenceId)
+    if (!seq) return
+    const di = seq.cue_placements.findIndex((p) => p.id === draggedId)
+    const ti = seq.cue_placements.findIndex((p) => p.id === targetId)
+    if (di === ti || di === -1 || ti === -1) return
+    const next = [...seq.cue_placements]
+    const [removed] = next.splice(di, 1)
+    next.splice(ti, 0, removed)
+    setSequences((prev) => prev.map((s) => (s.id === sequenceId ? { ...s, cue_placements: next } : s)))
+    await dmxApi.reorderSequenceCues(sequenceId, next.map((p) => p.id)).catch(() => {})
+  }
+
+  const handleUpdatePlacement = async (sequenceId: string, placementId: string, data: { transition_time?: number; hold_duration?: number }) => {
+    try {
+      const placements = await dmxApi.updateCuePlacement(sequenceId, placementId, data)
+      setSequences((prev) => prev.map((s) => (s.id === sequenceId ? { ...s, cue_placements: placements } : s)))
+    } catch { /* silently ignore */ }
+  }
+
+  const handleRemoveCueFromSequence = async (sequenceId: string, placementId: string) => {
+    try {
+      const placements = await dmxApi.removeCueFromSequence(sequenceId, placementId)
+      setSequences((prev) => prev.map((s) => (s.id === sequenceId ? { ...s, cue_placements: placements } : s)))
+    } catch { /* silently ignore */ }
+  }
+
+  const handlePlaySequence = (seq: DMXSequence) => {
+    if (playbackStatus.sequenceId === seq.id && playbackStatus.playState === 'paused') {
+      resumeSequence()
+    } else {
+      playSequence(seq)
     }
   }
 
@@ -385,73 +465,6 @@ export default function DMXPage() {
             </span>
           )}
 
-          {/* Cue save button — "Update Cue" when editing, "Save Cue" when paused */}
-          {editingCueId ? (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-indigo-400 truncate max-w-[120px]">
-                Editing: {cues.find((c) => c.id === editingCueId)?.name}
-              </span>
-              <button
-                onClick={handleUpdateCue}
-                disabled={updateCueLoading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50"
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                {updateCueLoading ? 'Saving…' : 'Update Cue'}
-              </button>
-              <button
-                onClick={handleExitEditCue}
-                className="text-slate-500 hover:text-slate-300 transition-colors p-1"
-                title="Exit edit mode"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : isPaused ? (
-            <div className="relative">
-              <button
-                onClick={() => { setShowSaveCuePopover((v) => !v); setCueError(null) }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-600 hover:bg-amber-500 text-white transition-colors"
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                Save Cue
-              </button>
-              {showSaveCuePopover && (
-                <div className="absolute right-0 top-full mt-1.5 z-40 w-56 bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-3">
-                  <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Name this cue</p>
-                  <input
-                    autoFocus
-                    type="text"
-                    value={newCueName}
-                    onChange={(e) => setNewCueName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSaveCue()
-                      if (e.key === 'Escape') setShowSaveCuePopover(false)
-                    }}
-                    placeholder="e.g. Opening Scene"
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-500"
-                  />
-                  {cueError && <p className="text-[10px] text-red-400 mt-1">{cueError}</p>}
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      onClick={() => { setShowSaveCuePopover(false); setNewCueName('') }}
-                      className="flex-1 px-2 py-1.5 rounded text-[11px] text-slate-400 bg-slate-700 hover:bg-slate-600 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSaveCue}
-                      disabled={saveCueLoading || !newCueName.trim()}
-                      className="flex-1 px-2 py-1.5 rounded text-[11px] font-medium bg-amber-600 hover:bg-amber-500 text-white transition-colors disabled:opacity-50"
-                    >
-                      {saveCueLoading ? 'Saving…' : 'Save'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : null}
-
           {/* Node scale picker */}
           <div className="flex items-center rounded-lg overflow-hidden border border-slate-700">
             {NODE_SCALES.map((scale) => (
@@ -468,20 +481,6 @@ export default function DMXPage() {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setShowAddNode(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 bg-slate-800 hover:bg-slate-700 transition-colors"
-          >
-            <Settings className="w-3.5 h-3.5" />
-            Nodes
-          </button>
-          <button
-            onClick={() => setShowAddFixture(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add Fixture
-          </button>
         </div>
       </div>
 
@@ -518,9 +517,15 @@ export default function DMXPage() {
           onDelete={handleDeleteRequest}
           onEditNode={(node) => { setEditingNode(node); setConfirmDeleteNode(false) }}
           onAdjustDMX={() => setShowDMXAdjust(true)}
+          isPaused={isPaused}
+          onAddNode={() => setShowAddNode(true)}
+          onAddFixture={() => setShowAddFixture(true)}
+          onReorderNodes={reorderNodes}
+          onReorderFixtures={reorderFixtures}
           cues={cues}
           activeCueId={activeCueId}
           editingCueId={editingCueId}
+          cueFadeProgress={cueFadeProgress}
           onRecallCue={handleRecallCue}
           onEnterEditCue={handleEnterEditCue}
           onExitEditCue={handleExitEditCue}
@@ -528,6 +533,27 @@ export default function DMXPage() {
           onDeleteCue={handleDeleteCue}
           onReorderCues={handleReorderCues}
           onOpenCues={() => dmxApi.listCues().then(setCues).catch(() => {})}
+          onSaveCue={async (name) => { const cue = await dmxApi.saveCue(name); setCues((prev) => [cue, ...prev]) }}
+          onUpdateCue={handleUpdateCue}
+          updateCueLoading={updateCueLoading}
+          sequences={sequences}
+          playbackStatus={playbackStatus}
+          onPlaySequence={handlePlaySequence}
+          onPauseSequence={pauseSequence}
+          onStopSequence={stopSequence}
+          onToggleLoop={toggleLoop}
+          onFadeOut={(durationSec) => fadeOut(durationSec * 1000)}
+          onRenameSequence={handleRenameSequence}
+          onDeleteSequence={handleRequestDeleteSequence}
+          onReorderSequences={handleReorderSequences}
+          onAddCueToSequence={handleAddCueToSequence}
+          onReorderSequenceCues={handleReorderSequenceCues}
+          onUpdatePlacement={handleUpdatePlacement}
+          onRemoveCueFromSequence={handleRemoveCueFromSequence}
+          onOpenSequences={() => dmxApi.listSequences().then(setSequences).catch(() => {})}
+          openSequencesSignal={openSequencesSignal}
+          availableCues={cues}
+          onCreateSequence={handleCreateSequence}
         />
       </div>
 
@@ -736,6 +762,32 @@ export default function DMXPage() {
           onClose={() => setShowDMXAdjust(false)}
           onDMXChannelChange={handleDMXChannelChange}
         />
+      )}
+
+      {/* Delete Sequence Confirmation */}
+      {deleteSequenceTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800">
+              <div className="w-8 h-8 rounded-full bg-red-900/40 border border-red-800/50 flex items-center justify-center shrink-0">
+                <Trash2 className="w-4 h-4 text-red-400" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-white">Delete Sequence</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Contains {deleteSequenceTarget.cue_placements.length} cue{deleteSequenceTarget.cue_placements.length !== 1 ? 's' : ''}</p>
+              </div>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-slate-300">
+                Delete <span className="font-medium text-white">{deleteSequenceTarget.name}</span>? The cues inside will not be deleted, only removed from this sequence.
+              </p>
+            </div>
+            <div className="flex gap-2 px-5 pb-5">
+              <button onClick={() => setDeleteSequenceTarget(null)} className="flex-1 px-3 py-2 rounded-lg text-xs text-slate-400 bg-slate-800 hover:bg-slate-700 transition-colors">Cancel</button>
+              <button onClick={() => handleDeleteSequence(deleteSequenceTarget.id)} className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-red-700 hover:bg-red-600 text-white transition-colors">Delete Sequence</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Clear DMX Confirmation */}

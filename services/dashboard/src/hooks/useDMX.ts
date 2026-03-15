@@ -74,6 +74,32 @@ export function useDMX() {
     )
   }, [])
 
+  const reorderNodes = useCallback(async (draggedId: string, targetId: string) => {
+    setNodes((prev) => {
+      const di = prev.findIndex((n) => n.id === draggedId)
+      const ti = prev.findIndex((n) => n.id === targetId)
+      if (di === -1 || ti === -1 || di === ti) return prev
+      const next = [...prev]
+      const [removed] = next.splice(di, 1)
+      next.splice(ti, 0, removed)
+      dmxApi.reorderNodes(next.map((n) => n.id)).catch(() => {})
+      return next
+    })
+  }, [])
+
+  const reorderFixtures = useCallback(async (draggedId: string, targetId: string) => {
+    setFixtures((prev) => {
+      const di = prev.findIndex((f) => f.id === draggedId)
+      const ti = prev.findIndex((f) => f.id === targetId)
+      if (di === -1 || ti === -1 || di === ti) return prev
+      const next = [...prev]
+      const [removed] = next.splice(di, 1)
+      next.splice(ti, 0, removed)
+      dmxApi.reorderFixtures(next.map((f) => f.id)).catch(() => {})
+      return next
+    })
+  }, [])
+
   return {
     nodes,
     fixtures,
@@ -87,5 +113,7 @@ export function useDMX() {
     updateFixture,
     deleteFixture,
     bulkUpdatePositions,
+    reorderNodes,
+    reorderFixtures,
   }
 }

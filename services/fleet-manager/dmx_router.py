@@ -141,6 +141,7 @@ def _row_to_node(row) -> dict:
         "firmware_version": row.firmware_version,
         "notes": row.notes,
         "device_id": str(row.device_id) if row.device_id else None,
+        "sort_order": row.sort_order if hasattr(row, "sort_order") else 0,
         "metadata": row.metadata if row.metadata else {},
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
@@ -164,6 +165,7 @@ def _row_to_fixture(row) -> dict:
         "ofl_fixture_id": str(row.ofl_fixture_id) if row.ofl_fixture_id else None,
         "position_x": row.position_x,
         "position_y": row.position_y,
+        "sort_order": row.sort_order if hasattr(row, "sort_order") else 0,
         "metadata": row.metadata if row.metadata else {},
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
@@ -294,9 +296,20 @@ async def _require_node(node_id: UUID, db: AsyncSession) -> None:
 async def list_nodes(db: AsyncSession = Depends(get_db)):
     """List all configured Art-Net nodes."""
     result = await db.execute(text(
-        "SELECT * FROM dmx_nodes ORDER BY created_at ASC"
+        "SELECT * FROM dmx_nodes ORDER BY sort_order ASC, created_at ASC"
     ))
     return [_row_to_node(r) for r in result.fetchall()]
+
+
+@router.put("/nodes/reorder")
+async def reorder_nodes(ids: List[str], db: AsyncSession = Depends(get_db)):
+    """Persist a new node order by assigning sort_order = array index."""
+    for i, node_id in enumerate(ids):
+        await db.execute(text(
+            "UPDATE dmx_nodes SET sort_order = :order WHERE id = :id"
+        ), {"order": i, "id": node_id})
+    await db.commit()
+    return {"reordered": len(ids)}
 
 
 @router.post("/nodes", status_code=201)
@@ -329,11 +342,13 @@ async def create_node(data: DMXNodeCreate, db: AsyncSession = Depends(get_db)):
         INSERT INTO dmx_nodes (
             id, name, manufacturer, model, ip_address, mac_address,
             artnet_port, universe_count, universes, poe_powered,
-            firmware_version, notes, device_id, metadata
+            firmware_version, notes, device_id, sort_order, metadata
         ) VALUES (
             :id, :name, :manufacturer, :model, :ip_address, :mac_address,
             :artnet_port, :universe_count, CAST(:universes AS jsonb), :poe_powered,
-            :firmware_version, :notes, :device_id, CAST(:metadata AS jsonb)
+            :firmware_version, :notes, :device_id,
+            COALESCE((SELECT MAX(sort_order) + 1 FROM dmx_nodes), 0),
+            CAST(:metadata AS jsonb)
         )
     """), {
         "id": node_id,
@@ -454,7 +469,7 @@ async def list_fixtures(
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     result = await db.execute(
-        text(f"{_FIXTURE_SELECT} {where} ORDER BY f.created_at ASC"),
+        text(f"{_FIXTURE_SELECT} {where} ORDER BY f.sort_order ASC, f.created_at ASC"),
         params,
     )
     return [_row_to_fixture(r) for r in result.fetchall()]
@@ -491,11 +506,13 @@ async def create_fixture(data: DMXFixtureCreate, db: AsyncSession = Depends(get_
         INSERT INTO dmx_fixtures (
             id, name, label, node_id, universe,
             start_channel, channel_count, fixture_mode, channel_map,
-            entity_id, ofl_fixture_id, position_x, position_y, metadata
+            entity_id, ofl_fixture_id, position_x, position_y, sort_order, metadata
         ) VALUES (
             :id, :name, :label, :node_id, :universe,
             :start_channel, :channel_count, :fixture_mode, CAST(:channel_map AS jsonb),
-            :entity_id, :ofl_fixture_id, :position_x, :position_y, CAST(:metadata AS jsonb)
+            :entity_id, :ofl_fixture_id, :position_x, :position_y,
+            COALESCE((SELECT MAX(sort_order) + 1 FROM dmx_fixtures), 0),
+            CAST(:metadata AS jsonb)
         )
     """), {
         "id": fixture_id,
@@ -519,6 +536,17 @@ async def create_fixture(data: DMXFixtureCreate, db: AsyncSession = Depends(get_
         text(f"{_FIXTURE_SELECT} WHERE f.id = :id"), {"id": fixture_id}
     )
     return _row_to_fixture(result.fetchone())
+
+
+@router.put("/fixtures/reorder")
+async def reorder_fixtures(ids: List[str], db: AsyncSession = Depends(get_db)):
+    """Persist a new fixture order by assigning sort_order = array index."""
+    for i, fixture_id in enumerate(ids):
+        await db.execute(text(
+            "UPDATE dmx_fixtures SET sort_order = :order WHERE id = :id"
+        ), {"order": i, "id": fixture_id})
+    await db.commit()
+    return {"reordered": len(ids)}
 
 
 @router.get("/fixtures/{fixture_id}")
@@ -1054,3 +1082,252 @@ async def delete_cue(cue_id: UUID, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Cue not found")
     await db.commit()
     return {"status": "deleted", "id": str(cue_id)}
+
+
+# Endpoint to fetch cue fixture snapshots for playback
+@router.get("/cues/{cue_id}/fixtures")
+async def get_cue_fixtures(cue_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Return all fixture snapshots for a cue (used by sequence playback)."""
+    rows = await db.execute(text("""
+        SELECT fixture_id, entity_id, state
+        FROM dmx_cue_fixtures WHERE cue_id = :cue_id
+    """), {"cue_id": str(cue_id)})
+    return [
+        {"fixture_id": str(r.fixture_id), "entity_id": str(r.entity_id), "state": r.state or {}}
+        for r in rows.fetchall()
+    ]
+
+
+# =============================================================================
+# DMX Sequences
+# =============================================================================
+
+class DMXSequenceCreate(BaseModel):
+    name: str
+
+class DMXSequenceRename(BaseModel):
+    name: str
+
+class DMXSequenceCuePlacementCreate(BaseModel):
+    cue_id: str
+
+class DMXSequenceCuePlacementUpdate(BaseModel):
+    transition_time: Optional[float] = None
+    hold_duration: Optional[float] = None
+
+
+def _placements_for_sequence(sequence_id: str, rows) -> list:
+    return [
+        {
+            "id": str(r.id),
+            "sequence_id": sequence_id,
+            "cue_id": str(r.cue_id),
+            "cue_name": r.cue_name or "",
+            "position": r.position,
+            "transition_time": r.transition_time,
+            "hold_duration": r.hold_duration,
+        }
+        for r in rows
+    ]
+
+
+async def _load_placements(sequence_id: str, db: AsyncSession) -> list:
+    rows = await db.execute(text("""
+        SELECT sc.id, sc.cue_id, c.name AS cue_name, sc.position,
+               sc.transition_time, sc.hold_duration
+        FROM dmx_sequence_cues sc
+        JOIN dmx_cues c ON c.id = sc.cue_id
+        WHERE sc.sequence_id = :sid
+        ORDER BY sc.position ASC
+    """), {"sid": sequence_id})
+    return _placements_for_sequence(sequence_id, rows.fetchall())
+
+
+def _row_to_sequence(row, placements: list) -> dict:
+    return {
+        "id": str(row.id),
+        "name": row.name,
+        "sort_order": getattr(row, "sort_order", 0),
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+        "cue_placements": placements,
+    }
+
+
+@router.get("/sequences")
+async def list_sequences(db: AsyncSession = Depends(get_db)):
+    """List all sequences with their cue placements, ordered by sort_order."""
+    seq_rows = await db.execute(text("""
+        SELECT id, name, sort_order, created_at, updated_at
+        FROM dmx_sequences ORDER BY sort_order ASC, created_at ASC
+    """))
+    sequences = seq_rows.fetchall()
+    result = []
+    for s in sequences:
+        placements = await _load_placements(str(s.id), db)
+        result.append(_row_to_sequence(s, placements))
+    return result
+
+
+@router.post("/sequences")
+async def create_sequence(data: DMXSequenceCreate, db: AsyncSession = Depends(get_db)):
+    """Create a new empty sequence."""
+    # Assign sort_order = max + 1
+    max_row = await db.execute(text("SELECT COALESCE(MAX(sort_order), -1) AS m FROM dmx_sequences"))
+    next_order = (max_row.fetchone().m or 0) + 1
+
+    row = await db.execute(text("""
+        INSERT INTO dmx_sequences (name, sort_order)
+        VALUES (:name, :sort_order)
+        RETURNING id, name, sort_order, created_at, updated_at
+    """), {"name": data.name, "sort_order": next_order})
+    seq = row.fetchone()
+    await db.commit()
+    return _row_to_sequence(seq, [])
+
+
+@router.put("/sequences/reorder")
+async def reorder_sequences(ids: List[str], db: AsyncSession = Depends(get_db)):
+    """Persist sequence order by assigning sort_order = array index."""
+    for i, seq_id in enumerate(ids):
+        await db.execute(text("""
+            UPDATE dmx_sequences SET sort_order = :order WHERE id = :id
+        """), {"order": i, "id": seq_id})
+    await db.commit()
+    return {"reordered": len(ids)}
+
+
+@router.put("/sequences/{sequence_id}")
+async def rename_sequence(sequence_id: UUID, data: DMXSequenceRename, db: AsyncSession = Depends(get_db)):
+    """Rename a sequence."""
+    row = await db.execute(text("""
+        UPDATE dmx_sequences SET name = :name WHERE id = :id
+        RETURNING id, name, sort_order, created_at, updated_at
+    """), {"name": data.name, "id": str(sequence_id)})
+    seq = row.fetchone()
+    if not seq:
+        raise HTTPException(status_code=404, detail="Sequence not found")
+    await db.commit()
+    placements = await _load_placements(str(sequence_id), db)
+    return _row_to_sequence(seq, placements)
+
+
+@router.delete("/sequences/{sequence_id}")
+async def delete_sequence(sequence_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Delete a sequence (cascade removes cue placements)."""
+    row = await db.execute(text("""
+        DELETE FROM dmx_sequences WHERE id = :id RETURNING id
+    """), {"id": str(sequence_id)})
+    deleted = row.fetchone()
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Sequence not found")
+    await db.commit()
+    return {"status": "deleted", "id": str(sequence_id)}
+
+
+@router.post("/sequences/{sequence_id}/cues")
+async def add_cue_to_sequence(
+    sequence_id: UUID,
+    data: DMXSequenceCuePlacementCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Add a cue to a sequence at the end."""
+    # Verify sequence and cue exist
+    seq_check = await db.execute(text("SELECT id FROM dmx_sequences WHERE id = :id"), {"id": str(sequence_id)})
+    if not seq_check.fetchone():
+        raise HTTPException(status_code=404, detail="Sequence not found")
+    cue_check = await db.execute(text("SELECT id FROM dmx_cues WHERE id = :id"), {"id": data.cue_id})
+    if not cue_check.fetchone():
+        raise HTTPException(status_code=404, detail="Cue not found")
+
+    max_pos = await db.execute(text("""
+        SELECT COALESCE(MAX(position), -1) AS m FROM dmx_sequence_cues WHERE sequence_id = :sid
+    """), {"sid": str(sequence_id)})
+    next_pos = (max_pos.fetchone().m or 0) + 1
+
+    await db.execute(text("""
+        INSERT INTO dmx_sequence_cues (sequence_id, cue_id, position)
+        VALUES (:sid, :cue_id, :pos)
+    """), {"sid": str(sequence_id), "cue_id": data.cue_id, "pos": next_pos})
+
+    await db.execute(text("""
+        UPDATE dmx_sequences SET updated_at = NOW() WHERE id = :id
+    """), {"id": str(sequence_id)})
+    await db.commit()
+
+    placements = await _load_placements(str(sequence_id), db)
+    return placements
+
+
+@router.put("/sequences/{sequence_id}/cues/reorder")
+async def reorder_sequence_cues(
+    sequence_id: UUID,
+    ids: List[str],
+    db: AsyncSession = Depends(get_db),
+):
+    """Reorder cue placements within a sequence by assigning position = array index."""
+    for i, placement_id in enumerate(ids):
+        await db.execute(text("""
+            UPDATE dmx_sequence_cues SET position = :pos
+            WHERE id = :id AND sequence_id = :sid
+        """), {"pos": i, "id": placement_id, "sid": str(sequence_id)})
+    await db.execute(text("""
+        UPDATE dmx_sequences SET updated_at = NOW() WHERE id = :id
+    """), {"id": str(sequence_id)})
+    await db.commit()
+    return {"reordered": len(ids)}
+
+
+@router.put("/sequences/{sequence_id}/cues/{placement_id}")
+async def update_cue_placement(
+    sequence_id: UUID,
+    placement_id: UUID,
+    data: DMXSequenceCuePlacementUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update transition_time and/or hold_duration for a cue placement."""
+    sets = []
+    params: dict = {"id": str(placement_id), "sid": str(sequence_id)}
+    if data.transition_time is not None:
+        sets.append("transition_time = :transition_time")
+        params["transition_time"] = data.transition_time
+    if data.hold_duration is not None:
+        sets.append("hold_duration = :hold_duration")
+        params["hold_duration"] = data.hold_duration
+    if not sets:
+        raise HTTPException(status_code=400, detail="Nothing to update")
+
+    await db.execute(text(f"""
+        UPDATE dmx_sequence_cues SET {', '.join(sets)}
+        WHERE id = :id AND sequence_id = :sid
+    """), params)
+    await db.execute(text("""
+        UPDATE dmx_sequences SET updated_at = NOW() WHERE id = :id
+    """), {"id": str(sequence_id)})
+    await db.commit()
+
+    placements = await _load_placements(str(sequence_id), db)
+    return placements
+
+
+@router.delete("/sequences/{sequence_id}/cues/{placement_id}")
+async def remove_cue_from_sequence(
+    sequence_id: UUID,
+    placement_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove a cue placement from a sequence (does not delete the cue itself)."""
+    row = await db.execute(text("""
+        DELETE FROM dmx_sequence_cues
+        WHERE id = :id AND sequence_id = :sid
+        RETURNING id
+    """), {"id": str(placement_id), "sid": str(sequence_id)})
+    if not row.fetchone():
+        raise HTTPException(status_code=404, detail="Placement not found")
+    await db.execute(text("""
+        UPDATE dmx_sequences SET updated_at = NOW() WHERE id = :id
+    """), {"id": str(sequence_id)})
+    await db.commit()
+
+    placements = await _load_placements(str(sequence_id), db)
+    return placements

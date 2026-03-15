@@ -31,6 +31,7 @@ export function FixtureNode({
   const [hovered, setHovered] = useState(false)
   const color = universeColor
   const displayName = fixture.label || fixture.name
+  const shortId = fixture.id.replace(/-/g, '').slice(0, 7)
 
   const radius = Math.round(diameter / 2)
   const dotSize = Math.round(diameter * 0.24)
@@ -153,6 +154,12 @@ export function FixtureNode({
           style={{ color: `${color}bb` }}
         >
           U{fixture.universe}·{fixture.start_channel}
+        </div>
+        <div
+          className="text-[8px] font-mono leading-none mt-[2px]"
+          style={{ color: selected ? '#475569' : '#2d3f52' }}
+        >
+          #{shortId}
         </div>
       </div>
     </div>

@@ -70,9 +70,9 @@ export function DMXSidebar({
           <span className={`text-[10px] uppercase tracking-wider font-medium transition-colors ${active === 'nodes' ? 'text-slate-400' : 'text-slate-600'}`}>
             Art-Net Nodes
           </span>
-          {active !== 'nodes' && nodes.length > 0 && (
-            <span className="ml-auto text-[10px] text-slate-700">{nodes.length}</span>
-          )}
+          <span className={`text-[10px] transition-colors ${active === 'nodes' ? 'text-slate-600' : 'text-slate-700'}`}>
+            ({nodes.length})
+          </span>
           <ChevronRight
             className={`w-3 h-3 ml-auto transition-transform duration-300 ${active === 'nodes' ? 'text-slate-500 rotate-90' : 'text-slate-700'}`}
           />

@@ -3,11 +3,18 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { DMXFixture, DMXNode, DMXCue, DMXSequence, DMXCuePlacement } from '@/lib/types'
+import { UNIVERSE_PALETTE } from '@/lib/dmx-constants'
 import { SequencePlaybackStatus } from '@/hooks/useSequencePlayback'
 import {
   Pencil, Network, Layers, SlidersHorizontal, ChevronRight, BookOpen, Trash2,
   GripVertical, X, Check, Play, Pause, Square, ListOrdered, Plus, Repeat, Sunset,
 } from '@/components/icons'
+
+function getUniverseColor(nodes: DMXNode[], fixture: DMXFixture): string {
+  const node = nodes.find((n) => n.id === fixture.node_id)
+  const uCfg = node?.universes.find((u) => u.id === fixture.universe)
+  return uCfg?.color ?? UNIVERSE_PALETTE[fixture.universe % UNIVERSE_PALETTE.length]
+}
 
 function formatRelativeTime(iso: string): string {
   const date = new Date(iso)
@@ -201,7 +208,7 @@ export function DMXSidebar({
 
   return (
     <>
-    <aside className="w-64 shrink-0 bg-slate-900 border-l border-slate-800 flex flex-col overflow-hidden">
+    <aside className="w-[295px] shrink-0 bg-slate-900 border-l border-slate-800 flex flex-col overflow-hidden">
 
       {/* ── Art-Net Nodes section ───────────────────────────────────── */}
       <div className="flex flex-col shrink-0" style={{ transition: 'flex 350ms cubic-bezier(0.4,0,0.2,1)' }}>
@@ -367,10 +374,11 @@ export function DMXSidebar({
                         }`}
                         onClick={(e) => onSelect(fixture.id, e.shiftKey)}
                       >
-                        <div className="flex items-start justify-between gap-1">
-                          <GripVertical className="w-3 h-3 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0 cursor-grab active:cursor-grabbing mt-0.5" />
+                        {/* Row 1: grip · name · actions */}
+                        <div className="flex items-center gap-1">
+                          <GripVertical className="w-3 h-3 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
                           <div className="text-xs font-medium text-slate-200 truncate flex-1">{fixture.label || fixture.name}</div>
-                          <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-px">
+                          <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={(e) => { e.stopPropagation(); onAdjustDMX(); onSelect(fixture.id) }}
                               title="Adjust DMX channels"
@@ -387,20 +395,33 @@ export function DMXSidebar({
                             </button>
                           </div>
                         </div>
-                        {fixture.ofl_manufacturer && (
-                          <div className="text-[10px] text-slate-400 truncate mt-0.5">{fixture.ofl_manufacturer}</div>
+                        {/* Row 2: manufacturer · model (combined) */}
+                        {(fixture.ofl_manufacturer || fixture.ofl_model) && (
+                          <div className="text-[10px] text-slate-500 truncate mt-0.5 pl-4">
+                            {[fixture.ofl_manufacturer, fixture.ofl_model].filter(Boolean).join(' · ')}
+                          </div>
                         )}
-                        {fixture.ofl_model && (
-                          <div className="text-[10px] text-slate-400 truncate">{fixture.ofl_model}</div>
-                        )}
-                        <div className="text-[10px] font-mono text-slate-500">
-                          U{fixture.universe} · Ch {fixture.start_channel}–{fixture.start_channel + fixture.channel_count - 1}
-                        </div>
-                        <div className="text-[9px] mt-0.5 truncate" style={{ visibility: node || isMultiSelectable ? 'visible' : 'hidden' }}>
-                          {isMultiSelectable
-                            ? <span className="text-slate-600">shift+click to add to selection</span>
-                            : <span className="text-slate-700">{node?.name ?? '\u00a0'}</span>
-                          }
+                        {/* Row 3: universe badge · ch · short ID · node name */}
+                        <div className="flex items-center gap-1.5 mt-0.5 pl-4">
+                          {(() => {
+                            const uColor = getUniverseColor(nodes, fixture)
+                            return (
+                              <span
+                                className="text-[9px] font-mono font-medium px-1 py-px rounded shrink-0 leading-none"
+                                style={{ background: `${uColor}22`, color: uColor, border: `1px solid ${uColor}55` }}
+                              >
+                                U{fixture.universe}
+                              </span>
+                            )
+                          })()}
+                          <span className="text-[10px] font-mono text-slate-500 shrink-0">{fixture.start_channel}–{fixture.start_channel + fixture.channel_count - 1}</span>
+                          <span className="text-[9px] font-mono text-slate-700 shrink-0">#{fixture.id.replace(/-/g, '').slice(0, 7)}</span>
+                          {!isMultiSelectable && node && (
+                            <span className="text-[9px] text-slate-700 truncate">{node.name}</span>
+                          )}
+                          {isMultiSelectable && (
+                            <span className="text-[9px] text-slate-600 truncate">shift+click to add</span>
+                          )}
                         </div>
                       </div>
                     )

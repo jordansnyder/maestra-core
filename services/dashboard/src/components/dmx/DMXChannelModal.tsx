@@ -8,9 +8,10 @@ import { entitiesApi } from '@/lib/api'
 interface DMXChannelModalProps {
   fixtures: DMXFixture[]
   onClose: () => void
+  onDMXChannelChange?: () => void
 }
 
-export function DMXChannelModal({ fixtures, onClose }: DMXChannelModalProps) {
+export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXChannelModalProps) {
   const primary = fixtures[0]
   const channelMap = primary?.channel_map ?? {}
   const channels = Object.entries(channelMap).sort(([, a], [, b]) => a.offset - b.offset)
@@ -41,6 +42,7 @@ export function DMXChannelModal({ fixtures, onClose }: DMXChannelModalProps) {
 
   const handleChange = useCallback((key: string, value: number) => {
     setValues(prev => ({ ...prev, [key]: value }))
+    onDMXChannelChange?.()
     if (debounceRefs.current[key]) clearTimeout(debounceRefs.current[key])
     debounceRefs.current[key] = setTimeout(() => {
       for (const fixture of fixtures) {
@@ -51,7 +53,7 @@ export function DMXChannelModal({ fixtures, onClose }: DMXChannelModalProps) {
         }).catch(() => {})
       }
     }, 50)
-  }, [fixtures])
+  }, [fixtures, onDMXChannelChange])
 
   useEffect(() => {
     const timers = debounceRefs.current

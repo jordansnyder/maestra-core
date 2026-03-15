@@ -469,7 +469,7 @@ async def list_fixtures(
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     result = await db.execute(
-        text(f"{_FIXTURE_SELECT} {where} ORDER BY f.sort_order ASC, f.created_at ASC"),
+        text(f"{_FIXTURE_SELECT} {where} ORDER BY f.universe ASC, f.sort_order ASC, f.created_at ASC"),
         params,
     )
     return [_row_to_fixture(r) for r in result.fetchall()]

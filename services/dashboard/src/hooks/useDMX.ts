@@ -89,13 +89,19 @@ export function useDMX() {
 
   const reorderFixtures = useCallback(async (draggedId: string, targetId: string) => {
     setFixtures((prev) => {
+      const dragged = prev.find((f) => f.id === draggedId)
+      const target = prev.find((f) => f.id === targetId)
+      // Only allow reordering within the same universe
+      if (!dragged || !target || dragged.universe !== target.universe) return prev
       const di = prev.findIndex((f) => f.id === draggedId)
       const ti = prev.findIndex((f) => f.id === targetId)
-      if (di === -1 || ti === -1 || di === ti) return prev
+      if (di === ti) return prev
       const next = [...prev]
       const [removed] = next.splice(di, 1)
       next.splice(ti, 0, removed)
-      dmxApi.reorderFixtures(next.map((f) => f.id)).catch(() => {})
+      // Persist only the within-universe order
+      const universeIds = next.filter((f) => f.universe === dragged.universe).map((f) => f.id)
+      dmxApi.reorderFixtures(universeIds).catch(() => {})
       return next
     })
   }, [])

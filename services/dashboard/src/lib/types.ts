@@ -379,6 +379,7 @@ export interface DMXNode {
   firmware_version?: string
   notes?: string
   device_id?: string
+  sort_order: number
   metadata: Record<string, unknown>
   created_at: string
   updated_at: string
@@ -437,6 +438,7 @@ export interface DMXFixture {
   ofl_fixture_id?: string
   position_x: number
   position_y: number
+  sort_order: number
   metadata: Record<string, unknown>
   created_at: string
   updated_at: string
@@ -493,6 +495,31 @@ export interface DMXCueRecallResult {
   skipped: number
   cue_id: string
   cue_name: string
+}
+
+export interface DMXCuePlacement {
+  id: string
+  sequence_id: string
+  cue_id: string
+  cue_name: string
+  position: number
+  transition_time: number // seconds; 0 = hard cut
+  hold_duration: number   // seconds to hold before advancing
+}
+
+export interface DMXSequence {
+  id: string
+  name: string
+  sort_order: number
+  cue_placements: DMXCuePlacement[]
+  created_at: string
+  updated_at: string
+}
+
+export interface DMXCueFixtureSnapshot {
+  fixture_id: string
+  entity_id: string
+  state: Record<string, number>
 }
 
 export interface DataPreviewData {

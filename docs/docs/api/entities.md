@@ -288,3 +288,32 @@ Response:
   "defaultValue": {"x": 0, "y": 0, "z": 0}
 }
 ```
+
+---
+
+## Special Entities
+
+### DMX Lighting (`dmx-lighting`)
+
+A singleton entity of type `dmx_controller` is automatically created when DMX migrations are applied. It reflects the current cue and sequence catalog and can be used to trigger DMX playback from any external tool.
+
+**Read state:**
+```bash
+GET /entities/dmx-lighting
+```
+
+**Trigger a cue externally:**
+```bash
+curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
+  -H "Content-Type: application/json" \
+  -d '{"state": {"active_cue_id": "<cue-uuid>"}}'
+```
+
+**Start a sequence externally:**
+```bash
+curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
+  -H "Content-Type: application/json" \
+  -d '{"state": {"active_sequence_id": "<sequence-uuid>"}}'
+```
+
+The Dashboard subscribes to `maestra.entity.state.dmx_controller.dmx-lighting` via WebSocket and reflects cue/sequence highlight changes in real time. See the [DMX Gateway Guide](../guides/dmx-gateway.md) for full details.

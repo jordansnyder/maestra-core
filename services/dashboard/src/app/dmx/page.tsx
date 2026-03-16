@@ -9,10 +9,11 @@ import { AddFixtureModal } from '@/components/dmx/AddFixtureModal'
 import { DMXFixture, DMXNode, DMXNodeCreate, OFLSyncStatus, DMXCue, DMXSequence, DMXCuePlacement } from '@/lib/types'
 import { DMXChannelModal } from '@/components/dmx/DMXChannelModal'
 import { Zap, Network, X, Trash2, Pause, Play, AlertTriangle } from '@/components/icons'
-import { oflApi, entitiesApi, devicesApi, dmxApi } from '@/lib/api'
+import { oflApi, entitiesApi, devicesApi, dmxApi, playbackApi } from '@/lib/api'
 import { DeleteFixtureDialog } from '@/components/dmx/DeleteFixtureDialog'
 import { useSequencePlayback } from '@/hooks/useSequencePlayback'
 import { useCueFade } from '@/hooks/useCueFade'
+import { useWebSocket } from '@/hooks/useWebSocket'
 
 function formatRelativeTime(iso: string): string {
   const date = new Date(iso)
@@ -69,8 +70,38 @@ export default function DMXPage() {
   const [sequences, setSequences] = useState<DMXSequence[]>([])
   const [deleteSequenceTarget, setDeleteSequenceTarget] = useState<DMXSequence | null>(null)
   const [openSequencesSignal, setOpenSequencesSignal] = useState(0)
-  const { status: playbackStatus, play: playSequence, pause: pauseSequence, resume: resumeSequence, stop: stopSequence, toggleLoop, fadeOut } = useSequencePlayback()
-  const { fadeProgress: cueFadeProgress, fadeTo: fadeCueTo, cancelFade: cancelCueFade } = useCueFade()
+  const { status: playbackStatus, play: playSequence, pause: pauseSequence, resume: resumeSequence, stop: stopSequence, toggleLoop, fadeOut, startPolling: startPlaybackPolling } = useSequencePlayback()
+  const { fadeProgress: cueFadeProgress, fadeTo: fadeCueTo, cancelFade: cancelCueFade, trackExternalFade } = useCueFade()
+
+  // Real-time sync: subscribe to dmx-lighting entity state changes for external control
+  const { lastMessage: wsMessage, subscribe: wsSubscribe, isConnected: wsConnected } = useWebSocket()
+  useEffect(() => {
+    if (wsConnected) wsSubscribe('maestra.entity.state.dmx_controller.dmx-lighting')
+  }, [wsConnected, wsSubscribe])
+  useEffect(() => {
+    if (!wsMessage) return
+    const event = (wsMessage.data ?? {}) as Record<string, unknown>
+    if (event.type !== 'state_changed') return
+    const state = (event.current_state ?? {}) as Record<string, unknown>
+    const externalSequenceId = (state.active_sequence_id as string | null) ?? null
+    const externalCueId = (state.active_cue_id as string | null) ?? null
+
+    if (externalSequenceId) {
+      // A sequence is active — start polling so the sidebar reflects backend playback state
+      startPlaybackPolling()
+      return
+    }
+
+    // No active sequence — only sync cue highlight for non-engine events
+    // (engine events during sequence playback would otherwise flicker the cue selection)
+    if (event.source !== 'dmx-engine') {
+      setActiveCueId(externalCueId)
+      if (externalCueId) {
+        // Track any ongoing fade progress without re-triggering the API
+        trackExternalFade()
+      }
+    }
+  }, [wsMessage, startPlaybackPolling, trackExternalFade])
 
   // Multi-select group: fixtures with same OFL profile + universe as primary selection
   const primaryId = selectedIds.size > 0 ? [...selectedIds][0] : null
@@ -126,6 +157,26 @@ export default function DMXPage() {
     dmxApi.getPauseState().then((r) => setIsPaused(r.paused)).catch(() => {})
     dmxApi.listCues().then(setCues).catch(() => {})
     dmxApi.listSequences().then(setSequences).catch(() => {})
+
+    // Restore live playback state on mount — covers the case where the page loads
+    // while a sequence or cue is already running (WebSocket events may not fire
+    // during the hold phase between cue transitions)
+    Promise.all([
+      playbackApi.getStatus().catch(() => null),
+      entitiesApi.getBySlug('dmx-lighting').catch(() => null),
+    ]).then(([status, entity]) => {
+      if (status && (status.play_state !== 'stopped' || status.phase !== 'idle')) {
+        startPlaybackPolling()
+      }
+      if (entity?.state) {
+        const s = entity.state as Record<string, unknown>
+        const cueId = (s.active_cue_id as string | null) ?? null
+        if (cueId && (!status || status.play_state === 'stopped')) {
+          setActiveCueId(cueId)
+        }
+      }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const setScale = (diameter: number) => {

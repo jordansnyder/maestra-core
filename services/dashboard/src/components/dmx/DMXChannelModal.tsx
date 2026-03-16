@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { DMXFixture, ChannelMapping } from '@/lib/types'
 import { X, SlidersHorizontal } from '@/components/icons'
 import { entitiesApi } from '@/lib/api'
+import { useWebSocket } from '@/hooks/useWebSocket'
 
 interface DMXChannelModalProps {
   fixtures: DMXFixture[]
@@ -19,6 +20,9 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
   const [values, setValues] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  // Build set of all fixture entity IDs for fast lookup
+  const fixtureEntityIds = new Set(fixtures.map((f) => f.entity_id).filter(Boolean))
 
   // Load current state from the primary fixture's entity
   useEffect(() => {
@@ -39,6 +43,32 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
       .finally(() => setLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [primary?.entity_id])
+
+  // Real-time updates: subscribe to entity state changes via WebSocket
+  const { lastMessage, subscribe, isConnected } = useWebSocket()
+
+  useEffect(() => {
+    if (isConnected) subscribe('maestra.entity.state')
+  }, [isConnected, subscribe])
+
+  useEffect(() => {
+    if (!lastMessage) return
+    const event = (lastMessage.data ?? {}) as Record<string, unknown>
+    if (event.type !== 'state_changed') return
+    // Ignore updates we generated ourselves (slider moves)
+    if (event.source === 'dashboard-dmx' || event.source === 'dmx_panel') return
+    if (!event.entity_id || !fixtureEntityIds.has(event.entity_id as string)) return
+    const incoming = (event.current_state ?? {}) as Record<string, unknown>
+    setValues((prev) => {
+      const next = { ...prev }
+      for (const [key] of channels) {
+        const v = incoming[key]
+        if (typeof v === 'number') next[key] = Math.round(Math.max(0, Math.min(255, v)))
+      }
+      return next
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastMessage])
 
   const handleChange = useCallback((key: string, value: number) => {
     setValues(prev => ({ ...prev, [key]: value }))

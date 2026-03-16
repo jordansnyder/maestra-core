@@ -171,3 +171,4 @@ temp/
 /examples/waveshare-esp32-dashboard/managed_components
 /.claude/worktrees
 .claude/settings.local.json
+/docs/site

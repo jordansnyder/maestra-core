@@ -228,7 +228,8 @@ export default function EntityDetailPage() {
   }
 
   const EntityIcon = getEntityIcon(entityTypes, entity.entity_type_id)
-  const isDmxLinked = !!linkedFixture
+  const isDmxController = entity.metadata?.dmx_controller === true || entity.slug === 'dmx-lighting'
+  const isDmxLinked = !!linkedFixture || isDmxController
 
   return (
     <div className="min-h-full bg-gradient-to-br from-slate-900 to-slate-800 text-white">
@@ -238,6 +239,15 @@ export default function EntityDetailPage() {
           <Link href="/" className="text-slate-400 hover:text-white">Dashboard</Link>
           <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
           <Link href="/entities" className="text-slate-400 hover:text-white">Entities</Link>
+          {isDmxController && (
+            <>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+              <Link href="/dmx" className="text-amber-400 hover:text-amber-300 flex items-center gap-1">
+                <Zap className="w-3 h-3" />
+                DMX Lighting
+              </Link>
+            </>
+          )}
           {ancestors.map((ancestor) => (
             <span key={ancestor.id} className="flex items-center gap-1.5">
               <ChevronRight className="w-3.5 h-3.5 text-slate-600" />

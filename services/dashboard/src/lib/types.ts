@@ -485,6 +485,7 @@ export interface FixturePositionUpdate {
 export interface DMXCue {
   id: string
   name: string
+  fade_duration: number
   sort_order: number
   created_at: string
   updated_at: string
@@ -510,6 +511,7 @@ export interface DMXCuePlacement {
 export interface DMXSequence {
   id: string
   name: string
+  fade_out_duration: number
   sort_order: number
   cue_placements: DMXCuePlacement[]
   created_at: string

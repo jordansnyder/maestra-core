@@ -33,7 +33,7 @@ update-ip: ## Detect current LAN IP and update HOST_IP in .env, then restart das
 	echo "✅ Dashboard restarted"
 
 up: ## Start all services
-	$(DOCKER_COMPOSE) up -d
+	$(DOCKER_COMPOSE) --profile full up -d
 	@echo ""
 	@echo "✅ All services started."
 	@echo ""
@@ -44,15 +44,15 @@ up: ## Start all services
 	@echo ""
 
 down: ## Stop all services
-	$(DOCKER_COMPOSE) down
+	$(DOCKER_COMPOSE) --profile full down
 	@echo "✅ All services stopped."
 
 restart: ## Restart all services
-	$(DOCKER_COMPOSE) restart
+	$(DOCKER_COMPOSE) --profile full restart
 	@echo "✅ All services restarted."
 
 logs: ## View logs from all services (Ctrl+C to exit)
-	$(DOCKER_COMPOSE) logs -f
+	$(DOCKER_COMPOSE) --profile full logs -f
 
 logs-service: ## View logs from a specific service (usage: make logs-service SERVICE=fleet-manager)
 	@if [ -z "$(SERVICE)" ]; then \
@@ -62,7 +62,7 @@ logs-service: ## View logs from a specific service (usage: make logs-service SER
 	$(DOCKER_COMPOSE) logs -f $(SERVICE)
 
 ps: ## Show status of all services
-	$(DOCKER_COMPOSE) ps
+	$(DOCKER_COMPOSE) --profile full ps
 
 health: ## Check health of all services
 	@echo ""
@@ -90,7 +90,7 @@ build-service: ## Rebuild a specific service (usage: make build-service SERVICE=
 	$(DOCKER_COMPOSE) build $(SERVICE)
 
 clean: ## Stop and remove all containers, networks (keeps volumes)
-	$(DOCKER_COMPOSE) down
+	$(DOCKER_COMPOSE) --profile full down
 	@echo "✅ Containers and networks removed. Volumes preserved."
 
 clean-all: ## Stop and remove everything including volumes (⚠️  DELETES ALL DATA)
@@ -98,7 +98,7 @@ clean-all: ## Stop and remove everything including volumes (⚠️  DELETES ALL 
 	@read -p "Are you sure? [y/N] " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		$(DOCKER_COMPOSE) down -v; \
+		$(DOCKER_COMPOSE) --profile full down -v; \
 		echo "✅ Everything removed including volumes."; \
 	else \
 		echo "❌ Cancelled."; \
@@ -120,7 +120,7 @@ demo: ## Start Maestra with demo data (recommended for first-time users)
 	@echo ""
 	@echo "🎭 Starting Maestra with demo data..."
 	@echo ""
-	@DEMO_MODE=true $(DOCKER_COMPOSE) up -d
+	@DEMO_MODE=true $(DOCKER_COMPOSE) --profile full up -d
 	@echo ""
 	@echo "⏳ Waiting for services to initialize..."
 	@sleep 8
@@ -228,15 +228,28 @@ ofl-status: ## Show last 5 OFL sync results
 	  -c "SELECT ran_at, ofl_commit_sha, fixtures_added, fixtures_updated, fixtures_errored, status FROM ofl_sync_log ORDER BY ran_at DESC LIMIT 5;"
 
 watch: ## Watch service logs in real-time (requires watch command)
-	watch -n 2 '$(DOCKER_COMPOSE) ps'
+	watch -n 2 '$(DOCKER_COMPOSE) --profile full ps'
 
 stats: ## Show container resource usage
-	docker stats $$($(DOCKER_COMPOSE) ps -q)
+	docker stats $$($(DOCKER_COMPOSE) --profile full ps -q)
 
 update: ## Pull latest images and restart
-	$(DOCKER_COMPOSE) pull
-	$(DOCKER_COMPOSE) up -d
+	$(DOCKER_COMPOSE) --profile full pull
+	$(DOCKER_COMPOSE) --profile full up -d
 	@echo "✅ Services updated and restarted."
+
+# =============================================================================
+# DESKTOP APP
+# =============================================================================
+
+desktop-dev: ## Run Maestra Desktop in dev mode
+	cd desktop && npm run tauri dev
+
+desktop-build: ## Build Maestra Desktop for distribution
+	cd desktop && npm run tauri build
+
+desktop-install: ## Install desktop app dependencies
+	cd desktop && npm install && cd src-tauri && cargo build
 
 # =============================================================================
 # ENVIRONMENT DEPLOYMENT

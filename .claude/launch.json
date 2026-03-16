@@ -11,6 +11,13 @@
         "PORT": "3002",
         "NEXT_PUBLIC_API_URL": "http://localhost:8080"
       }
+    },
+    {
+      "name": "maestra-desktop",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--host"],
+      "port": 1420,
+      "cwd": "desktop"
     }
   ]
 }

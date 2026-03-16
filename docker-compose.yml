@@ -97,6 +97,7 @@ services:
   nodered:
     image: nodered/node-red:latest
     container_name: maestra-nodered
+    profiles: ["full"]
     environment:
       - TZ=UTC
     ports:
@@ -184,6 +185,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: maestra-grafana
+    profiles: ["full"]
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
@@ -212,6 +214,7 @@ services:
   traefik:
     image: traefik:v2.11
     container_name: maestra-traefik
+    profiles: ["full"]
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
@@ -233,6 +236,7 @@ services:
   portainer:
     image: portainer/portainer-ce:latest
     container_name: maestra-portainer
+    profiles: ["full"]
     ports:
       - "9443:9443"
       - "9000:9000"
@@ -251,6 +255,7 @@ services:
   docs:
     image: squidfunk/mkdocs-material:latest
     container_name: maestra-docs
+    profiles: ["full"]
     ports:
       - "8000:8000"
     volumes:

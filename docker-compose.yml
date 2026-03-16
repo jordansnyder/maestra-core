@@ -362,6 +362,30 @@ services:
       - fleet-manager
     restart: unless-stopped
 
+  # =============================================================================
+  # DEVICE DISCOVERY
+  # =============================================================================
+
+  # Discovery Service - mDNS/DNS-SD auto-detection of Maestra devices
+  discovery-service:
+    build:
+      context: ./services/discovery-service
+      dockerfile: Dockerfile
+    container_name: maestra-discovery
+    network_mode: host  # Required for mDNS multicast on the local network
+    environment:
+      - FLEET_MANAGER_URL=http://localhost:8080
+      - HOST_IP=${HOST_IP:-10.0.0.199}
+      - NATS_URL=nats://localhost:4222
+      - MQTT_BROKER=${HOST_IP:-10.0.0.199}
+      - MQTT_PORT=1883
+      - API_URL=http://${HOST_IP:-10.0.0.199}:8080
+      - WS_URL=ws://${HOST_IP:-10.0.0.199}:8765
+    depends_on:
+      fleet-manager:
+        condition: service_healthy
+    restart: unless-stopped
+
 # =============================================================================
 # NETWORKS
 # =============================================================================

@@ -256,6 +256,7 @@ class DeviceStatus:
     OFFLINE = "offline"
     ERROR = "error"
     MAINTENANCE = "maintenance"
+    PENDING = "pending"
 
 
 class Device(BaseModel):
@@ -311,6 +312,57 @@ class DeviceEvent(BaseModel):
     severity: str = "info"
     message: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
+
+
+# =============================================================================
+# Device Discovery & Provisioning Models
+# =============================================================================
+
+class DeviceDiscover(BaseModel):
+    """Called by discovery service when a new device is found via mDNS"""
+    name: str
+    device_type: str
+    hardware_id: str
+    firmware_version: Optional[str] = None
+    ip_address: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class DeviceApproval(BaseModel):
+    """Admin approves a pending device with optional config"""
+    name: Optional[str] = None
+    entity_id: Optional[UUID] = None
+    env_vars: Optional[Dict[str, Any]] = None
+    device_type: Optional[str] = None
+
+
+class DeviceProvisionResponse(BaseModel):
+    """Provisioning config returned to device after approval"""
+    device_id: UUID
+    provision_status: str
+    api_url: str
+    nats_url: str
+    mqtt_broker: str
+    mqtt_port: int
+    ws_url: Optional[str] = None
+    entity_id: Optional[UUID] = None
+    env_vars: Dict[str, Any] = Field(default_factory=dict)
+
+
+class BlockedDeviceResponse(BaseModel):
+    """Blocked device response"""
+    id: UUID
+    hardware_id: str
+    reason: Optional[str] = None
+    blocked_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class BlockDeviceRequest(BaseModel):
+    """Request to block a device"""
+    reason: Optional[str] = None
 
 
 # =============================================================================
@@ -715,6 +767,69 @@ class CollectionConfig(BaseModel):
     config: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
+
+
+# =============================================================================
+# Cloud Gateway Models
+# =============================================================================
+
+class CloudConfig(BaseModel):
+    """Current cloud gateway configuration"""
+    gateway_url: Optional[str] = None
+    site_id: Optional[str] = None
+    site_slug: Optional[str] = None
+    status: str = "disconnected"  # disconnected, connecting, connected, error
+
+
+class CloudConfigUpdate(BaseModel):
+    """Update cloud gateway URL"""
+    gateway_url: str = Field(..., min_length=1)
+
+
+class CloudSiteRegister(BaseModel):
+    """Register this site with a cloud gateway"""
+    gateway_url: str
+    name: str = Field(..., min_length=1, max_length=255)
+    slug: str = Field(..., min_length=1, max_length=255, pattern=r"^[a-z0-9][a-z0-9-]*[a-z0-9]$")
+    description: Optional[str] = None
+    region: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+
+
+class CloudPolicy(BaseModel):
+    """A routing policy for cloud message forwarding"""
+    subject_pattern: str = Field(..., min_length=1, max_length=500)
+    direction: str = Field(..., pattern=r"^(outbound|inbound)$")
+    enabled: bool = True
+    description: Optional[str] = None
+
+
+class CloudPoliciesUpdate(BaseModel):
+    """Update cloud routing policies"""
+    policies: List[CloudPolicy]
+
+
+class CloudStatus(BaseModel):
+    """Full cloud gateway connection status"""
+    configured: bool = False
+    gateway_url: Optional[str] = None
+    site_id: Optional[str] = None
+    site_slug: Optional[str] = None
+    agent_running: bool = False
+    agent_connected: bool = False
+    last_heartbeat: Optional[str] = None
+    messages_sent: int = 0
+    messages_received: int = 0
+    active_policies: int = 0
+    error: Optional[str] = None
+
+
+class CloudTestResult(BaseModel):
+    """Result of an end-to-end cloud connection test"""
+    success: bool
+    latency_ms: Optional[float] = None
+    error: Optional[str] = None
+    checks: Dict[str, bool] = Field(default_factory=dict)
 
 
 # Enable forward references

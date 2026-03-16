@@ -13,6 +13,7 @@ import {
   DMXCue, DMXCueRecallResult,
   DMXSequence, DMXCuePlacement, DMXCueFixtureSnapshot,
   OFLManufacturer, OFLFixture, OFLSyncStatus,
+  BlockedDevice, DeviceProvision, DeviceApproval,
 } from './types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
@@ -246,6 +247,43 @@ export const devicesApi = {
     }),
 }
 
+// Discovery API
+export const discoveryApi = {
+  listPending: () => fetchApi<Device[]>('/devices/pending'),
+
+  approve: (id: string, data?: DeviceApproval) =>
+    fetchApi<Device>(`/devices/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    }),
+
+  reject: (id: string) =>
+    fetchApi<{ status: string }>(`/devices/${id}/reject`, {
+      method: 'POST',
+    }),
+
+  block: (id: string, reason?: string) =>
+    fetchApi<{ status: string }>(`/devices/${id}/block`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
+  listBlocked: () => fetchApi<BlockedDevice[]>('/devices/blocked'),
+
+  unblock: (hardwareId: string) =>
+    fetchApi<{ status: string }>(`/devices/blocked/${hardwareId}`, {
+      method: 'DELETE',
+    }),
+
+  getProvision: (id: string) => fetchApi<DeviceProvision>(`/devices/${id}/provision`),
+
+  updateProvision: (id: string, data: Partial<DeviceApproval>) =>
+    fetchApi<DeviceProvision>(`/devices/${id}/provision`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+}
+
 // Routing API
 export const routingApi = {
   // Full state (single fetch for frontend)
@@ -377,6 +415,14 @@ export const api = {
   createEntity: entitiesApi.create,
   updateEntity: entitiesApi.update,
   deleteEntity: entitiesApi.delete,
+
+  // Discovery
+  listPendingDevices: discoveryApi.listPending,
+  approveDevice: discoveryApi.approve,
+  rejectDevice: discoveryApi.reject,
+  blockDevice: discoveryApi.block,
+  listBlockedDevices: discoveryApi.listBlocked,
+  unblockDevice: discoveryApi.unblock,
 
   // Health
   health: healthApi.check,
@@ -560,6 +606,48 @@ export const oflApi = {
     fetchApi<OFLFixture>(`/ofl/fixtures/by-id/${id}`),
 
   getSyncStatus: () => fetchApi<OFLSyncStatus>(`/ofl/sync/status`),
+}
+
+// Cloud Gateway API
+import type { CloudConfig, CloudPolicy, CloudStatus, CloudTestResult, CloudSiteRegister } from './cloudTypes'
+
+export const cloudApi = {
+  getConfig: () => fetchApi<CloudConfig>('/cloud/config'),
+
+  saveConfig: (data: { gateway_url: string }) =>
+    fetchApi<CloudConfig>('/cloud/config', { method: 'PUT', body: JSON.stringify(data) }),
+
+  deleteConfig: () =>
+    fetchApi<{ status: string }>('/cloud/config', { method: 'DELETE' }),
+
+  register: (data: CloudSiteRegister) =>
+    fetchApi<{ id: string; slug: string; status: string }>('/cloud/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  activate: () =>
+    fetchApi<{ id: string; status: string }>('/cloud/activate', { method: 'POST' }),
+
+  getStatus: () => fetchApi<CloudStatus>('/cloud/status'),
+
+  issueCertificates: () =>
+    fetchApi<{ certificate: Record<string, unknown>; client_cert_pem: string; ca_cert_pem: string }>(
+      '/cloud/certificates/issue',
+      { method: 'POST' }
+    ),
+
+  getPolicies: () => fetchApi<CloudPolicy[]>('/cloud/policies'),
+
+  savePolicies: (policies: CloudPolicy[]) =>
+    fetchApi<CloudPolicy[]>('/cloud/policies', {
+      method: 'PUT',
+      body: JSON.stringify({ policies }),
+    }),
+
+  test: () => fetchApi<CloudTestResult>('/cloud/test', { method: 'POST' }),
+
+  getMetrics: () => fetchApi<Record<string, unknown>>('/cloud/metrics'),
 }
 
 export { ApiError }

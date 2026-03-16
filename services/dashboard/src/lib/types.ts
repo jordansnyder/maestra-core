@@ -158,10 +158,40 @@ export interface Device {
   ip_address?: string
   location?: Record<string, unknown>
   metadata?: Record<string, unknown>
-  status: 'online' | 'offline' | 'error' | 'maintenance'
+  status: 'online' | 'offline' | 'error' | 'maintenance' | 'pending'
   last_seen?: string
   created_at: string
   updated_at: string
+}
+
+// =============================================================================
+// Discovery & Provisioning Types
+// =============================================================================
+
+export interface BlockedDevice {
+  id: string
+  hardware_id: string
+  reason?: string
+  blocked_at: string
+}
+
+export interface DeviceProvision {
+  device_id: string
+  provision_status: 'pending' | 'approved' | 'provisioned'
+  api_url: string
+  nats_url: string
+  mqtt_broker: string
+  mqtt_port: number
+  ws_url?: string
+  entity_id?: string
+  env_vars: Record<string, string>
+}
+
+export interface DeviceApproval {
+  name?: string
+  entity_id?: string
+  env_vars?: Record<string, string>
+  device_type?: string
 }
 
 // =============================================================================

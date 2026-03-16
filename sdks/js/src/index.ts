@@ -4,9 +4,11 @@
  */
 
 export * from './types'
+export { discoverMaestra, advertiseDevice, waitForProvisioning } from './discovery'
 
 import type {
   ConnectionConfig,
+  DiscoveryConfig,
   EntityType,
   EntityData,
   EntityCreate,
@@ -27,6 +29,8 @@ import type {
   StreamSessionHistory,
   StreamRegistryState,
 } from './types'
+
+import { discoverMaestra } from './discovery'
 
 /**
  * Entity State Manager
@@ -370,6 +374,25 @@ export class MaestraClient {
   private _connected = false
   private _subscribedEntities = new Map<string, Entity>()
   private _clientId: string
+
+  /**
+   * Discover a Maestra instance on the local network via mDNS and
+   * return a connected client.
+   *
+   * Requires `bonjour-service` and a Node.js runtime.
+   *
+   * @param timeout - Discovery timeout in ms (default: 5000)
+   */
+  static async discover(timeout?: number): Promise<MaestraClient> {
+    const discovered = await discoverMaestra({ timeout })
+    const client = new MaestraClient({
+      apiUrl: discovered.apiUrl,
+      wsUrl: discovered.wsUrl,
+      mqttUrl: discovered.mqttUrl,
+    })
+    await client.connect()
+    return client
+  }
 
   constructor(config: Partial<ConnectionConfig> = {}) {
     this.config = {

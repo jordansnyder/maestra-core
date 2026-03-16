@@ -16,8 +16,12 @@ import {
   Sparkles,
   BookOpen,
   Zap,
+  Settings,
+  Cloud,
 } from '@/components/icons'
 import { useSystemHealth } from '@/hooks/useSystemHealth'
+import { useEffect, useState } from 'react'
+import { cloudApi } from '@/lib/api'
 
 interface NavItem {
   href: string
@@ -32,6 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/routing', label: 'Routing', icon: GitFork },
   { href: '/streams', label: 'Streams', icon: Cast },
   { href: '/dmx', label: 'DMX Lighting', icon: Zap },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 const GETTING_STARTED_ITEM: NavItem = { href: '/#getting-started', label: 'Getting Started', icon: Sparkles }
@@ -52,6 +57,29 @@ const SERVICE_LINKS: ServiceLink[] = [
 export function Sidebar() {
   const pathname = usePathname()
   const { services } = useSystemHealth(30000)
+  const [cloudStatus, setCloudStatus] = useState<'none' | 'connected' | 'disconnected' | 'connecting' | 'error'>('none')
+
+  useEffect(() => {
+    const checkCloud = async () => {
+      try {
+        const status = await cloudApi.getStatus()
+        if (!status.configured) {
+          setCloudStatus('none')
+        } else if (status.agent_connected) {
+          setCloudStatus('connected')
+        } else if (status.agent_running) {
+          setCloudStatus('connecting')
+        } else {
+          setCloudStatus('disconnected')
+        }
+      } catch {
+        setCloudStatus('none')
+      }
+    }
+    checkCloud()
+    const timer = setInterval(checkCloud, 30000)
+    return () => clearInterval(timer)
+  }, [])
 
   return (
     <aside className="w-56 shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col">
@@ -124,6 +152,25 @@ export function Sidebar() {
               />
             </div>
           ))}
+          {cloudStatus !== 'none' && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-400 flex items-center gap-1.5">
+                <Cloud className="w-3 h-3" />
+                Cloud Gateway
+              </span>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  cloudStatus === 'connected'
+                    ? 'bg-green-500'
+                    : cloudStatus === 'connecting'
+                    ? 'bg-yellow-500 animate-pulse'
+                    : cloudStatus === 'error'
+                    ? 'bg-red-500'
+                    : 'bg-slate-500'
+                }`}
+              />
+            </div>
+          )}
         </div>
       </div>
 

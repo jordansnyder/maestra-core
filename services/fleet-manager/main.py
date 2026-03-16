@@ -30,6 +30,9 @@ from analytics_router import router as analytics_router
 from dmx_router import router as dmx_router
 from fixtures_router import router as fixtures_router
 from dmx_playback_engine import playback_engine
+from cloud_router import router as cloud_router
+from cloud_manager import cloud_manager
+from discovery_router import router as discovery_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -55,6 +58,8 @@ app.include_router(stream_preview_router)
 app.include_router(analytics_router)
 app.include_router(dmx_router)
 app.include_router(fixtures_router)
+app.include_router(cloud_router)
+app.include_router(discovery_router)
 
 
 # =============================================================================
@@ -405,6 +410,12 @@ async def startup_event():
         )
         print("✅ DMX lighting NATS subscriber active")
 
+    # Initialize cloud manager (needs Redis)
+    if redis_ok:
+        await cloud_manager.connect(get_redis())
+    else:
+        print("⚠️ Cloud Manager not started (requires Redis)")
+
     # Start demo simulator if DEMO_MODE is enabled
     if os.getenv("DEMO_MODE", "").lower() == "true" and state_manager.nc:
         await demo_simulator.start(state_manager.nc)
@@ -419,6 +430,7 @@ async def shutdown_event():
     print("👋 Maestra Fleet Manager shutting down...")
     await playback_engine.shutdown()
     await demo_simulator.stop()
+    await cloud_manager.disconnect()
     await stream_manager.disconnect()
     await state_manager.disconnect()
     await close_redis()

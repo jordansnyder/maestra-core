@@ -278,9 +278,80 @@ logs-test: ## View test environment logs
 logs-prod: ## View production environment logs
 	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml logs -f
 
+# =============================================================================
+# SDK RELEASES
+# =============================================================================
+# Usage: make release-python VERSION=0.2.0
+#   Bumps version in manifest, commits, tags, and pushes.
+#   The push triggers the corresponding GitHub Actions publish workflow.
+
+VERSION ?= 0.1.0
+
+release-python: ## Release Python SDK to PyPI (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh python $(VERSION)
+	@git add sdks/python/pyproject.toml
+	@git commit -m "chore: bump Python SDK to v$(VERSION)"
+	@git tag "python/v$(VERSION)" -m "Python SDK v$(VERSION)"
+	@git push && git push origin "python/v$(VERSION)"
+	@echo "✅ Python SDK v$(VERSION) tagged. PyPI publish workflow triggered."
+
+release-js: ## Release JS/TS SDK to npm (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh js $(VERSION)
+	@git add sdks/js/package.json
+	@git commit -m "chore: bump JS SDK to v$(VERSION)"
+	@git tag "js/v$(VERSION)" -m "JS SDK v$(VERSION)"
+	@git push && git push origin "js/v$(VERSION)"
+	@echo "✅ JS SDK v$(VERSION) tagged. npm publish workflow triggered."
+
+release-arduino: ## Release Arduino SDK to PlatformIO (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh arduino $(VERSION)
+	@git add sdks/arduino/MaestraClient/library.json
+	@git commit -m "chore: bump Arduino SDK to v$(VERSION)"
+	@git tag "arduino/v$(VERSION)" -m "Arduino SDK v$(VERSION)"
+	@git push && git push origin "arduino/v$(VERSION)"
+	@echo "✅ Arduino SDK v$(VERSION) tagged. PlatformIO publish workflow triggered."
+
+release-unity: ## Release Unity SDK via OpenUPM (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh unity $(VERSION)
+	@git add sdks/unity/package.json
+	@git commit -m "chore: bump Unity SDK to v$(VERSION)"
+	@git tag "unity/v$(VERSION)" -m "Unity SDK v$(VERSION)"
+	@git push && git push origin "unity/v$(VERSION)"
+	@echo "✅ Unity SDK v$(VERSION) tagged. UPM branch update workflow triggered."
+
+release-unreal: ## Release Unreal Plugin as GitHub Release (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh unreal $(VERSION)
+	@git add sdks/unreal/MaestraPlugin/MaestraPlugin.uplugin
+	@git commit -m "chore: bump Unreal Plugin to v$(VERSION)"
+	@git tag "unreal/v$(VERSION)" -m "Unreal Plugin v$(VERSION)"
+	@git push && git push origin "unreal/v$(VERSION)"
+	@echo "✅ Unreal Plugin v$(VERSION) tagged. GitHub Release workflow triggered."
+
+release-td: ## Release TouchDesigner SDK as GitHub Release (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh touchdesigner $(VERSION)
+	@git add sdks/touchdesigner/
+	@git commit --allow-empty -m "chore: bump TouchDesigner SDK to v$(VERSION)"
+	@git tag "touchdesigner/v$(VERSION)" -m "TouchDesigner SDK v$(VERSION)"
+	@git push && git push origin "touchdesigner/v$(VERSION)"
+	@echo "✅ TouchDesigner SDK v$(VERSION) tagged. GitHub Release workflow triggered."
+
+release-all: ## Release all SDKs (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh all $(VERSION)
+	@git add sdks/
+	@git commit -m "chore: bump all SDKs to v$(VERSION)"
+	@git tag "python/v$(VERSION)" -m "Python SDK v$(VERSION)"
+	@git tag "js/v$(VERSION)" -m "JS SDK v$(VERSION)"
+	@git tag "arduino/v$(VERSION)" -m "Arduino SDK v$(VERSION)"
+	@git tag "unity/v$(VERSION)" -m "Unity SDK v$(VERSION)"
+	@git tag "unreal/v$(VERSION)" -m "Unreal Plugin v$(VERSION)"
+	@git tag "touchdesigner/v$(VERSION)" -m "TouchDesigner SDK v$(VERSION)"
+	@git push && git push origin --tags
+	@echo "✅ All SDKs tagged at v$(VERSION). Publish workflows triggered."
+
 # Development shortcuts
 .PHONY: dev-bus dev-db dev-core shell-postgres shell-redis shell-fleet
 .PHONY: migrate migrate-status migrate-dry-run
 .PHONY: backup-db restore-db test-mqtt test-mqtt-state watch stats update
 .PHONY: deploy-test deploy-prod stop-test stop-prod logs-test logs-prod
 .PHONY: up-dmx dev-dmx logs-dmx build-dmx test-dmx sync-ofl ofl-status update-ip
+.PHONY: release-python release-js release-arduino release-unity release-unreal release-td release-all

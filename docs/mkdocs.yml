@@ -45,6 +45,7 @@ nav:
       - Installation: setup/installation.md
       - Quick Start (Admin): setup/quickstart.md
       - Configuration: setup/configuration.md
+      - Releasing SDKs: setup/releasing-sdks.md
   - Technical Reference:
       - API Reference:
           - Fleet Manager: api/fleet-manager.md

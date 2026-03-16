@@ -577,6 +577,51 @@ export const dmxApi = {
     fetchApi<DMXCuePlacement[]>(`/dmx/sequences/${sequenceId}/cues/${placementId}`, { method: 'DELETE' }),
 }
 
+// DMX Playback API
+export const playbackApi = {
+  getStatus: () =>
+    fetchApi<{
+      sequence_id: string | null
+      play_state: string
+      phase: string
+      cue_index: number
+      progress: number
+      hold_progress: number
+      loop: boolean
+      fade_progress: number | null
+    }>('/dmx/playback/status'),
+
+  play: (sequenceId: string) =>
+    fetchApi<{ status: string }>('/dmx/playback/play', {
+      method: 'POST',
+      body: JSON.stringify({ sequence_id: sequenceId }),
+    }),
+
+  pause: () =>
+    fetchApi<{ status: string }>('/dmx/playback/pause', { method: 'POST' }),
+
+  resume: () =>
+    fetchApi<{ status: string }>('/dmx/playback/resume', { method: 'POST' }),
+
+  stop: () =>
+    fetchApi<{ status: string }>('/dmx/playback/stop', { method: 'POST' }),
+
+  toggleLoop: () =>
+    fetchApi<{ loop: boolean }>('/dmx/playback/toggle-loop', { method: 'POST' }),
+
+  fadeOut: (durationMs: number = 3000) =>
+    fetchApi<{ status: string }>('/dmx/playback/fadeout', {
+      method: 'POST',
+      body: JSON.stringify({ duration_ms: durationMs }),
+    }),
+
+  recallCueFade: (fromCueId: string | null, toCueId: string, durationMs: number) =>
+    fetchApi<{ status: string }>('/dmx/playback/cue-fade', {
+      method: 'POST',
+      body: JSON.stringify({ from_cue_id: fromCueId, to_cue_id: toCueId, duration_ms: durationMs }),
+    }),
+}
+
 // OFL Fixture Library API
 export const oflApi = {
   getManufacturers: (q?: string) => {

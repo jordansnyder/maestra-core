@@ -223,7 +223,7 @@ async def main():
     # Register the Maestra server service
     server_info = build_server_service_info()
     log.info(f"Registering mDNS service: {SERVER_SERVICE_TYPE}")
-    zc.register_service(server_info)
+    await zc.async_register_service(server_info)
     log.info(f"Maestra server advertised at {HOST_IP}:8080")
 
     # Browse for device services
@@ -250,8 +250,8 @@ async def main():
         log.info("Shutting down...")
         refresh_task.cancel()
         browser.cancel()
-        zc.unregister_service(server_info)
-        zc.close()
+        await zc.async_unregister_service(server_info)
+        await zc.async_close()
         await http_client.aclose()
         log.info("Discovery service stopped")
 

@@ -96,6 +96,23 @@ def build():
     p[0].val = 'Not connected'
     p[0].readOnly = True
 
+    # -- State Input page --
+    page_state = comp.appendCustomPage('State Input')
+
+    p = page_state.appendFloat('Updaterate', label='Max Updates/sec')
+    p[0].default = 10.0
+    p[0].val = 10.0
+    p[0].min = 0.1
+    p[0].max = 60.0
+    p[0].clampMin = True
+    p[0].clampMax = False
+
+    p = page_state.appendToggle('Autosend', label='Auto-Send on Change')
+    p[0].default = True
+    p[0].val = True
+
+    page_state.appendPulse('Send', label='Send State Now')
+
     # -- Streams page --
     p = page_streams.appendStr('Streamname', label='Stream Name')
     p[0].default = ''
@@ -235,6 +252,42 @@ def build():
     timer_cb.par.offtoon = True
     timer_cb.text = _TIMER_CALLBACK_SOURCE
 
+    # -- State Input (In CHOP — artists wire CHOPs into this) --
+    state_in = comp.create(inCHOP, 'state_in')
+    state_in.nodeX = 200
+    state_in.nodeY = -200
+    state_in.viewer = True
+    state_in.comment = 'Wire any CHOP here → channel names become state keys'
+
+    # -- State Input callback (CHOP Execute — rate-limited sender) --
+    state_in_exec = comp.create(chopexecuteDAT, 'state_in_exec')
+    state_in_exec.nodeX = 400
+    state_in_exec.nodeY = -200
+    state_in_exec.viewer = False
+    state_in_exec.par.chop = 'state_in'
+    state_in_exec.par.valuechange = True
+    state_in_exec.text = _STATE_IN_CALLBACK_SOURCE
+
+    # -- State flush timer (sends pending rate-limited updates) --
+    flush_timer = comp.create(timerCHOP, 'flush_timer')
+    flush_timer.nodeX = 400
+    flush_timer.nodeY = -350
+    flush_timer.viewer = False
+    flush_timer.par.length = 0.1  # 100ms
+    flush_timer.par.lengthunits = 'seconds'
+    flush_timer.par.play = True
+    flush_timer.par.cue = False
+    flush_timer.par.outseg = True
+    flush_timer.par.ondone = 'restart'
+
+    flush_cb = comp.create(chopexecuteDAT, 'flush_callback')
+    flush_cb.nodeX = 600
+    flush_cb.nodeY = -350
+    flush_cb.viewer = False
+    flush_cb.par.chop = 'flush_timer'
+    flush_cb.par.offtoon = True
+    flush_cb.text = _FLUSH_CALLBACK_SOURCE
+
     # -- User callbacks DAT --
     callbacks = comp.create(textDAT, 'callbacks')
     callbacks.nodeX = 200
@@ -266,7 +319,12 @@ def build():
     print('    2. Click "Connect"')
     print('    3. State appears in state_table and state_chop')
     print('')
-    print('  Scripting:')
+    print('  Change state (no code):')
+    print('    1. Wire any CHOP into the state_in operator inside the COMP')
+    print('    2. Channel names become state keys, values auto-sync')
+    print('    3. Adjust rate on the "State Input" parameter page')
+    print('')
+    print('  Change state (scripting):')
     print("    m = op('" + COMP_PATH + "').op('maestra_ext').module")
     print("    ext = m.get_ext(op('" + COMP_PATH + "'))")
     print("    ext.State")
@@ -369,6 +427,8 @@ class MaestraExt:
             self._par_advertise_stream()
         elif name == 'Withdraw':
             self._par_withdraw_stream()
+        elif name == 'Send':
+            self._par_send_state()
 
     def onParValueChange(self, par, prev):
         """Handle parameter value changes"""
@@ -454,6 +514,29 @@ class MaestraExt:
             self._set_status(f"Stream advertised: {result['id']}")
         else:
             self._set_status("Failed to advertise stream")
+
+    def _par_send_state(self):
+        """Manually send current CHOP input channels as state update"""
+        if not self._connected:
+            self._set_status("Connect before sending state")
+            return
+
+        chop = self.ownerComp.op('state_in')
+        if not chop or chop.numChans == 0:
+            self._set_status("Wire a CHOP into state_in first")
+            return
+
+        state = {}
+        for i in range(chop.numChans):
+            chan = chop.chan(i)
+            val = chan[0]
+            if val == int(val):
+                state[chan.name] = int(val)
+            else:
+                state[chan.name] = round(float(val), 6)
+
+        self.UpdateState(state)
+        self._set_status(f"Sent {len(state)} values: {list(state.keys())}")
 
     def _par_withdraw_stream(self):
         """Withdraw the active stream"""
@@ -1154,12 +1237,94 @@ def onTableChange(dat):
 '''
 
 _TIMER_CALLBACK_SOURCE = '''# Timer CHOP callback — sends stream heartbeat every cycle
+# Also flushes any pending rate-limited state updates
 
 def onOffToOn(channel, sampleIndex, val, prev):
     if channel.name == 'timer_pulse' or channel.name == 'done':
         m = parent().op('maestra_ext').module
         ext = m.get_ext(parent())
         ext.onHeartbeat()
+
+        # Flush pending state input if rate-limited
+        state_exec = parent().op('state_in_exec')
+        if state_exec and hasattr(state_exec.module, '_pending') and state_exec.module._pending:
+            state_exec.module._send_state()
+            state_exec.module._pending = False
+'''
+
+_FLUSH_CALLBACK_SOURCE = '''# Flush timer callback — sends any pending rate-limited state updates
+
+def onOffToOn(channel, sampleIndex, val, prev):
+    state_exec = parent().op('state_in_exec')
+    if state_exec:
+        mod = state_exec.module
+        if hasattr(mod, '_pending') and mod._pending:
+            mod._send_state()
+            mod._pending = False
+
+def onOnToOff(channel, sampleIndex, val, prev):
+    pass
+
+def onValueChange(channel, sampleIndex, val, prev):
+    pass
+'''
+
+_STATE_IN_CALLBACK_SOURCE = '''# CHOP Execute — watches state_in for value changes and sends to Maestra
+# Rate-limited by the "Max Updates/sec" parameter on the State Input page.
+
+import time
+
+_last_send_time = 0
+_pending = False
+
+def _read_channels():
+    """Read all channels from state_in into a dict"""
+    chop = parent().op('state_in')
+    if not chop or chop.numChans == 0:
+        return {}
+    result = {}
+    for i in range(chop.numChans):
+        chan = chop.chan(i)
+        val = chan[0]
+        # Send as int if it's a whole number, else float
+        if val == int(val):
+            result[chan.name] = int(val)
+        else:
+            result[chan.name] = round(float(val), 6)
+    return result
+
+def _send_state():
+    """Send current channel values as a state update"""
+    global _last_send_time
+    m = parent().op('maestra_ext').module
+    ext = m.get_ext(parent())
+    if not ext.Connected:
+        return
+    state = _read_channels()
+    if state:
+        ext.UpdateState(state)
+        _last_send_time = time.time()
+
+def onValueChange(channel, sampleIndex, val, prev):
+    global _last_send_time, _pending
+    # Check if auto-send is enabled
+    if not parent().par.Autosend.eval():
+        return
+    # Rate limiting
+    rate = parent().par.Updaterate.eval()
+    min_interval = 1.0 / max(rate, 0.1)
+    now = time.time()
+    if now - _last_send_time >= min_interval:
+        _send_state()
+        _pending = False
+    else:
+        _pending = True
+
+def onOffToOn(channel, sampleIndex, val, prev):
+    pass
+
+def onOnToOff(channel, sampleIndex, val, prev):
+    pass
 '''
 
 _USER_CALLBACKS_SOURCE = '''# Maestra State Change Callback

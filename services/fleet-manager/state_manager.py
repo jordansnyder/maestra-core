@@ -1,6 +1,7 @@
 """
 State Manager Service
-Handles state updates and event broadcasting to NATS and MQTT message buses
+Handles state updates and event broadcasting to NATS and MQTT message buses.
+Also processes incoming MQTT state update commands from devices (Arduino, ESP32, etc.).
 """
 
 import json
@@ -16,6 +17,10 @@ from nats.aio.client import Client as NATS
 import paho.mqtt.client as mqtt
 
 logger = logging.getLogger(__name__)
+
+# Async event loop reference — set during connect() so MQTT thread callbacks
+# can schedule coroutines on the main loop.
+_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
 class StateManager:
@@ -40,6 +45,8 @@ class StateManager:
 
     async def connect(self) -> bool:
         """Connect to NATS and MQTT brokers"""
+        global _loop
+        _loop = asyncio.get_running_loop()
         success = True
 
         # Connect to NATS
@@ -68,6 +75,21 @@ class StateManager:
             self.mqtt_client = None
             success = False
 
+        # Register built-in MQTT state update handler
+        self.add_message_handler(self._handle_mqtt_state_update)
+
+        # Subscribe to NATS state update commands
+        if self.nc and not self.nc.is_closed:
+            await self.nc.subscribe(
+                "maestra.entity.state.update.*",
+                cb=self._on_nats_state_update
+            )
+            await self.nc.subscribe(
+                "maestra.entity.state.set.*",
+                cb=self._on_nats_state_set
+            )
+            print("✅ NATS state update subscriptions active")
+
         self._connected = success
         return success
 
@@ -95,27 +117,159 @@ class StateManager:
             print(f"⚠️ MQTT connection failed: {reason_code}")
 
     def _on_mqtt_message(self, client, userdata, msg):
-        """Handle incoming MQTT messages (state update requests)"""
+        """Handle incoming MQTT messages (state update requests).
+
+        This runs on the paho-mqtt network thread, so we schedule
+        coroutines on the main asyncio loop via call_soon_threadsafe.
+        """
         try:
             topic = msg.topic
             payload = json.loads(msg.payload.decode())
 
-            # Extract slug from topic
+            # Extract operation and slug from topic
             # Format: maestra/entity/state/update/<slug> or maestra/entity/state/set/<slug>
             parts = topic.split('/')
             if len(parts) >= 5:
                 operation = parts[3]  # "update" or "set"
                 slug = parts[4]
 
-                # Queue for async processing
-                for handler in self._message_handlers:
-                    asyncio.create_task(handler(operation, slug, payload))
+                # Schedule async handlers on the main event loop
+                if _loop and not _loop.is_closed():
+                    for handler in self._message_handlers:
+                        asyncio.run_coroutine_threadsafe(
+                            handler(operation, slug, payload), _loop
+                        )
         except Exception as e:
             print(f"⚠️ Error processing MQTT message: {e}")
 
     def add_message_handler(self, handler: Callable):
         """Add a handler for incoming state update requests"""
         self._message_handlers.append(handler)
+
+    async def _on_nats_state_update(self, msg):
+        """Handle NATS state update command: maestra.entity.state.update.<slug>"""
+        try:
+            slug = msg.subject.split('.')[-1]
+            payload = json.loads(msg.data.decode())
+            await self._handle_mqtt_state_update("update", slug, payload)
+        except Exception as e:
+            logger.error(f"NATS state update error: {e}")
+
+    async def _on_nats_state_set(self, msg):
+        """Handle NATS state set command: maestra.entity.state.set.<slug>"""
+        try:
+            slug = msg.subject.split('.')[-1]
+            payload = json.loads(msg.data.decode())
+            await self._handle_mqtt_state_update("set", slug, payload)
+        except Exception as e:
+            logger.error(f"NATS state set error: {e}")
+
+    async def _handle_mqtt_state_update(
+        self,
+        operation: str,
+        slug: str,
+        payload: Dict[str, Any]
+    ):
+        """
+        Process an MQTT state update command.
+        Looks up the entity by slug, updates the DB, records history,
+        and broadcasts the change to all subscribers.
+
+        Topics handled:
+          maestra/entity/state/update/<slug>  →  merge (PATCH semantics)
+          maestra/entity/state/set/<slug>     →  replace (PUT semantics)
+
+        Expected payload:
+          { "state": { "key": "value", ... }, "source": "optional-source-id" }
+          or simply: { "key": "value", ... }  (treated as state with source="mqtt")
+        """
+        from database import async_session_maker, EntityDB, EntityTypeDB
+        from sqlalchemy import select
+
+        # Accept { "state": {...}, "source": "..." } or bare { "key": "value" }
+        if "state" in payload and isinstance(payload["state"], dict):
+            state_data = payload["state"]
+            source = payload.get("source", "mqtt")
+        else:
+            state_data = payload
+            source = "mqtt"
+
+        if not state_data:
+            logger.warning(f"MQTT state update for '{slug}': empty state payload")
+            return
+
+        try:
+            async with async_session_maker() as db:
+                # Look up entity by slug
+                result = await db.execute(
+                    select(EntityDB, EntityTypeDB)
+                    .join(EntityTypeDB, EntityDB.entity_type_id == EntityTypeDB.id)
+                    .where(EntityDB.slug == slug)
+                )
+                row = result.first()
+
+                if not row:
+                    logger.warning(f"MQTT state update: entity '{slug}' not found")
+                    return
+
+                db_entity, entity_type = row
+                previous_state = db_entity.state or {}
+
+                # Apply update or replace
+                if operation == "update":
+                    new_state = self._deep_merge(previous_state, state_data)
+                elif operation == "set":
+                    new_state = state_data
+                else:
+                    logger.warning(f"MQTT state update: unknown operation '{operation}'")
+                    return
+
+                # Update database
+                db_entity.state = new_state
+                db_entity.state_updated_at = datetime.utcnow()
+                await db.commit()
+
+                # Record state history (non-fatal)
+                try:
+                    from entity_router import record_state_change
+                    await record_state_change(
+                        db, db_entity.id, db_entity.slug, entity_type.name,
+                        db_entity.path, previous_state, new_state,
+                        source=source, device_id=db_entity.device_id
+                    )
+                except Exception as e:
+                    logger.error(f"MQTT state history recording failed: {e}")
+
+                # Broadcast to all subscribers (NATS + MQTT)
+                await self.broadcast_state_change(
+                    entity_id=db_entity.id,
+                    entity_slug=db_entity.slug,
+                    entity_type=entity_type.name,
+                    entity_path=db_entity.path,
+                    previous_state=previous_state,
+                    new_state=new_state,
+                    source=source,
+                    entity_metadata=db_entity.entity_metadata
+                )
+
+                logger.info(
+                    f"MQTT state {operation} for '{slug}': "
+                    f"{list(state_data.keys())} (source={source})"
+                )
+
+        except Exception as e:
+            logger.error(f"MQTT state update failed for '{slug}': {e}")
+
+    @staticmethod
+    def _deep_merge(base: Dict[str, Any], update: Dict[str, Any]) -> Dict[str, Any]:
+        """Deep merge update dict into base dict"""
+        result = base.copy()
+        for key, value in update.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = StateManager._deep_merge(result[key], value)
+            else:
+                result[key] = value
+        return result
 
     @staticmethod
     def compute_changed_keys(

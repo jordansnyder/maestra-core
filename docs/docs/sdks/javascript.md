@@ -28,6 +28,32 @@ entity.onStateChange((state, changedKeys) => {
 });
 ```
 
+## State Updates
+
+```typescript
+// Partial update (merge)
+await entity.updateState({ brightness: 75, color: '#ff9900' });
+
+// Full replacement
+await entity.setState({ brightness: 100 });
+
+// Subscribe to real-time changes (via WebSocket or MQTT)
+entity.onStateChange((state, changedKeys) => {
+  console.log('Changed:', changedKeys);
+});
+```
+
+For browser apps, state changes are received via the WebSocket gateway automatically. For Node.js apps, you can also subscribe via MQTT:
+
+```typescript
+// MQTT state update (Node.js)
+import mqtt from 'mqtt';
+const client = mqtt.connect('mqtt://localhost:1883');
+client.publish('maestra/entity/state/update/gallery-light-1',
+  JSON.stringify({ state: { brightness: 75 }, source: 'node-app' })
+);
+```
+
 ## Streams
 
 ```typescript

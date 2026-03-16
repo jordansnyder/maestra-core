@@ -39,6 +39,41 @@ void loop() {
 }
 ```
 
+## Entity State
+
+The Arduino SDK updates entity state via MQTT topics — no HTTP required:
+
+```cpp
+MaestraEntity* sensor = maestra.getEntity("temperature-sensor");
+
+// Update single value (merge with existing state)
+sensor->updateState("temperature", 23.5);
+
+// Update multiple values
+StaticJsonDocument<256> doc;
+JsonObject state = doc.to<JsonObject>();
+state["temperature"] = 23.5;
+state["humidity"] = 65;
+sensor->updateState(state);
+
+// Replace entire state
+sensor->setState(state);
+
+// Subscribe to state changes from other devices
+sensor->onStateChange([](const char* slug, JsonObject state, JsonArray changed) {
+    float temp = state["temperature"];
+    Serial.printf("Temperature: %.1f\n", temp);
+});
+```
+
+**MQTT topics used:**
+
+| Operation | Topic |
+|-----------|-------|
+| Merge state | `maestra/entity/state/update/<slug>` |
+| Replace state | `maestra/entity/state/set/<slug>` |
+| Receive changes | `maestra/entity/state/+/<slug>` |
+
 ## Streams
 
 ```cpp

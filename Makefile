@@ -170,6 +170,12 @@ test-mqtt: ## Test MQTT connection (publishes test message)
 	$(DOCKER_COMPOSE) exec mosquitto mosquitto_pub -t "maestra/test" -m "Hello from Maestra"
 	@echo "✅ Test message published to MQTT topic: maestra/test"
 
+test-mqtt-state: ## Test MQTT entity state update (requires SLUG=entity-slug)
+	@if [ -z "$(SLUG)" ]; then echo "Usage: make test-mqtt-state SLUG=my-entity"; exit 1; fi
+	$(DOCKER_COMPOSE) exec mosquitto mosquitto_pub -t "maestra/entity/state/update/$(SLUG)" \
+		-m '{"state": {"test_value": 42, "source_test": true}, "source": "make-test"}'
+	@echo "✅ State update published for entity: $(SLUG)"
+
 watch: ## Watch service logs in real-time (requires watch command)
 	watch -n 2 '$(DOCKER_COMPOSE) ps'
 
@@ -224,5 +230,5 @@ logs-prod: ## View production environment logs
 # Development shortcuts
 .PHONY: dev-bus dev-db dev-core shell-postgres shell-redis shell-fleet
 .PHONY: migrate migrate-status migrate-dry-run
-.PHONY: backup-db restore-db test-mqtt watch stats update
+.PHONY: backup-db restore-db test-mqtt test-mqtt-state watch stats update
 .PHONY: deploy-test deploy-prod stop-test stop-prod logs-test logs-prod

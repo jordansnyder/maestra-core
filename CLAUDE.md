@@ -68,6 +68,17 @@ Maestra is an immersive experience infrastructure platform for creatives. It's a
 - NATS: `maestra.<protocol>.<resource>.<action>` (e.g., `maestra.mqtt.devices.esp32.temperature`)
 - MQTT: `maestra/<resource>/<action>` (e.g., `maestra/devices/esp32/temperature`)
 
+**Entity state updates (device → Maestra):**
+- MQTT: `maestra/entity/state/update/<slug>` (merge) or `maestra/entity/state/set/<slug>` (replace)
+- NATS: `maestra.entity.state.update.<slug>` (merge) or `maestra.entity.state.set.<slug>` (replace)
+- HTTP: `PATCH /entities/{id}/state` (merge) or `PUT /entities/{id}/state` (replace)
+- Payload: `{"state": {...}, "source": "optional-source-id"}`
+
+**Entity state broadcasts (Maestra → devices):**
+- MQTT: `maestra/entity/state/<type>/<slug>`
+- NATS: `maestra.entity.state.<type>.<slug>`
+- WebSocket: All NATS broadcasts relayed automatically
+
 **Bridge routing:**
 - MQTT → NATS: `maestra/x/y` becomes `maestra.mqtt.maestra.x.y`
 - NATS → MQTT: `maestra.to_mqtt.x.y` becomes `x/y`
@@ -108,6 +119,7 @@ make restore-db FILE=backups/backup.sql
 
 # Testing
 make test-mqtt       # Publish test MQTT message
+make test-mqtt-state SLUG=my-entity  # Test MQTT entity state update
 ```
 
 ## Service Development Patterns

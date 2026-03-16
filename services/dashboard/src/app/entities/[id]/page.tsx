@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Entity, EntityType, EntityUpdate, DMXFixture } from '@/lib/types'
 import { entitiesApi, entityTypesApi, dmxApi } from '@/lib/api'
+import { useWebSocket } from '@/hooks/useWebSocket'
 import { EntityVariablesPanel } from '@/components/EntityVariablesPanel'
 import { StateTestPanel } from '@/components/StateTestPanel'
 import { EntityStateOverview } from '@/components/EntityStateOverview'
@@ -97,6 +98,24 @@ export default function EntityDetailPage() {
   }, [entityId])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // Real-time entity state updates via WebSocket (e.g. from DMX engine during playback)
+  const { lastMessage: wsMessage, subscribe: wsSubscribe, isConnected: wsConnected } = useWebSocket()
+  useEffect(() => {
+    if (wsConnected && entity) {
+      wsSubscribe(`maestra.entity.state.${entity.entity_type?.name ?? ''}.${entity.slug}`)
+    }
+  }, [wsConnected, entity?.slug, entity?.entity_type?.name, wsSubscribe])
+  useEffect(() => {
+    if (!wsMessage || !entity) return
+    const event = (wsMessage.data ?? {}) as Record<string, unknown>
+    if (event.type !== 'state_changed') return
+    if (event.entity_id !== entity.id) return
+    const newState = event.current_state as Record<string, unknown>
+    if (!newState) return
+    setEntity((prev) => prev ? { ...prev, state: newState, state_updated_at: (event.timestamp as string) ?? prev.state_updated_at } : prev)
+    setStateJson(JSON.stringify(newState, null, 2))
+  }, [wsMessage, entity?.id])
 
   // Close fixture dropdown on outside click
   useEffect(() => {
@@ -315,8 +334,8 @@ export default function EntityDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Left Column */}
           <div className="space-y-6">
-            {/* DMX Fixture Card */}
-            <div className={`rounded-lg border p-5 ${isDmxLinked ? 'bg-amber-950/20 border-amber-800/40' : 'bg-slate-800 border-slate-700'}`}>
+            {/* DMX Fixture Card — hidden for the singleton DMX controller entity */}
+            {!isDmxController && <div className={`rounded-lg border p-5 ${isDmxLinked ? 'bg-amber-950/20 border-amber-800/40' : 'bg-slate-800 border-slate-700'}`}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Zap className={`w-4 h-4 ${isDmxLinked ? 'text-amber-400' : 'text-slate-600'}`} />
@@ -458,7 +477,7 @@ export default function EntityDetailPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </div>}
 
             {/* Metadata Card */}
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
@@ -591,8 +610,8 @@ export default function EntityDetailPage() {
               </div>
             )}
 
-            {/* DMX-managed notice — unobtrusive, only when linked */}
-            {isDmxLinked && (
+            {/* DMX-managed notice — unobtrusive, only when linked to a fixture */}
+            {isDmxLinked && !isDmxController && (
               <div className="flex items-start gap-2.5 px-3 py-2.5 mb-4 rounded-lg bg-amber-950/30 border border-amber-900/40">
                 <Zap className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-700 leading-relaxed">

@@ -62,11 +62,18 @@ async def _sync_dmx_lighting_entity(db: AsyncSession) -> None:
         for r in seq_rows.fetchall()
     ]
 
+    # Preserve active playback fields so mutations don't interrupt running sequences
+    existing_row = await db.execute(text("""
+        SELECT state FROM entities WHERE slug = :slug
+    """), {"slug": _DMX_LIGHTING_SLUG})
+    existing = existing_row.fetchone()
+    existing_state = (existing.state if existing else {}) or {}
+
     state = json.dumps({
         "cues": cues,
         "sequences": sequences,
-        "active_cue_id": None,
-        "active_sequence_id": None,
+        "active_cue_id": existing_state.get("active_cue_id"),
+        "active_sequence_id": existing_state.get("active_sequence_id"),
     })
 
     await db.execute(text("""
@@ -1389,3 +1396,90 @@ async def remove_cue_from_sequence(
 
     placements = await _load_placements(str(sequence_id), db)
     return placements
+
+
+# =============================================================================
+# Playback Engine Endpoints
+# =============================================================================
+
+class PlaybackPlayRequest(BaseModel):
+    sequence_id: str
+
+
+class PlaybackFadeOutRequest(BaseModel):
+    duration_ms: float = 3000.0
+
+
+class PlaybackCueFadeRequest(BaseModel):
+    from_cue_id: Optional[str] = None
+    to_cue_id: str
+    duration_ms: float = 0.0
+
+
+@router.get("/playback/status")
+async def get_playback_status():
+    """Return current playback engine status."""
+    from dmx_playback_engine import playback_engine
+    return playback_engine.status
+
+
+@router.post("/playback/play")
+async def playback_play(data: PlaybackPlayRequest):
+    """Start sequence playback."""
+    from dmx_playback_engine import playback_engine
+    ok = await playback_engine.play(data.sequence_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Sequence not found or has no cue placements")
+    return {"status": "playing"}
+
+
+@router.post("/playback/pause")
+async def playback_pause():
+    """Pause playback."""
+    from dmx_playback_engine import playback_engine
+    await playback_engine.pause()
+    return {"status": "paused"}
+
+
+@router.post("/playback/resume")
+async def playback_resume():
+    """Resume paused playback."""
+    from dmx_playback_engine import playback_engine
+    await playback_engine.resume()
+    return {"status": "playing"}
+
+
+@router.post("/playback/stop")
+async def playback_stop():
+    """Stop playback."""
+    from dmx_playback_engine import playback_engine
+    await playback_engine.stop()
+    return {"status": "stopped"}
+
+
+@router.post("/playback/toggle-loop")
+async def playback_toggle_loop():
+    """Toggle loop mode."""
+    from dmx_playback_engine import playback_engine
+    loop = await playback_engine.toggle_loop()
+    return {"loop": loop}
+
+
+@router.post("/playback/fadeout")
+async def playback_fadeout(data: PlaybackFadeOutRequest):
+    """Fade out dimmer channels of the current cue then stop."""
+    from dmx_playback_engine import playback_engine
+    await playback_engine.fade_out(data.duration_ms)
+    return {"status": "fading_out"}
+
+
+@router.post("/playback/cue-fade")
+async def playback_cue_fade(data: PlaybackCueFadeRequest):
+    """Fade from one cue snapshot to another."""
+    from dmx_playback_engine import playback_engine
+    ok = await playback_engine.recall_cue_fade(
+        data.from_cue_id, data.to_cue_id, data.duration_ms
+    )
+    if not ok:
+        raise HTTPException(status_code=404, detail="Target cue has no fixture snapshots")
+    return {"status": "fading"}

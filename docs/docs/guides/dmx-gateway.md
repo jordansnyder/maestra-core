@@ -2,13 +2,15 @@
 
 The DMX Gateway bridges the Maestra NATS message bus to physical DMX lighting fixtures via the **Art-Net** protocol. It enables any Maestra client — TouchDesigner, Node-RED, Unreal Engine, a browser, or a custom script — to control real lights in real time by publishing entity state changes.
 
-Configuration is **database-driven**: all Art-Net nodes and fixture assignments are managed through the Dashboard → DMX Lighting interface (or the Fleet Manager REST API). No YAML files required.
+Configuration is **database-driven**: all Art-Net nodes, fixture assignments, cues, and sequences are managed through the Dashboard → **DMX Lighting** interface (or the Fleet Manager REST API). No YAML files required.
+
+---
 
 ## How It Works
 
 ```
 Maestra Client (any SDK or tool)
-        │  PATCH /entities/{id}/state
+        │  PATCH /entities/{id}/state  ─or─  POST /dmx/playback/play
         ▼
     NATS Bus   maestra.entity.state.venue.stage.par_l1
         │
@@ -29,11 +31,15 @@ Maestra Client (any SDK or tool)
 
 The gateway is **hardware-agnostic** — it works with any Art-Net node on the network. Configuration changes between venues via the Dashboard, not file edits.
 
+---
+
 ## Prerequisites
 
 - An Art-Net node connected to your network with a known static IP address
 - DMX fixtures patched to the node's output ports
 - Maestra running with NATS and Fleet Manager available
+
+---
 
 ## Quick Start
 
@@ -42,7 +48,7 @@ The gateway is **hardware-agnostic** — it works with any Art-Net node on the n
 Open the Dashboard → **DMX Lighting** and:
 
 1. Add an **Art-Net Node** (hardware device): enter IP address, port, manufacturer, and universe assignments
-2. Add **DMX Fixtures**: select the node, universe, start channel, and channel count
+2. Add **DMX Fixtures**: select the node, universe, start channel, and channel count — pick the fixture model from the Open Fixture Library to auto-populate the channel map
 3. Optionally link each fixture to a Maestra **Entity** — the gateway will then respond to entity state changes for that fixture automatically
 
 ### 2. Start the DMX gateway
@@ -76,13 +82,167 @@ curl -X PATCH http://localhost:8080/entities/{entity-slug}/state \
 nats pub maestra.to_artnet.universe.1 '{"channels": [255, 0, 0, 0, 0, 0, 0]}'
 ```
 
+---
+
+## Dashboard UI Reference
+
+### DMX Lighting Page (`/dmx`)
+
+The DMX Lighting page is the primary interface for configuring your rig and programming looks.
+
+#### Canvas
+
+The main canvas displays all configured fixtures as nodes arranged spatially. You can drag fixtures to set their visual positions (positions are persisted). Node size can be toggled between **S / M / L** using the scale picker in the toolbar.
+
+Each fixture node shows:
+- Fixture name and channel info
+- A small **LED indicator** that flashes when DMX data is being sent to that fixture via its linked entity
+- Universe color coding that matches the sidebar universe groups
+
+**Selecting fixtures:**
+- Click a fixture to select it
+- Shift-click fixtures of the same OFL model + universe to multi-select
+- Click empty canvas to deselect all
+
+**Context menu (right-click):**
+- Edit fixture settings
+- Copy fixture (duplicates with auto-incremented name)
+- Adjust DMX channels (opens the channel slider modal)
+- Delete fixture
+
+#### Toolbar Controls
+
+| Control | Description |
+|---------|-------------|
+| **Pause / Resume Listening** | Pauses all external entity state sources from driving DMX output. Manual Adjust DMX sliders and cue/sequence playback still work when paused. |
+| **Clear** | *(only visible when paused)* Zeros all DMX channel values across every fixture and universe immediately. Requires confirmation. |
+| **S / M / L** | Node size picker — persisted in localStorage. |
+
+When external signals are paused, an amber **"External signals paused"** badge appears in the toolbar as a persistent reminder.
+
+#### Right Sidebar
+
+The sidebar has three collapsible sections:
+
+**Nodes & Fixtures**
+
+Lists all Art-Net nodes grouped by universe. Each node shows its IP address and universe labels. Fixtures appear beneath their parent node, color-coded by universe. You can:
+- Drag fixtures and nodes to reorder them
+- Click a fixture to select it on the canvas
+- Click the edit icon to open the fixture editor
+
+**Cues**
+
+Cues are snapshots of all linked fixture states at a moment in time.
+
+| Action | How |
+|--------|-----|
+| Save current state as cue | Click **+ Save Cue** at the bottom of the Cues panel |
+| Recall a cue | Click the cue row — a fade-progress bar shows cross-fade progress |
+| Recall with custom fade | Click the cue fade icon and set a duration (seconds), then click Recall |
+| Edit a cue (update snapshot) | Click the pencil icon → adjust DMX sliders → click **Save** |
+| Rename a cue | Double-click the cue name or click the rename icon |
+| Reorder cues | Drag the handle on the left of each cue row |
+| Delete a cue | Click the trash icon on the cue row |
+
+The currently active cue is highlighted. Moving any DMX slider while not in Edit Mode clears the active cue highlight.
+
+**Sequences**
+
+Sequences chain cues together for automated playback with configurable transitions and hold durations.
+
+| Action | How |
+|--------|-----|
+| Create sequence | Click **+ New Sequence** |
+| Add cue to sequence | Open the sequence, click **+ Add Cue**, pick from the list |
+| Set transition time | Click the transition field on a cue placement row (seconds) |
+| Set hold duration | Click the hold field on a cue placement row (seconds, `0` = loop immediately) |
+| Reorder cues in sequence | Drag the handle on each placement row |
+| Remove cue from sequence | Click the × on a placement row |
+| Play sequence | Click the **▶** button on the sequence header |
+| Pause / Resume | Click **⏸** or **▶** while playing |
+| Stop | Click **⏹** |
+| Toggle loop | Click the loop icon — loops indefinitely when enabled |
+| Fade out | Click the fade icon and set duration (seconds) — fades dimmer/intensity channels to zero then stops |
+| Rename sequence | Click the sequence name |
+| Reorder sequences | Drag the sequence header row |
+| Delete sequence | Click the trash icon (requires confirmation if sequence has cues) |
+
+#### DMX Adjust Modal
+
+Select one or more fixtures on the canvas, then click **Adjust DMX** (toolbar or context menu) to open the channel slider panel. Each channel from the fixture's channel map is shown as a labeled slider (`0–255`). Changes are sent to the linked entity in real time.
+
+Multi-selected fixtures of the same OFL model and universe can be adjusted simultaneously.
+
+#### Add / Edit Fixture Modal
+
+When adding a fixture you can:
+1. Pick a manufacturer from the **Open Fixture Library** dropdown
+2. Pick the fixture model — the channel map is auto-populated from the OFL database
+3. Select the fixture mode if the model supports multiple channel modes
+4. Choose the Art-Net node, universe, and start channel
+5. Optionally link to an existing Maestra entity (or let the system auto-create one)
+
+Editing an existing fixture uses the same form. Deleting a fixture optionally deletes its linked entity as well.
+
+#### Art-Net Node Setup
+
+When no nodes exist, the page shows a first-run setup form. Once configured, nodes are managed via the sidebar edit icon or the **+ Add Node** button.
+
+Node configuration includes:
+- IP address and Art-Net port (default `6454`)
+- Manufacturer and model (informational)
+- Universe list: each universe gets a numeric Art-Net universe number, a label, and an optional color
+- PoE status and firmware version (informational)
+
+Adding a node automatically creates a linked Maestra **Device** for it, which appears in the Devices page and can be monitored for connectivity.
+
+---
+
+## DMX Lighting Entity
+
+Maestra automatically creates a singleton entity called **DMX Lighting** (`slug: dmx-lighting`, type: `dmx_controller`). This entity:
+
+- **Reflects the cue and sequence catalog** in its state — any external tool subscribed to `maestra.entity.state.dmx_controller.dmx-lighting` sees the full list of cues and sequences plus the currently active IDs
+- **Enables external triggering** — PATCH the entity's `active_cue_id` or `active_sequence_id` fields from any SDK to recall a cue or start a sequence from outside the Dashboard
+- **Updates in real time** — the entity state is synced on every cue/sequence create, rename, reorder, or delete
+
+The entity state shape:
+
+```json
+{
+  "cues": [
+    { "id": "uuid", "name": "Warm Stage", "fade_duration": 2.5 }
+  ],
+  "sequences": [
+    { "id": "uuid", "name": "Opening Show", "cue_count": 4, "fade_out_duration": 3.0 }
+  ],
+  "active_cue_id": "uuid-or-null",
+  "active_sequence_id": "uuid-or-null"
+}
+```
+
+To trigger a cue from any external tool:
+
+```bash
+curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
+  -H "Content-Type: application/json" \
+  -d '{"state": {"active_cue_id": "<cue-uuid>"}}'
+```
+
+The Dashboard subscribes to `maestra.entity.state.dmx_controller.dmx-lighting` via WebSocket and updates cue/sequence highlights in real time when triggered externally.
+
+---
+
 ## NATS Topics
 
 | Subject | Direction | Description |
 |---------|-----------|-------------|
 | `maestra.entity.state.>` | Inbound | Entity state changes (normal mode) |
 | `maestra.to_artnet.universe.{n}` | Inbound | Raw 512-channel universe array (bypass mode) |
+| `maestra.dmx.control` | Inbound | Internal pause/resume signals from Fleet Manager |
 | `maestra.dmx.fixture.{path}` | Outbound | Resolved DMX channel values per fixture (debug) |
+| `maestra.entity.state.dmx_controller.dmx-lighting` | Outbound | Cue/sequence catalog + active state |
 
 ### Raw Universe Bypass
 
@@ -104,6 +264,8 @@ The gateway publishes resolved channel values after every state change. Subscrib
 nats sub 'maestra.dmx.fixture.>'
 ```
 
+---
+
 ## REST API Reference
 
 All DMX configuration is managed via the Fleet Manager API. Full interactive docs at `http://localhost:8080/docs`.
@@ -113,6 +275,7 @@ All DMX configuration is managed via the Fleet Manager API. Full interactive doc
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/dmx/nodes` | List all configured Art-Net nodes |
+| `PUT` | `/dmx/nodes/reorder` | Reorder nodes (body: `["id1","id2",...]`) |
 | `POST` | `/dmx/nodes` | Register a new Art-Net node |
 | `GET` | `/dmx/nodes/{id}` | Get a single node |
 | `PUT` | `/dmx/nodes/{id}` | Update node configuration |
@@ -122,12 +285,138 @@ All DMX configuration is managed via the Fleet Manager API. Full interactive doc
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/dmx/fixtures` | List all fixtures (optional `?node_id=` filter) |
+| `GET` | `/dmx/fixtures` | List all fixtures (optional `?node_id=`, `?entity_id=` filter) |
 | `POST` | `/dmx/fixtures` | Create a new fixture |
+| `PUT` | `/dmx/fixtures/reorder` | Reorder fixtures (body: `["id1","id2",...]`) |
 | `GET` | `/dmx/fixtures/{id}` | Get a single fixture |
 | `PUT` | `/dmx/fixtures/{id}` | Update fixture config, position, or channel map |
 | `DELETE` | `/dmx/fixtures/{id}` | Remove a fixture |
 | `PUT` | `/dmx/fixtures/positions/bulk` | Bulk update canvas positions |
+| `GET` | `/dmx/entities/{entity_id}/fixture` | Look up the fixture linked to an entity |
+
+### Output Control (`/dmx/pause`, `/dmx/resume`, `/dmx/clear`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/dmx/pause-state` | Returns `{"paused": bool}` |
+| `POST` | `/dmx/pause` | Pause all external entity-driven DMX output |
+| `POST` | `/dmx/resume` | Resume normal DMX output |
+| `POST` | `/dmx/clear` | Zero all DMX channels (only while paused) |
+
+### Cues (`/dmx/cues`)
+
+Cues are named snapshots of all linked fixture states.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/dmx/cues` | List all cues ordered by sort_order |
+| `POST` | `/dmx/cues` | Save current entity states as a new cue (`{"name": "My Cue"}`) |
+| `PUT` | `/dmx/cues/reorder` | Reorder cues (body: `["id1","id2",...]`) |
+| `POST` | `/dmx/cues/{id}/recall` | Instantly restore all fixture states from this cue |
+| `POST` | `/dmx/cues/{id}/snapshot` | Replace cue fixture data with current entity states (Edit Mode save) |
+| `PUT` | `/dmx/cues/{id}` | Rename a cue (`{"name": "New Name"}`) |
+| `DELETE` | `/dmx/cues/{id}` | Delete a cue (also removes it from all sequences) |
+| `GET` | `/dmx/cues/{id}/fixtures` | List fixture snapshots stored in a cue |
+
+### Sequences (`/dmx/sequences`)
+
+Sequences chain cues with configurable transitions and hold durations.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/dmx/sequences` | List all sequences with their cue placements |
+| `POST` | `/dmx/sequences` | Create a new empty sequence (`{"name": "My Sequence"}`) |
+| `PUT` | `/dmx/sequences/reorder` | Reorder sequences (body: `["id1","id2",...]`) |
+| `PUT` | `/dmx/sequences/{id}` | Rename a sequence |
+| `DELETE` | `/dmx/sequences/{id}` | Delete a sequence |
+| `POST` | `/dmx/sequences/{id}/cues` | Add a cue to a sequence (`{"cue_id": "uuid"}`) |
+| `PUT` | `/dmx/sequences/{id}/cues/reorder` | Reorder cue placements (body: `["placement_id1",...]`) |
+| `PUT` | `/dmx/sequences/{id}/cues/{placement_id}` | Update transition/hold timing |
+| `DELETE` | `/dmx/sequences/{id}/cues/{placement_id}` | Remove a cue from a sequence |
+
+**Cue placement update body:**
+```json
+{
+  "transition_time": 2.5,
+  "hold_duration": 5.0
+}
+```
+
+### Playback Engine (`/dmx/playback`)
+
+The backend playback engine runs sequence playback at 80ms intervals, interpolating fixture states between cues and broadcasting entity state changes via NATS.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/dmx/playback/status` | Get current playback engine state |
+| `POST` | `/dmx/playback/play` | Start sequence playback |
+| `POST` | `/dmx/playback/pause` | Pause playback (holds current frame) |
+| `POST` | `/dmx/playback/resume` | Resume paused playback |
+| `POST` | `/dmx/playback/stop` | Stop playback |
+| `POST` | `/dmx/playback/toggle-loop` | Toggle loop mode, returns `{"loop": bool}` |
+| `POST` | `/dmx/playback/fadeout` | Fade dimmer channels to zero then stop |
+| `POST` | `/dmx/playback/cue-fade` | Cross-fade from one cue snapshot to another |
+
+**Play request:**
+```json
+{ "sequence_id": "uuid" }
+```
+
+**Playback status response:**
+```json
+{
+  "sequence_id": "uuid-or-null",
+  "play_state": "stopped | playing | paused",
+  "phase": "idle | transitioning | holding",
+  "cue_index": 2,
+  "progress": 0.65,
+  "hold_progress": 0.3,
+  "loop": false,
+  "fade_progress": null
+}
+```
+
+**Fade out request:**
+```json
+{ "duration_ms": 3000.0 }
+```
+
+**Cue fade request:**
+```json
+{
+  "from_cue_id": "uuid-or-null",
+  "to_cue_id": "uuid",
+  "duration_ms": 2500.0
+}
+```
+
+`from_cue_id` defaults to the current live entity states when omitted.
+
+### Open Fixture Library (`/ofl`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/ofl/manufacturers` | List all synced manufacturers |
+| `GET` | `/ofl/fixtures` | List fixtures (query params: `?manufacturer_key=`, `?search=`) |
+| `GET` | `/ofl/fixtures/by-id/{fixture_id}` | Get a fixture by internal ID |
+| `GET` | `/ofl/fixtures/{manufacturer_key}/{fixture_key}` | Get a fixture by OFL path |
+| `GET` | `/ofl/sync/status` | Show last sync time and fixture count |
+
+To sync the OFL catalog locally:
+
+```bash
+make sync-ofl
+```
+
+---
+
+## Open Fixture Library Integration
+
+Maestra ships the [Open Fixture Library](https://open-fixture-library.org/) as a git submodule and syncs it into the `ofl_manufacturers` and `ofl_fixtures` tables. When you add a fixture in the Dashboard, you can search manufacturers and models; the channel map is auto-generated from the OFL fixture definition and the selected mode.
+
+The OFL catalog is **never synced automatically** — run `make sync-ofl` manually to pull the latest fixture definitions. Check sync status with `make ofl-status` or `GET /ofl/sync/status`.
+
+---
 
 ## Channel Map Reference
 
@@ -153,6 +442,10 @@ Each fixture has a `channel_map` that maps variable names to DMX channel offsets
 | `enum` | string label | lookup value | Color wheels, gobos |
 | `color` | `0.0` – `1.0` | `0` – `255` | Per-component (red, green, blue) |
 
+Fixtures linked to entities via the entity linker are **locked to DMX-only control** — their entity variables can only be updated via the DMX gateway or playback engine, preventing conflicting state sources.
+
+---
+
 ## Make Targets
 
 | Command | Description |
@@ -162,6 +455,10 @@ Each fixture has a `channel_map` that maps variable names to DMX channel offsets
 | `make logs-dmx` | Tail DMX gateway logs |
 | `make build-dmx` | Rebuild the DMX gateway image |
 | `make test-dmx` | Publish a test entity state via NATS |
+| `make sync-ofl` | Sync the Open Fixture Library into the database |
+| `make update-ip` | Detect current LAN IP and update `HOST_IP` in `.env`, then restart dashboard |
+
+---
 
 ## Art-Net Packet Format
 
@@ -181,15 +478,21 @@ Bytes  Field
 
 Total packet size: 530 bytes. Sent as UDP unicast to the configured node IP.
 
+---
+
 ## Send Strategy
 
 - **On-change:** A full 512-channel universe packet is sent immediately whenever any channel in that universe changes.
 - **Keep-alive:** All universes are resent at 4 Hz (configurable via `KEEPALIVE_HZ`) regardless of changes. This prevents the Art-Net node from timing out and turning fixtures off.
 - **Config refresh:** The gateway reloads its node/fixture configuration from the Fleet Manager API every 30 seconds (configurable via `CONFIG_REFRESH_INTERVAL`), picking up any changes made via the Dashboard.
 
+---
+
 ## NATS Reconnection
 
 The keep-alive loop runs independently of the NATS connection. If NATS disconnects, the gateway continues sending its last known universe state to the Art-Net node so fixtures hold their current values.
+
+---
 
 ## Logs
 
@@ -212,6 +515,8 @@ DMX Gateway ready
 
 Set `DMX_LOG_LEVEL=DEBUG` in your `.env` for per-channel resolution logging.
 
+---
+
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -221,6 +526,8 @@ Set `DMX_LOG_LEVEL=DEBUG` in your `.env` for per-channel resolution logging.
 | `LOG_LEVEL` | `INFO` | Log verbosity |
 | `CONFIG_REFRESH_INTERVAL` | `30` | Seconds between config reloads |
 | `KEEPALIVE_HZ` | `4` | Universe resend rate |
+
+---
 
 ## Troubleshooting
 
@@ -239,6 +546,17 @@ Set `DMX_LOG_LEVEL=DEBUG` in your `.env` for per-channel resolution logging.
    nats sub 'maestra.dmx.fixture.>'
    ```
 3. Check the gateway logs after a state change for `entity_path not found in fixture index`
+
+**Cue recall has no visible effect:**
+
+1. Verify fixtures are linked to entities (`entity_id` is set)
+2. Verify the channel map has entries — an empty channel map produces no state change
+3. Check `GET /dmx/cues/{id}/fixtures` to see what was snapshotted when the cue was saved
+
+**Playback engine stops advancing cues:**
+
+1. Check `GET /dmx/playback/status` — if `phase` is `holding` and `hold_progress` is not advancing, the hold duration may be very long or zero
+2. A `hold_duration` of `0` means the cue holds indefinitely; set a positive value or stop and replay
 
 **Wrong channels firing:**
 

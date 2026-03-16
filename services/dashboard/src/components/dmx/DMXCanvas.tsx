@@ -223,10 +223,10 @@ export function DMXCanvas({
             <div
               className="px-2 py-1 rounded text-[9px] font-mono whitespace-nowrap transition-all duration-150"
               style={{
-                background: isParentOfSelected ? `${nodeColor}22` : '#1e293b99',
-                border: `1px solid ${isParentOfSelected ? nodeColor : '#1e293b'}`,
-                color: isParentOfSelected ? nodeColor : '#475569',
-                boxShadow: isParentOfSelected ? `0 0 10px ${nodeColor}44` : 'none',
+                background: isParentOfSelected ? 'rgba(255,255,255,0.08)' : '#1e293b99',
+                border: `1px solid ${isParentOfSelected ? 'rgba(255,255,255,0.5)' : '#1e293b'}`,
+                color: isParentOfSelected ? '#ffffff' : '#475569',
+                boxShadow: isParentOfSelected ? '0 0 10px rgba(255,255,255,0.15)' : 'none',
               }}
             >
               {node.name} · {node.ip_address}

@@ -7,7 +7,7 @@ import { UNIVERSE_PALETTE } from '@/lib/dmx-constants'
 import { SequencePlaybackStatus } from '@/hooks/useSequencePlayback'
 import {
   Pencil, Network, Layers, SlidersHorizontal, ChevronRight, BookOpen, Trash2,
-  GripVertical, X, Check, Play, Pause, Square, ListOrdered, Plus, Repeat, Sunset,
+  GripVertical, X, Check, Play, Pause, Square, ListOrdered, Plus, Repeat, Sunset, ExternalLink,
 } from '@/components/icons'
 
 function getUniverseColor(nodes: DMXNode[], fixture: DMXFixture): string {
@@ -286,6 +286,24 @@ export function DMXSidebar({
                         <div className="text-[10px] text-slate-600 mt-0.5 pl-4">
                           {nodeFixtures.length} fixture{nodeFixtures.length !== 1 ? 's' : ''} · {node.universe_count} universe{node.universe_count !== 1 ? 's' : ''}
                         </div>
+                        {node.device_id ? (
+                          <a
+                            href="/devices"
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-1.5 flex items-center justify-between w-full px-2 py-1 rounded bg-blue-900/20 border border-blue-800/40 hover:bg-blue-900/30 transition-colors group"
+                          >
+                            <div className="min-w-0">
+                              <div className="text-[8px] uppercase tracking-wider text-blue-700 font-medium leading-none">Linked Device</div>
+                              <div className="text-[9px] font-mono text-blue-500/80 group-hover:text-blue-400 truncate leading-none mt-0.5">{node.device_id.slice(0, 8)}…</div>
+                            </div>
+                            <ExternalLink className="w-2.5 h-2.5 text-blue-700 group-hover:text-blue-400 shrink-0 ml-1.5" />
+                          </a>
+                        ) : (
+                          <div className="mt-1.5 flex items-center gap-1.5 px-2 py-1 rounded bg-slate-800/50 border border-slate-700/40">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-600 shrink-0" />
+                            <span className="text-[9px] text-slate-600">No linked device</span>
+                          </div>
+                        )}
                       </div>
                     )
                   })}

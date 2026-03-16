@@ -28,6 +28,52 @@ from state_manager import state_manager
 router = APIRouter(prefix="/dmx", tags=["DMX"])
 
 DMX_PAUSE_KEY = "dmx:output:paused"
+_DMX_LIGHTING_SLUG = "dmx-lighting"
+
+
+async def _sync_dmx_lighting_entity(db: AsyncSession) -> None:
+    """Rebuild and persist the DMX Lighting entity state from current cues and sequences.
+
+    Executes an UPDATE within the caller's transaction — the caller must commit.
+    Safe to call even if the entity does not exist yet (UPDATE is a no-op in that case).
+    """
+    cue_rows = await db.execute(text("""
+        SELECT id, name, fade_duration, sort_order
+        FROM dmx_cues ORDER BY sort_order ASC, created_at ASC
+    """))
+    cues = [
+        {"id": str(r.id), "name": r.name, "fade_duration": float(r.fade_duration or 0)}
+        for r in cue_rows.fetchall()
+    ]
+
+    seq_rows = await db.execute(text("""
+        SELECT s.id, s.name, s.fade_out_duration, s.sort_order,
+               (SELECT COUNT(*) FROM dmx_sequence_cues sc WHERE sc.sequence_id = s.id) AS cue_count
+        FROM dmx_sequences s
+        ORDER BY s.sort_order ASC, s.created_at ASC
+    """))
+    sequences = [
+        {
+            "id": str(r.id),
+            "name": r.name,
+            "cue_count": int(r.cue_count),
+            "fade_out_duration": float(r.fade_out_duration or 3),
+        }
+        for r in seq_rows.fetchall()
+    ]
+
+    state = json.dumps({
+        "cues": cues,
+        "sequences": sequences,
+        "active_cue_id": None,
+        "active_sequence_id": None,
+    })
+
+    await db.execute(text("""
+        UPDATE entities
+        SET state = CAST(:state AS jsonb), state_updated_at = NOW()
+        WHERE slug = :slug
+    """), {"state": state, "slug": _DMX_LIGHTING_SLUG})
 DMX_CONTROL_SUBJECT = "maestra.dmx.control"
 
 
@@ -846,6 +892,7 @@ def _row_to_cue(row) -> dict:
     return {
         "id": str(row.id),
         "name": row.name,
+        "fade_duration": float(getattr(row, "fade_duration", 0) or 0),
         "sort_order": getattr(row, "sort_order", 0),
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
@@ -856,7 +903,7 @@ def _row_to_cue(row) -> dict:
 async def list_cues(db: AsyncSession = Depends(get_db)):
     """List all saved cues ordered by sort_order, then created_at."""
     rows = await db.execute(text("""
-        SELECT id, name, sort_order, created_at, updated_at
+        SELECT id, name, fade_duration, sort_order, created_at, updated_at
         FROM dmx_cues ORDER BY sort_order ASC, created_at ASC
     """))
     return [_row_to_cue(r) for r in rows.fetchall()]
@@ -910,6 +957,7 @@ async def save_cue(data: DMXCueCreate, db: AsyncSession = Depends(get_db)):
             "state": _json.dumps(state_snapshot),
         })
 
+    await _sync_dmx_lighting_entity(db)
     await db.commit()
     return _row_to_cue(cue)
 
@@ -992,6 +1040,7 @@ async def reorder_cues(ids: List[str], db: AsyncSession = Depends(get_db)):
         await db.execute(text("""
             UPDATE dmx_cues SET sort_order = :order WHERE id = :id
         """), {"order": i, "id": cue_id})
+    await _sync_dmx_lighting_entity(db)
     await db.commit()
     return {"reordered": len(ids)}
 
@@ -1003,7 +1052,7 @@ async def update_cue_snapshot(cue_id: UUID, db: AsyncSession = Depends(get_db)):
 
     # Verify cue exists
     cue_check = await db.execute(text("""
-        SELECT id, name, sort_order, created_at, updated_at FROM dmx_cues WHERE id = :id
+        SELECT id, name, fade_duration, sort_order, created_at, updated_at FROM dmx_cues WHERE id = :id
     """), {"id": str(cue_id)})
     cue = cue_check.fetchone()
     if not cue:
@@ -1052,7 +1101,7 @@ async def update_cue_snapshot(cue_id: UUID, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     updated = await db.execute(text("""
-        SELECT id, name, sort_order, created_at, updated_at FROM dmx_cues WHERE id = :id
+        SELECT id, name, fade_duration, sort_order, created_at, updated_at FROM dmx_cues WHERE id = :id
     """), {"id": str(cue_id)})
     return _row_to_cue(updated.fetchone())
 
@@ -1062,11 +1111,12 @@ async def rename_cue(cue_id: UUID, data: DMXCueRename, db: AsyncSession = Depend
     """Rename a cue."""
     row = await db.execute(text("""
         UPDATE dmx_cues SET name = :name WHERE id = :id
-        RETURNING id, name, sort_order, created_at, updated_at
+        RETURNING id, name, fade_duration, sort_order, created_at, updated_at
     """), {"name": data.name, "id": str(cue_id)})
     cue = row.fetchone()
     if not cue:
         raise HTTPException(status_code=404, detail="Cue not found")
+    await _sync_dmx_lighting_entity(db)
     await db.commit()
     return _row_to_cue(cue)
 
@@ -1080,6 +1130,7 @@ async def delete_cue(cue_id: UUID, db: AsyncSession = Depends(get_db)):
     deleted = row.fetchone()
     if not deleted:
         raise HTTPException(status_code=404, detail="Cue not found")
+    await _sync_dmx_lighting_entity(db)
     await db.commit()
     return {"status": "deleted", "id": str(cue_id)}
 
@@ -1147,6 +1198,7 @@ def _row_to_sequence(row, placements: list) -> dict:
     return {
         "id": str(row.id),
         "name": row.name,
+        "fade_out_duration": float(getattr(row, "fade_out_duration", 3) or 3),
         "sort_order": getattr(row, "sort_order", 0),
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
@@ -1158,7 +1210,7 @@ def _row_to_sequence(row, placements: list) -> dict:
 async def list_sequences(db: AsyncSession = Depends(get_db)):
     """List all sequences with their cue placements, ordered by sort_order."""
     seq_rows = await db.execute(text("""
-        SELECT id, name, sort_order, created_at, updated_at
+        SELECT id, name, fade_out_duration, sort_order, created_at, updated_at
         FROM dmx_sequences ORDER BY sort_order ASC, created_at ASC
     """))
     sequences = seq_rows.fetchall()
@@ -1179,9 +1231,10 @@ async def create_sequence(data: DMXSequenceCreate, db: AsyncSession = Depends(ge
     row = await db.execute(text("""
         INSERT INTO dmx_sequences (name, sort_order)
         VALUES (:name, :sort_order)
-        RETURNING id, name, sort_order, created_at, updated_at
+        RETURNING id, name, fade_out_duration, sort_order, created_at, updated_at
     """), {"name": data.name, "sort_order": next_order})
     seq = row.fetchone()
+    await _sync_dmx_lighting_entity(db)
     await db.commit()
     return _row_to_sequence(seq, [])
 
@@ -1193,6 +1246,7 @@ async def reorder_sequences(ids: List[str], db: AsyncSession = Depends(get_db)):
         await db.execute(text("""
             UPDATE dmx_sequences SET sort_order = :order WHERE id = :id
         """), {"order": i, "id": seq_id})
+    await _sync_dmx_lighting_entity(db)
     await db.commit()
     return {"reordered": len(ids)}
 
@@ -1202,11 +1256,12 @@ async def rename_sequence(sequence_id: UUID, data: DMXSequenceRename, db: AsyncS
     """Rename a sequence."""
     row = await db.execute(text("""
         UPDATE dmx_sequences SET name = :name WHERE id = :id
-        RETURNING id, name, sort_order, created_at, updated_at
+        RETURNING id, name, fade_out_duration, sort_order, created_at, updated_at
     """), {"name": data.name, "id": str(sequence_id)})
     seq = row.fetchone()
     if not seq:
         raise HTTPException(status_code=404, detail="Sequence not found")
+    await _sync_dmx_lighting_entity(db)
     await db.commit()
     placements = await _load_placements(str(sequence_id), db)
     return _row_to_sequence(seq, placements)
@@ -1221,6 +1276,7 @@ async def delete_sequence(sequence_id: UUID, db: AsyncSession = Depends(get_db))
     deleted = row.fetchone()
     if not deleted:
         raise HTTPException(status_code=404, detail="Sequence not found")
+    await _sync_dmx_lighting_entity(db)
     await db.commit()
     return {"status": "deleted", "id": str(sequence_id)}
 
@@ -1253,6 +1309,7 @@ async def add_cue_to_sequence(
     await db.execute(text("""
         UPDATE dmx_sequences SET updated_at = NOW() WHERE id = :id
     """), {"id": str(sequence_id)})
+    await _sync_dmx_lighting_entity(db)
     await db.commit()
 
     placements = await _load_placements(str(sequence_id), db)
@@ -1327,6 +1384,7 @@ async def remove_cue_from_sequence(
     await db.execute(text("""
         UPDATE dmx_sequences SET updated_at = NOW() WHERE id = :id
     """), {"id": str(sequence_id)})
+    await _sync_dmx_lighting_entity(db)
     await db.commit()
 
     placements = await _load_placements(str(sequence_id), db)

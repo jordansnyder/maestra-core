@@ -49,7 +49,10 @@ export default function EntitiesPage() {
 
       setEntityTypes(typesData)
       setEntities(entitiesData)
-      setDmxLinkedIds(new Set(fixturesData.flatMap((f) => f.entity_id ? [f.entity_id] : [])))
+      const dmxSet = new Set<string>(fixturesData.flatMap((f) => f.entity_id ? [f.entity_id] : []))
+      const dmxController = entitiesData.find((e) => e.slug === 'dmx-lighting')
+      if (dmxController) dmxSet.add(dmxController.id)
+      setDmxLinkedIds(dmxSet)
 
       if (viewMode === 'tree') {
         const treeData = await entitiesApi.getTree(undefined, selectedType || undefined)
@@ -227,7 +230,7 @@ function EntityList({
     <div className="grid gap-3">
       {entities.map((entity) => {
         const Icon = getEntityIcon(entityTypes, entity.entity_type_id)
-        const isDmxLinked = dmxLinkedIds.has(entity.id)
+        const isDmxLinked = dmxLinkedIds.has(entity.id) || entity.metadata?.dmx_controller === true
         return (
           <div
             key={entity.id}

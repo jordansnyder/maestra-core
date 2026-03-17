@@ -16,7 +16,9 @@ import {
   OFLManufacturer, OFLFixture, OFLSyncStatus,
 } from './types'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+import { getApiUrl } from './hosts'
+
+const API_URL = getApiUrl()
 
 class ApiError extends Error {
   constructor(public status: number, message: string) {

@@ -166,8 +166,11 @@ services:
     container_name: maestra-dashboard
     environment:
       - NEXT_PUBLIC_API_URL=http://${HOST_IP:-localhost}:8080
+      - NEXT_PUBLIC_WS_URL=ws://${HOST_IP:-localhost}:8765
       - NEXT_PUBLIC_NODERED_URL=http://${HOST_IP:-localhost}:1880
       - NEXT_PUBLIC_GRAFANA_URL=http://${HOST_IP:-localhost}:3000
+      - NEXT_PUBLIC_DOCS_URL=http://${HOST_IP:-localhost}:8000
+      - NEXT_PUBLIC_NATS_URL=http://${HOST_IP:-localhost}:8222
       - NEXT_PUBLIC_MQTT_WS_URL=ws://${HOST_IP:-localhost}:9001
     ports:
       - "3001:3000"

@@ -390,15 +390,18 @@ pub async fn pull_images(app: AppHandle, profile: String) -> Result<(), String> 
 
 /// Run a SQL command against the database via docker compose exec.
 async fn psql_exec(project_dir: &PathBuf, sql: &str) -> Result<String, String> {
-    let compose_file = project_dir.join("docker-compose.yml").to_string_lossy().to_string();
+    let mut args = compose_args(project_dir, None);
+    args.extend([
+        "exec".to_string(), "-T".to_string(), "postgres".to_string(),
+        "psql".to_string(), "-U".to_string(), "maestra".to_string(),
+        "-d".to_string(), "maestra".to_string(),
+        "-v".to_string(), "ON_ERROR_STOP=1".to_string(),
+        "-t".to_string(), "-A".to_string(),
+        "-c".to_string(), sql.to_string(),
+    ]);
+
     let output = docker_cmd()
-        .args([
-            "compose", "-f", &compose_file,
-            "exec", "-T", "postgres",
-            "psql", "-U", "maestra", "-d", "maestra",
-            "-v", "ON_ERROR_STOP=1", "-t", "-A",
-            "-c", sql,
-        ])
+        .args(&args)
         .current_dir(project_dir)
         .output()
         .await
@@ -413,15 +416,21 @@ async fn psql_exec(project_dir: &PathBuf, sql: &str) -> Result<String, String> {
 }
 
 /// Run a SQL file against the database via docker compose exec, piping via stdin.
-async fn psql_file(project_dir: &PathBuf, sql_content: &str) -> Result<(), String> {
-    let compose_file = project_dir.join("docker-compose.yml").to_string_lossy().to_string();
+/// When `strict` is true, ON_ERROR_STOP is set so any SQL error is fatal.
+/// When `strict` is false, errors are ignored (useful for idempotent init scripts).
+async fn psql_file(project_dir: &PathBuf, sql_content: &str, strict: bool) -> Result<(), String> {
+    let mut args = compose_args(project_dir, None);
+    args.extend([
+        "exec".to_string(), "-T".to_string(), "postgres".to_string(),
+        "psql".to_string(), "-U".to_string(), "maestra".to_string(),
+        "-d".to_string(), "maestra".to_string(),
+    ]);
+    if strict {
+        args.extend(["-v".to_string(), "ON_ERROR_STOP=1".to_string()]);
+    }
+
     let mut child = docker_cmd()
-        .args([
-            "compose", "-f", &compose_file,
-            "exec", "-T", "postgres",
-            "psql", "-U", "maestra", "-d", "maestra",
-            "-v", "ON_ERROR_STOP=1",
-        ])
+        .args(&args)
         .current_dir(project_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -436,11 +445,11 @@ async fn psql_file(project_dir: &PathBuf, sql_content: &str) -> Result<(), Strin
     }
 
     let output = child.wait_with_output().await.map_err(|e| format!("psql failed: {}", e))?;
-    if output.status.success() {
-        Ok(())
-    } else {
+    if strict && !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         Err(format!("Migration SQL failed: {}", stderr))
+    } else {
+        Ok(())
     }
 }
 
@@ -450,13 +459,13 @@ async fn wait_for_postgres(project_dir: &PathBuf) -> Result<(), String> {
         if i > 0 {
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         }
-        let compose_file = project_dir.join("docker-compose.yml").to_string_lossy().to_string();
+        let mut args = compose_args(project_dir, None);
+        args.extend([
+            "exec".to_string(), "-T".to_string(), "postgres".to_string(),
+            "pg_isready".to_string(), "-U".to_string(), "maestra".to_string(),
+        ]);
         let output = docker_cmd()
-            .args([
-                "compose", "-f", &compose_file,
-                "exec", "-T", "postgres",
-                "pg_isready", "-U", "maestra",
-            ])
+            .args(&args)
             .current_dir(project_dir)
             .output()
             .await;
@@ -476,6 +485,28 @@ pub async fn run_migrations(app: AppHandle) -> Result<String, String> {
 
     // Wait for postgres to be ready
     wait_for_postgres(&project_dir).await?;
+
+    // Run init scripts first — these are idempotent (IF NOT EXISTS, ON CONFLICT
+    // DO NOTHING) so they're safe to re-run. This ensures tables like stream_types
+    // exist even if the Postgres volume was created before the init script was added.
+    let init_dir = project_dir.join("config").join("postgres").join("init");
+    if init_dir.exists() {
+        let mut init_entries: Vec<_> = std::fs::read_dir(&init_dir)
+            .map_err(|e| format!("Cannot read init dir: {}", e))?
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().map(|ext| ext == "sql").unwrap_or(false))
+            .collect();
+        init_entries.sort_by_key(|e| e.file_name());
+
+        for entry in init_entries {
+            let sql_content = std::fs::read_to_string(entry.path())
+                .unwrap_or_default();
+            if !sql_content.is_empty() {
+                // Non-strict: ignore errors from IF NOT EXISTS / already-exists notices
+                let _ = psql_file(&project_dir, &sql_content, false).await;
+            }
+        }
+    }
 
     // Ensure schema_migrations table exists
     psql_exec(&project_dir,
@@ -519,7 +550,7 @@ pub async fn run_migrations(app: AppHandle) -> Result<String, String> {
         let sql_content = std::fs::read_to_string(entry.path())
             .map_err(|e| format!("Cannot read {}: {}", filename, e))?;
 
-        psql_file(&project_dir, &sql_content).await
+        psql_file(&project_dir, &sql_content, true).await
             .map_err(|e| format!("Migration {} failed: {}", filename, e))?;
 
         // Record it

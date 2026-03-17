@@ -36,9 +36,22 @@ export function LogViewer({ logs, onFilterChange, availableServices }: Props) {
   const [search, setSearch] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const savedScrollTop = useRef<number>(0);
+
+  // Before React commits new log elements, remember scroll position
   useEffect(() => {
-    if (pinToBottom && scrollRef.current) {
+    if (!pinToBottom && scrollRef.current) {
+      savedScrollTop.current = scrollRef.current.scrollTop;
+    }
+  });
+
+  // After render, either auto-scroll or restore position
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    if (pinToBottom) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    } else {
+      scrollRef.current.scrollTop = savedScrollTop.current;
     }
   }, [logs, pinToBottom]);
 
@@ -128,6 +141,7 @@ export function LogViewer({ logs, onFilterChange, availableServices }: Props) {
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto font-mono text-xs glass rounded-lg p-3 space-y-px"
+        style={{ overflowAnchor: "none" }}
       >
         {filteredLogs.length === 0 ? (
           <div className="text-gray-600 text-center py-12 font-sans text-sm">

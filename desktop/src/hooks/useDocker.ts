@@ -43,21 +43,22 @@ export function useDocker() {
     try {
       const status = await getServiceStatus();
       setServices(status);
-      const running = status.some((s) => s.state === "running");
-      if (running) {
-        setAppState("running");
-      } else if (status.length === 0) {
-        setAppState("idle");
-      }
+      return status;
     } catch {
       // Silently fail — services probably not running
+      return [];
     }
   }, []);
 
-  const startPolling = useCallback(() => {
-    if (statusInterval.current) return;
-    statusInterval.current = setInterval(refreshStatus, 5000);
-  }, [refreshStatus]);
+  const startPolling = useCallback(
+    (intervalMs = 5000) => {
+      if (statusInterval.current) {
+        clearInterval(statusInterval.current);
+      }
+      statusInterval.current = setInterval(refreshStatus, intervalMs);
+    },
+    [refreshStatus]
+  );
 
   const stopPolling = useCallback(() => {
     if (statusInterval.current) {
@@ -70,10 +71,15 @@ export function useDocker() {
     async (profile: string) => {
       setError(null);
       setAppState("starting");
+
+      // Poll fast (every 2s) so we see containers as they come online
+      startPolling(2000);
+
       try {
         await startServices(profile);
         setAppState("running");
-        startPolling();
+        // Switch back to normal polling rate
+        startPolling(5000);
         await refreshStatus();
         // Run database migrations in the background after services are up
         runMigrations().catch((e) => {
@@ -82,14 +88,19 @@ export function useDocker() {
       } catch (e) {
         setError(String(e));
         setAppState("error");
+        stopPolling();
       }
     },
-    [startPolling, refreshStatus]
+    [startPolling, stopPolling, refreshStatus]
   );
 
   const stop = useCallback(async () => {
     setError(null);
     setAppState("stopping");
+
+    // Poll fast during shutdown too
+    startPolling(2000);
+
     try {
       await stopServices();
       stopPolling();
@@ -98,8 +109,9 @@ export function useDocker() {
     } catch (e) {
       setError(String(e));
       setAppState("error");
+      stopPolling();
     }
-  }, [stopPolling]);
+  }, [startPolling, stopPolling]);
 
   const startLogStream = useCallback(
     async (serviceFilter: string[]) => {
@@ -147,8 +159,13 @@ export function useDocker() {
   // On mount, check Docker and current service status
   useEffect(() => {
     refreshDocker();
-    refreshStatus().then(() => {
-      startPolling();
+    refreshStatus().then((status) => {
+      // Detect if services are already running
+      const running = status.some((s) => s.state === "running");
+      if (running) {
+        setAppState("running");
+      }
+      startPolling(5000);
     });
     return () => {
       stopPolling();

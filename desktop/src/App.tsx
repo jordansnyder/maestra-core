@@ -159,15 +159,16 @@ export default function App() {
       {/* Content */}
       <main className="flex-1 overflow-hidden p-5">
         {view === "main" ? (
-          <div className="flex flex-col items-center gap-8 h-full overflow-y-auto pb-4">
-            {/* Start/Stop button */}
-            <div className="pt-2 pb-2">
+          <div className="flex flex-col items-center gap-6 h-full overflow-y-auto pb-4">
+            {/* Launch control area */}
+            <div className="w-full max-w-md pt-2">
               <StartStop
                 appState={appState}
                 profile={profile}
                 onStart={handleStart}
                 onStop={stop}
                 error={error}
+                services={services}
               />
             </div>
 

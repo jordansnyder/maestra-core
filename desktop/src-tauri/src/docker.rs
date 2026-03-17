@@ -1,9 +1,19 @@
 use serde::{Deserialize, Serialize};
+use std::net::UdpSocket;
 use std::path::PathBuf;
 use std::process::Stdio;
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+
+/// Detect the LAN IP by opening a UDP socket to a public address.
+/// The socket isn't actually sent — we just read the local address the OS picks.
+fn detect_lan_ip() -> Option<String> {
+    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    let addr = socket.local_addr().ok()?;
+    Some(addr.ip().to_string())
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DockerInfo {
@@ -34,6 +44,18 @@ pub struct LogLine {
 
 fn get_project_dir(app: &AppHandle) -> PathBuf {
     crate::paths::project_dir(app)
+}
+
+/// Create a `docker` Command with HOST_IP set so docker-compose.yml
+/// can resolve ${HOST_IP:-localhost} to the real LAN address.
+fn docker_cmd() -> Command {
+    let mut cmd = Command::new("docker");
+    if std::env::var("HOST_IP").is_err() {
+        if let Some(ip) = detect_lan_ip() {
+            cmd.env("HOST_IP", ip);
+        }
+    }
+    cmd
 }
 
 fn compose_args(project_dir: &PathBuf, profile: Option<&str>) -> Vec<String> {
@@ -129,7 +151,7 @@ pub async fn start_services(app: AppHandle, profile: String) -> Result<(), Strin
     args.push("up".to_string());
     args.push("-d".to_string());
 
-    let output = Command::new("docker")
+    let output = docker_cmd()
         .args(&args)
         .current_dir(&project_dir)
         .output()
@@ -150,7 +172,7 @@ pub async fn stop_services(app: AppHandle) -> Result<(), String> {
     let mut args = compose_args(&project_dir, Some("full"));
     args.push("down".to_string());
 
-    let output = Command::new("docker")
+    let output = docker_cmd()
         .args(&args)
         .current_dir(&project_dir)
         .output()
@@ -174,7 +196,7 @@ pub async fn get_service_status(app: AppHandle) -> Result<Vec<ServiceInfo>, Stri
     args.push("json".to_string());
     args.push("-a".to_string());
 
-    let output = Command::new("docker")
+    let output = docker_cmd()
         .args(&args)
         .current_dir(&project_dir)
         .output()
@@ -213,7 +235,7 @@ pub async fn stream_logs(
         args.extend(services);
     }
 
-    let mut child = Command::new("docker")
+    let mut child = docker_cmd()
         .args(&args)
         .current_dir(&project_dir)
         .stdout(Stdio::piped())
@@ -275,7 +297,7 @@ pub async fn pull_images(app: AppHandle, profile: String) -> Result<(), String> 
     let mut args = compose_args(&project_dir, profile_opt);
     args.push("pull".to_string());
 
-    let mut child = Command::new("docker")
+    let mut child = docker_cmd()
         .args(&args)
         .current_dir(&project_dir)
         .stdout(Stdio::piped())
@@ -309,7 +331,7 @@ pub async fn pull_images(app: AppHandle, profile: String) -> Result<(), String> 
 /// Run a SQL command against the database via docker compose exec.
 async fn psql_exec(project_dir: &PathBuf, sql: &str) -> Result<String, String> {
     let compose_file = project_dir.join("docker-compose.yml").to_string_lossy().to_string();
-    let output = Command::new("docker")
+    let output = docker_cmd()
         .args([
             "compose", "-f", &compose_file,
             "exec", "-T", "postgres",
@@ -333,7 +355,7 @@ async fn psql_exec(project_dir: &PathBuf, sql: &str) -> Result<String, String> {
 /// Run a SQL file against the database via docker compose exec, piping via stdin.
 async fn psql_file(project_dir: &PathBuf, sql_content: &str) -> Result<(), String> {
     let compose_file = project_dir.join("docker-compose.yml").to_string_lossy().to_string();
-    let mut child = Command::new("docker")
+    let mut child = docker_cmd()
         .args([
             "compose", "-f", &compose_file,
             "exec", "-T", "postgres",
@@ -369,7 +391,7 @@ async fn wait_for_postgres(project_dir: &PathBuf) -> Result<(), String> {
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         }
         let compose_file = project_dir.join("docker-compose.yml").to_string_lossy().to_string();
-        let output = Command::new("docker")
+        let output = docker_cmd()
             .args([
                 "compose", "-f", &compose_file,
                 "exec", "-T", "postgres",

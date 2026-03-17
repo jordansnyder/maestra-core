@@ -52,6 +52,15 @@ export function LogViewer({ logs, onFilterChange, availableServices }: Props) {
   };
 
   const filteredLogs = logs.filter((log) => {
+    if (activeFilter !== "all") {
+      // Match compose service name against parsed log service name in either direction
+      // e.g. filter "discovery-service" should match log service "discovery" and vice versa
+      const f = activeFilter.toLowerCase();
+      const s = log.service.toLowerCase();
+      if (s !== f && !s.includes(f) && !f.includes(s)) {
+        return false;
+      }
+    }
     if (search && !log.message.toLowerCase().includes(search.toLowerCase())) {
       return false;
     }

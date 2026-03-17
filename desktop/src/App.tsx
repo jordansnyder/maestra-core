@@ -66,7 +66,7 @@ export default function App() {
 
   // Show setup wizard on first run
   if (setupComplete === null) return null; // Loading
-  if (!setupComplete || !dockerInfo?.available) {
+  if (!setupComplete) {
     return (
       <SetupWizard
         onComplete={handleSetupComplete}

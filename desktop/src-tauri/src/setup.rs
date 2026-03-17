@@ -5,6 +5,7 @@ use tauri::AppHandle;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SetupStatus {
     pub docker_available: bool,
+    pub docker_installed: bool,
     pub docker_version: String,
     pub env_exists: bool,
     pub images_pulled: bool,
@@ -33,6 +34,7 @@ pub async fn check_setup(app: AppHandle) -> Result<SetupStatus, String> {
     let docker_info = crate::docker::check_docker().await.unwrap_or_else(|_| {
         crate::docker::DockerInfo {
             available: false,
+            installed: false,
             version: String::new(),
             compose_available: false,
             compose_version: String::new(),
@@ -47,6 +49,7 @@ pub async fn check_setup(app: AppHandle) -> Result<SetupStatus, String> {
 
     Ok(SetupStatus {
         docker_available: docker_info.available && docker_info.compose_available,
+        docker_installed: docker_info.installed,
         docker_version: if docker_info.available {
             format!(
                 "Docker {} / Compose {}",

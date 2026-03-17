@@ -278,11 +278,11 @@ services:
     environment:
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
-      - OSC_IN_PORT=9000
-      - OSC_OUT_PORT=9001
+      - OSC_IN_PORT=${OSC_IN_PORT:-57120}
+      - OSC_OUT_PORT=${OSC_OUT_PORT:-57121}
     ports:
-      - "57120:57120/udp"  # OSC input
-      - "57121:57121/udp"  # OSC output
+      - "${OSC_IN_PORT:-57120}:${OSC_IN_PORT:-57120}/udp"  # OSC input
+      - "${OSC_OUT_PORT:-57121}:${OSC_OUT_PORT:-57121}/udp"  # OSC output
     networks:
       - maestra-network
     depends_on:

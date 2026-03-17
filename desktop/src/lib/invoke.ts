@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 // Docker types
 export interface DockerInfo {
   available: boolean;
+  installed: boolean;
   version: string;
   compose_available: boolean;
   compose_version: string;
@@ -36,6 +37,7 @@ export interface HealthReport {
 // Setup types
 export interface SetupStatus {
   docker_available: boolean;
+  docker_installed: boolean;
   docker_version: string;
   env_exists: boolean;
   images_pulled: boolean;

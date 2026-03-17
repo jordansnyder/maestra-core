@@ -7,6 +7,7 @@ import {
   getServiceStatus,
   streamLogs,
   pullImages,
+  runMigrations,
   DockerInfo,
   ServiceInfo,
   LogLine,
@@ -74,6 +75,10 @@ export function useDocker() {
         setAppState("running");
         startPolling();
         await refreshStatus();
+        // Run database migrations in the background after services are up
+        runMigrations().catch((e) => {
+          console.warn("Migration warning:", e);
+        });
       } catch (e) {
         setError(String(e));
         setAppState("error");

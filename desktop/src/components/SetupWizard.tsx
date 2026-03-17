@@ -154,24 +154,39 @@ export function SetupWizard({
               </svg>
             </div>
             <div>
-              <h3 className="text-base font-semibold text-gray-100">Docker Not Found</h3>
+              <h3 className="text-base font-semibold text-gray-100">
+                {setup?.docker_installed ? "Docker Is Not Running" : "Docker Not Found"}
+              </h3>
               <p className="text-gray-500 text-sm mt-1">
-                Maestra requires Docker Desktop. Install it and make sure it's running.
+                {setup?.docker_installed
+                  ? "Docker is installed but the engine isn't running. Open Docker Desktop and wait for it to start."
+                  : "Maestra requires Docker Desktop. Install it and make sure it's running."}
               </p>
             </div>
             <div className="flex gap-2 justify-center pt-1">
-              <button
-                onClick={() => open("https://www.docker.com/products/docker-desktop/")}
-                className="px-4 py-2.5 bg-gradient-to-r from-maestra-600 to-maestra-700 text-white rounded-lg hover:from-maestra-500 hover:to-maestra-600 text-sm font-medium shadow-glow transition-all"
-              >
-                Download Docker
-              </button>
-              <button
-                onClick={runChecks}
-                className="px-4 py-2.5 glass text-gray-300 rounded-lg hover:bg-surface-3 text-sm font-medium transition-all"
-              >
-                Check Again
-              </button>
+              {setup?.docker_installed ? (
+                <button
+                  onClick={runChecks}
+                  className="px-4 py-2.5 bg-gradient-to-r from-maestra-600 to-maestra-700 text-white rounded-lg hover:from-maestra-500 hover:to-maestra-600 text-sm font-medium shadow-glow transition-all"
+                >
+                  Check Again
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => open("https://www.docker.com/products/docker-desktop/")}
+                    className="px-4 py-2.5 bg-gradient-to-r from-maestra-600 to-maestra-700 text-white rounded-lg hover:from-maestra-500 hover:to-maestra-600 text-sm font-medium shadow-glow transition-all"
+                  >
+                    Download Docker
+                  </button>
+                  <button
+                    onClick={runChecks}
+                    className="px-4 py-2.5 glass text-gray-300 rounded-lg hover:bg-surface-3 text-sm font-medium transition-all"
+                  >
+                    Check Again
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}

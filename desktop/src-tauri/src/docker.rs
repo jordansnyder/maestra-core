@@ -8,6 +8,7 @@ use tokio::process::Command;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DockerInfo {
     pub available: bool,
+    pub installed: bool,
     pub version: String,
     pub compose_available: bool,
     pub compose_version: String,
@@ -64,7 +65,25 @@ fn compose_args(project_dir: &PathBuf, profile: Option<&str>) -> Vec<String> {
 
 #[tauri::command]
 pub async fn check_docker() -> Result<DockerInfo, String> {
-    // Check docker
+    // Step 1: Check if docker CLI is installed (works without daemon)
+    let cli_output = Command::new("docker")
+        .args(["--version"])
+        .output()
+        .await;
+
+    let installed = cli_output.map(|o| o.status.success()).unwrap_or(false);
+
+    if !installed {
+        return Ok(DockerInfo {
+            available: false,
+            installed: false,
+            version: String::new(),
+            compose_available: false,
+            compose_version: String::new(),
+        });
+    }
+
+    // Step 2: Check if daemon is running (requires Docker Desktop to be started)
     let docker_output = Command::new("docker")
         .args(["version", "--format", "{{.Server.Version}}"])
         .output()
@@ -90,6 +109,7 @@ pub async fn check_docker() -> Result<DockerInfo, String> {
 
     Ok(DockerInfo {
         available: docker_available,
+        installed: true,
         version: docker_version,
         compose_available,
         compose_version,
@@ -208,10 +228,27 @@ pub async fn stream_logs(
     let app_clone = app.clone();
     tokio::spawn(async move {
         while let Ok(Some(line)) = lines.next_line().await {
-            // Docker compose log lines are formatted as "service  | message"
+            // Docker compose log lines are formatted as "container_name  | message"
+            // e.g. "maestra-discovery-1  | Starting discovery..."
+            // Normalize to compose service name by stripping "maestra-" prefix
+            // and "-N" replica suffix.
             let (service, message) = if let Some(idx) = line.find(" | ") {
+                let raw = line[..idx].trim();
+                let normalized = raw
+                    .strip_prefix("maestra-")
+                    .unwrap_or(raw);
+                // Strip trailing "-N" replica suffix (e.g. "-1", "-2")
+                let normalized = if let Some(dash_pos) = normalized.rfind('-') {
+                    if normalized[dash_pos + 1..].chars().all(|c| c.is_ascii_digit()) {
+                        &normalized[..dash_pos]
+                    } else {
+                        normalized
+                    }
+                } else {
+                    normalized
+                };
                 (
-                    line[..idx].trim().to_string(),
+                    normalized.to_string(),
                     line[idx + 3..].to_string(),
                 )
             } else {
@@ -269,37 +306,151 @@ pub async fn pull_images(app: AppHandle, profile: String) -> Result<(), String> 
     Ok(())
 }
 
+/// Run a SQL command against the database via docker compose exec.
+async fn psql_exec(project_dir: &PathBuf, sql: &str) -> Result<String, String> {
+    let compose_file = project_dir.join("docker-compose.yml").to_string_lossy().to_string();
+    let output = Command::new("docker")
+        .args([
+            "compose", "-f", &compose_file,
+            "exec", "-T", "postgres",
+            "psql", "-U", "maestra", "-d", "maestra",
+            "-v", "ON_ERROR_STOP=1", "-t", "-A",
+            "-c", sql,
+        ])
+        .current_dir(project_dir)
+        .output()
+        .await
+        .map_err(|e| format!("psql exec failed: {}", e))?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("psql error: {}", stderr))
+    }
+}
+
+/// Run a SQL file against the database via docker compose exec, piping via stdin.
+async fn psql_file(project_dir: &PathBuf, sql_content: &str) -> Result<(), String> {
+    let compose_file = project_dir.join("docker-compose.yml").to_string_lossy().to_string();
+    let mut child = Command::new("docker")
+        .args([
+            "compose", "-f", &compose_file,
+            "exec", "-T", "postgres",
+            "psql", "-U", "maestra", "-d", "maestra",
+            "-v", "ON_ERROR_STOP=1",
+        ])
+        .current_dir(project_dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn psql: {}", e))?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        use tokio::io::AsyncWriteExt;
+        stdin.write_all(sql_content.as_bytes()).await.map_err(|e| format!("stdin write failed: {}", e))?;
+        drop(stdin);
+    }
+
+    let output = child.wait_with_output().await.map_err(|e| format!("psql failed: {}", e))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Migration SQL failed: {}", stderr))
+    }
+}
+
+/// Wait for Postgres to accept connections, up to ~30 seconds.
+async fn wait_for_postgres(project_dir: &PathBuf) -> Result<(), String> {
+    for i in 0..15 {
+        if i > 0 {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
+        let compose_file = project_dir.join("docker-compose.yml").to_string_lossy().to_string();
+        let output = Command::new("docker")
+            .args([
+                "compose", "-f", &compose_file,
+                "exec", "-T", "postgres",
+                "pg_isready", "-U", "maestra",
+            ])
+            .current_dir(project_dir)
+            .output()
+            .await;
+
+        if let Ok(o) = output {
+            if o.status.success() {
+                return Ok(());
+            }
+        }
+    }
+    Err("Postgres did not become ready within 30 seconds".to_string())
+}
+
 #[tauri::command]
 pub async fn run_migrations(app: AppHandle) -> Result<String, String> {
     let project_dir = get_project_dir(&app);
 
-    let output = Command::new("docker")
-        .args([
-            "compose",
-            "-f",
-            &project_dir
-                .join("docker-compose.yml")
-                .to_string_lossy(),
-            "exec",
-            "-T",
-            "postgres",
-            "psql",
-            "-U",
-            "maestra",
-            "-d",
-            "maestra",
-            "-c",
-            "SELECT 1",
-        ])
-        .current_dir(&project_dir)
-        .output()
-        .await
-        .map_err(|e| format!("Failed to run migrations: {}", e))?;
+    // Wait for postgres to be ready
+    wait_for_postgres(&project_dir).await?;
 
-    if output.status.success() {
-        Ok("Migrations complete".to_string())
+    // Ensure schema_migrations table exists
+    psql_exec(&project_dir,
+        "CREATE TABLE IF NOT EXISTS schema_migrations (\
+         version VARCHAR(255) PRIMARY KEY, \
+         filename VARCHAR(255) NOT NULL, \
+         applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"
+    ).await?;
+
+    // Read migration files from disk
+    let migrations_dir = project_dir.join("config").join("postgres").join("migrations");
+    if !migrations_dir.exists() {
+        return Ok("No migrations directory found — skipping.".to_string());
+    }
+
+    let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
+        .map_err(|e| format!("Cannot read migrations dir: {}", e))?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().map(|ext| ext == "sql").unwrap_or(false))
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+
+    let mut applied = 0;
+    let mut skipped = 0;
+
+    for entry in entries {
+        let filename = entry.file_name().to_string_lossy().to_string();
+        let version = filename.split('_').next().unwrap_or("").to_string();
+
+        // Check if already applied
+        let count = psql_exec(&project_dir,
+            &format!("SELECT COUNT(*) FROM schema_migrations WHERE version = '{}'", version)
+        ).await.unwrap_or_else(|_| "0".to_string());
+
+        if count.trim() != "0" {
+            skipped += 1;
+            continue;
+        }
+
+        // Read and apply the migration
+        let sql_content = std::fs::read_to_string(entry.path())
+            .map_err(|e| format!("Cannot read {}: {}", filename, e))?;
+
+        psql_file(&project_dir, &sql_content).await
+            .map_err(|e| format!("Migration {} failed: {}", filename, e))?;
+
+        // Record it
+        psql_exec(&project_dir,
+            &format!("INSERT INTO schema_migrations (version, filename) VALUES ('{}', '{}')", version, filename)
+        ).await.map_err(|e| format!("Failed to record migration {}: {}", filename, e))?;
+
+        applied += 1;
+    }
+
+    if applied > 0 {
+        Ok(format!("{} migration(s) applied, {} already up to date.", applied, skipped))
     } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(format!("Migration failed: {}", stderr))
+        Ok(format!("Database is up to date. {} migration(s) already applied.", skipped))
     }
 }

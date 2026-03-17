@@ -41,6 +41,7 @@ export interface SetupStatus {
   docker_version: string;
   env_exists: boolean;
   images_pulled: boolean;
+  project_dir: string;
 }
 
 export interface PortConflict {
@@ -76,3 +77,4 @@ export const getEnvPath = () => invoke<string>("get_env_path");
 // Setup commands
 export const checkSetup = () => invoke<SetupStatus>("check_setup");
 export const checkPorts = () => invoke<PortConflict[]>("check_ports");
+export const getProjectPath = () => invoke<string>("get_project_path");

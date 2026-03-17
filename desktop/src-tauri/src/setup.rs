@@ -9,6 +9,7 @@ pub struct SetupStatus {
     pub docker_version: String,
     pub env_exists: bool,
     pub images_pulled: bool,
+    pub project_dir: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -41,11 +42,11 @@ pub async fn check_setup(app: AppHandle) -> Result<SetupStatus, String> {
         }
     });
 
+    // Resolve project directory (already bootstrapped by app startup)
+    let proj_dir = crate::paths::project_dir(&app);
+
     // Check .env
-    let env_exists = crate::env_editor::get_env_path(app.clone())
-        .await
-        .map(|p| std::path::Path::new(&p).exists())
-        .unwrap_or(false);
+    let env_exists = proj_dir.join(".env").exists();
 
     Ok(SetupStatus {
         docker_available: docker_info.available && docker_info.compose_available,
@@ -59,8 +60,15 @@ pub async fn check_setup(app: AppHandle) -> Result<SetupStatus, String> {
             String::new()
         },
         env_exists,
-        images_pulled: false, // We can't easily check this without trying
+        images_pulled: false,
+        project_dir: proj_dir.to_string_lossy().to_string(),
     })
+}
+
+#[tauri::command]
+pub async fn get_project_path(app: AppHandle) -> Result<String, String> {
+    let dir = crate::paths::project_dir(&app);
+    Ok(dir.to_string_lossy().to_string())
 }
 
 #[tauri::command]

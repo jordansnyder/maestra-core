@@ -1,23 +1,8 @@
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
-/// Find the Maestra project root by walking up from cwd looking for docker-compose.yml.
-/// In dev mode this finds the repo root. In production, falls back to the bundled resource dir.
+/// Return the project directory where docker-compose.yml, config/, .env, etc. live.
+/// This is the bootstrapped app data directory — fully self-contained.
 pub fn project_dir(app: &AppHandle) -> PathBuf {
-    // Walk up from current directory looking for docker-compose.yml
-    if let Ok(mut dir) = std::env::current_dir() {
-        for _ in 0..5 {
-            if dir.join("docker-compose.yml").exists() {
-                return dir;
-            }
-            if !dir.pop() {
-                break;
-            }
-        }
-    }
-
-    // Production fallback: app data directory (where we extract bundled resources)
-    app.path()
-        .app_data_dir()
-        .unwrap_or_else(|_| PathBuf::from("."))
+    crate::bootstrap::project_dir(app)
 }

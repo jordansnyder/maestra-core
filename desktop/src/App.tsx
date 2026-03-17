@@ -12,7 +12,6 @@ type View = "main" | "logs";
 
 export default function App() {
   const {
-    dockerInfo,
     services,
     appState,
     logs,

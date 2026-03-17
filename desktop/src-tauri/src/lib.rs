@@ -1,3 +1,4 @@
+mod bootstrap;
 mod docker;
 mod env_editor;
 mod health;
@@ -8,6 +9,15 @@ mod setup;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            // Extract bundled project files to app data dir on first run
+            // (or when the app version changes).
+            if let Err(e) = bootstrap::ensure_project(&app.handle()) {
+                eprintln!("Bootstrap error: {}", e);
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             // Docker management
             docker::check_docker,
@@ -27,6 +37,7 @@ pub fn run() {
             // Setup & port checking
             setup::check_setup,
             setup::check_ports,
+            setup::get_project_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Maestra Desktop");

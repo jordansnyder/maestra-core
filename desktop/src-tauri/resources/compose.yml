@@ -1,0 +1,347 @@
+# Maestra Desktop — Self-contained Docker Compose
+# This file is embedded in the desktop app binary and extracted on first launch.
+# It uses pre-built GHCR images instead of local builds and does NOT mount
+# service source code directories — the code is baked into each image.
+
+services:
+  # ===========================================================================
+  # MESSAGE BUS & COMMUNICATION LAYER
+  # ===========================================================================
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: maestra-nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+      - "6222:6222"
+    command:
+      - "--http_port=8222"
+      - "--js"
+    volumes:
+      - nats-data:/data
+    networks:
+      - maestra-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: maestra-mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./config/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-logs:/mosquitto/log
+    networks:
+      - maestra-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/#' -C 1 -i healthcheck -W 3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: maestra-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - maestra-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ===========================================================================
+  # DATABASE LAYER
+  # ===========================================================================
+
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: maestra-postgres
+    environment:
+      POSTGRES_DB: maestra
+      POSTGRES_USER: maestra
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-maestra_dev_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./config/postgres/init:/docker-entrypoint-initdb.d
+    networks:
+      - maestra-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maestra"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================================================
+  # VISUAL PROGRAMMING & LOGIC ENGINE
+  # ===========================================================================
+
+  nodered:
+    image: nodered/node-red:latest
+    container_name: maestra-nodered
+    profiles: ["full"]
+    environment:
+      - TZ=UTC
+    ports:
+      - "1880:1880"
+    volumes:
+      - nodered-data:/data
+      - ./flows:/data/flows
+      - ./config/nodered/settings.js:/data/settings.js
+    networks:
+      - maestra-network
+    depends_on:
+      - mosquitto
+      - nats
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:1880/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===========================================================================
+  # DEVICE & FLEET MANAGEMENT (pre-built images)
+  # ===========================================================================
+
+  fleet-manager:
+    image: ghcr.io/jordansnyder/maestra-fleet-manager:latest
+    container_name: maestra-fleet-manager
+    environment:
+      - DATABASE_URL=postgresql://maestra:${POSTGRES_PASSWORD:-maestra_dev_password}@postgres:5432/maestra
+      - REDIS_URL=redis://redis:6379
+      - NATS_URL=nats://nats:4222
+      - MQTT_BROKER=mosquitto
+      - HOST_IP=${HOST_IP:-localhost}
+      - DEMO_MODE=${DEMO_MODE:-false}
+    ports:
+      - "8080:8080"
+      - "19000-19004:19000-19004/udp"
+    networks:
+      - maestra-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ===========================================================================
+  # WEB DASHBOARD & MONITORING
+  # ===========================================================================
+
+  dashboard:
+    image: ghcr.io/jordansnyder/maestra-dashboard:latest
+    container_name: maestra-dashboard
+    environment:
+      - NEXT_PUBLIC_API_URL=http://${HOST_IP:-localhost}:8080
+      - NEXT_PUBLIC_WS_URL=ws://${HOST_IP:-localhost}:8765
+      - NEXT_PUBLIC_NODERED_URL=http://${HOST_IP:-localhost}:1880
+      - NEXT_PUBLIC_GRAFANA_URL=http://${HOST_IP:-localhost}:3000
+      - NEXT_PUBLIC_DOCS_URL=http://${HOST_IP:-localhost}:8000
+      - NEXT_PUBLIC_NATS_URL=http://${HOST_IP:-localhost}:8222
+      - NEXT_PUBLIC_MQTT_WS_URL=ws://${HOST_IP:-localhost}:9001
+    ports:
+      - "3001:3000"
+    networks:
+      - maestra-network
+    depends_on:
+      - fleet-manager
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: maestra-grafana
+    profiles: ["full"]
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_PLUGINS_PREINSTALL=redis-datasource
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-maestra_dev_password}
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards
+    dns:
+      - 8.8.8.8
+    networks:
+      - maestra-network
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  # ===========================================================================
+  # INFRASTRUCTURE
+  # ===========================================================================
+
+  traefik:
+    image: traefik:v2.11
+    container_name: maestra-traefik
+    profiles: ["full"]
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8081:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - maestra-network
+    restart: unless-stopped
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: maestra-portainer
+    profiles: ["full"]
+    ports:
+      - "9443:9443"
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer-data:/data
+    networks:
+      - maestra-network
+    restart: unless-stopped
+
+  # ===========================================================================
+  # GATEWAY SERVICES (pre-built images)
+  # ===========================================================================
+
+  osc-gateway:
+    image: ghcr.io/jordansnyder/maestra-osc-gateway:latest
+    container_name: maestra-osc-gateway
+    environment:
+      - NATS_URL=nats://nats:4222
+      - REDIS_URL=redis://redis:6379
+      - OSC_IN_PORT=${OSC_IN_PORT:-57120}
+      - OSC_OUT_PORT=${OSC_OUT_PORT:-57121}
+    ports:
+      - "${OSC_IN_PORT:-57120}:${OSC_IN_PORT:-57120}/udp"
+      - "${OSC_OUT_PORT:-57121}:${OSC_OUT_PORT:-57121}/udp"
+    networks:
+      - maestra-network
+    depends_on:
+      - nats
+      - redis
+    restart: unless-stopped
+
+  websocket-gateway:
+    image: ghcr.io/jordansnyder/maestra-websocket-gateway:latest
+    container_name: maestra-websocket-gateway
+    environment:
+      - NATS_URL=nats://nats:4222
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "8765:8765"
+    networks:
+      - maestra-network
+    depends_on:
+      - nats
+      - redis
+    restart: unless-stopped
+
+  mqtt-nats-bridge:
+    image: ghcr.io/jordansnyder/maestra-mqtt-nats-bridge:latest
+    container_name: maestra-mqtt-nats-bridge
+    environment:
+      - MQTT_BROKER=mosquitto
+      - MQTT_PORT=1883
+      - NATS_URL=nats://nats:4222
+    networks:
+      - maestra-network
+    depends_on:
+      - nats
+      - mosquitto
+    restart: unless-stopped
+
+  # ===========================================================================
+  # DEVICE DISCOVERY
+  # ===========================================================================
+
+  discovery-service:
+    image: ghcr.io/jordansnyder/maestra-discovery-service:latest
+    container_name: maestra-discovery
+    network_mode: host
+    environment:
+      - FLEET_MANAGER_URL=http://${HOST_IP:-localhost}:8080
+      - HOST_IP=${HOST_IP:-localhost}
+      - NATS_URL=nats://${HOST_IP:-localhost}:4222
+      - MQTT_BROKER=${HOST_IP:-localhost}
+      - MQTT_PORT=1883
+      - API_URL=http://${HOST_IP:-localhost}:8080
+      - WS_URL=ws://${HOST_IP:-localhost}:8765
+    depends_on:
+      - fleet-manager
+    restart: unless-stopped
+
+  # ===========================================================================
+  # DMX / Art-Net (opt-in)
+  # ===========================================================================
+
+  dmx-gateway:
+    image: ghcr.io/jordansnyder/maestra-dmx-gateway:latest
+    profiles: ["dmx"]
+    container_name: maestra-dmx-gateway
+    environment:
+      - NATS_URL=nats://nats:4222
+      - FLEET_MANAGER_URL=http://fleet-manager:8080
+      - LOG_LEVEL=${DMX_LOG_LEVEL:-INFO}
+      - CONFIG_REFRESH_INTERVAL=${DMX_CONFIG_REFRESH:-30}
+      - KEEPALIVE_HZ=${DMX_KEEPALIVE_HZ:-4}
+    networks:
+      - maestra-network
+    depends_on:
+      - nats
+      - fleet-manager
+    restart: unless-stopped
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  maestra-network:
+    driver: bridge
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  nats-data:
+  mosquitto-data:
+  mosquitto-logs:
+  redis-data:
+  postgres-data:
+  nodered-data:
+  grafana-data:
+  portainer-data:

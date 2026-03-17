@@ -15,6 +15,45 @@ fn detect_lan_ip() -> Option<String> {
     Some(addr.ip().to_string())
 }
 
+/// Find the `docker` binary.
+///
+/// When launched as a bundled .app on macOS (e.g., from Finder), the process
+/// inherits a minimal PATH (/usr/bin:/bin:/usr/sbin:/sbin) that does NOT
+/// include /usr/local/bin where Docker Desktop installs its CLI symlinks.
+/// We probe well-known locations so the app works outside a terminal.
+fn find_docker() -> String {
+    // If `docker` is already on PATH, use it (dev mode / terminal launch)
+    if let Ok(output) = std::process::Command::new("which")
+        .arg("docker")
+        .output()
+    {
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return path;
+            }
+        }
+    }
+
+    // Well-known Docker Desktop install paths (macOS, Linux, Windows)
+    let candidates = [
+        "/usr/local/bin/docker",
+        "/opt/homebrew/bin/docker",
+        "/usr/bin/docker",
+        // Docker Desktop macOS app bundle
+        "/Applications/Docker.app/Contents/Resources/bin/docker",
+    ];
+
+    for candidate in &candidates {
+        if std::path::Path::new(candidate).exists() {
+            return candidate.to_string();
+        }
+    }
+
+    // Last resort — hope it's on PATH at runtime
+    "docker".to_string()
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DockerInfo {
     pub available: bool,
@@ -48,8 +87,22 @@ fn get_project_dir(app: &AppHandle) -> PathBuf {
 
 /// Create a `docker` Command with HOST_IP set so docker-compose.yml
 /// can resolve ${HOST_IP:-localhost} to the real LAN address.
+///
+/// Also ensures PATH includes /usr/local/bin so that Docker Compose
+/// plugins and other tools are found even in a bundled .app context.
 fn docker_cmd() -> Command {
-    let mut cmd = Command::new("docker");
+    let docker_bin = find_docker();
+    let mut cmd = Command::new(&docker_bin);
+
+    // Ensure PATH is broad enough for the docker CLI to find its
+    // compose plugin and other helpers.
+    let extra_paths = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+    let path = match std::env::var("PATH") {
+        Ok(existing) => format!("{}:{}", extra_paths, existing),
+        Err(_) => extra_paths.to_string(),
+    };
+    cmd.env("PATH", path);
+
     if std::env::var("HOST_IP").is_err() {
         if let Some(ip) = detect_lan_ip() {
             cmd.env("HOST_IP", ip);
@@ -61,19 +114,14 @@ fn docker_cmd() -> Command {
 fn compose_args(project_dir: &PathBuf, profile: Option<&str>) -> Vec<String> {
     let mut args = vec![
         "compose".to_string(),
+        "-p".to_string(),
+        "maestra-core".to_string(), // Match the repo's project name so we reuse existing containers/volumes/networks
         "-f".to_string(),
         project_dir
             .join("docker-compose.yml")
             .to_string_lossy()
             .to_string(),
     ];
-
-    // Add desktop override if it exists
-    let desktop_compose = project_dir.join("docker-compose.desktop.yml");
-    if desktop_compose.exists() {
-        args.push("-f".to_string());
-        args.push(desktop_compose.to_string_lossy().to_string());
-    }
 
     if let Some(p) = profile {
         if p == "full" {
@@ -87,8 +135,18 @@ fn compose_args(project_dir: &PathBuf, profile: Option<&str>) -> Vec<String> {
 
 #[tauri::command]
 pub async fn check_docker() -> Result<DockerInfo, String> {
+    let docker_bin = find_docker();
+
+    // Broad PATH so docker can find its compose plugin and other helpers
+    let extra_paths = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+    let path_env = match std::env::var("PATH") {
+        Ok(existing) => format!("{}:{}", extra_paths, existing),
+        Err(_) => extra_paths.to_string(),
+    };
+
     // Step 1: Check if docker CLI is installed (works without daemon)
-    let cli_output = Command::new("docker")
+    let cli_output = Command::new(&docker_bin)
+        .env("PATH", &path_env)
         .args(["--version"])
         .output()
         .await;
@@ -106,7 +164,8 @@ pub async fn check_docker() -> Result<DockerInfo, String> {
     }
 
     // Step 2: Check if daemon is running (requires Docker Desktop to be started)
-    let docker_output = Command::new("docker")
+    let docker_output = Command::new(&docker_bin)
+        .env("PATH", &path_env)
         .args(["version", "--format", "{{.Server.Version}}"])
         .output()
         .await
@@ -118,7 +177,8 @@ pub async fn check_docker() -> Result<DockerInfo, String> {
         .to_string();
 
     // Check docker compose
-    let compose_output = Command::new("docker")
+    let compose_output = Command::new(&docker_bin)
+        .env("PATH", &path_env)
         .args(["compose", "version", "--short"])
         .output()
         .await

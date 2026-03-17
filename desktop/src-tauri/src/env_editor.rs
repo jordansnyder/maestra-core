@@ -1,6 +1,10 @@
 use std::path::PathBuf;
 use tauri::AppHandle;
 
+/// Embedded copy of .env.example so `init_env` works even when the project
+/// directory hasn't been located yet (e.g., first run of a bundled .app).
+const ENV_EXAMPLE_FALLBACK: &str = include_str!("../../../.env.example");
+
 fn env_path(app: &AppHandle) -> PathBuf {
     crate::paths::project_dir(app).join(".env")
 }
@@ -30,19 +34,21 @@ pub async fn init_env(app: AppHandle) -> Result<bool, String> {
         return Ok(false); // Already exists
     }
 
-    let example = env_example_path(&app);
-    if !example.exists() {
-        return Err(format!(".env.example not found at {}", example.display()));
-    }
-
     // Ensure parent directory exists
     if let Some(parent) = env.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create directory: {}", e))?;
     }
 
-    std::fs::copy(&example, &env)
-        .map_err(|e| format!("Failed to copy .env.example to .env: {}", e))?;
+    // Try to copy from the on-disk .env.example first; fall back to embedded copy
+    let example = env_example_path(&app);
+    if example.exists() {
+        std::fs::copy(&example, &env)
+            .map_err(|e| format!("Failed to copy .env.example to .env: {}", e))?;
+    } else {
+        std::fs::write(&env, ENV_EXAMPLE_FALLBACK)
+            .map_err(|e| format!("Failed to write .env: {}", e))?;
+    }
 
     Ok(true) // Created new .env
 }

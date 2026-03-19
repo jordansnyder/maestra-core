@@ -149,7 +149,8 @@ async def on_entity_state(msg):
         return
 
     entity_path = data.get('entity_path') or data.get('path')
-    state = data.get('state', {})
+    # Fleet Manager publishes 'current_state'; direct NATS clients use 'state'
+    state = data.get('current_state') or data.get('state') or {}
 
     if not entity_path or not state or mapper is None:
         return

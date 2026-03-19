@@ -594,6 +594,7 @@ export default function DMXPage() {
           onStopSequence={stopSequence}
           onToggleLoop={toggleLoop}
           onFadeOut={(durationSec) => fadeOut(durationSec * 1000)}
+          onBlackout={() => playbackApi.blackout().catch(() => {})}
           onRenameSequence={handleRenameSequence}
           onDeleteSequence={handleRequestDeleteSequence}
           onReorderSequences={handleReorderSequences}

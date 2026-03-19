@@ -7,7 +7,7 @@ import { UNIVERSE_PALETTE } from '@/lib/dmx-constants'
 import { SequencePlaybackStatus } from '@/hooks/useSequencePlayback'
 import {
   Pencil, Network, Layers, SlidersHorizontal, ChevronRight, BookOpen, Trash2,
-  GripVertical, X, Check, Play, Pause, Square, ListOrdered, Plus, Repeat, Sunset, ExternalLink,
+  GripVertical, X, Check, Play, Pause, Square, ListOrdered, Plus, Repeat, Sunset, ExternalLink, ZapOff,
 } from '@/components/icons'
 
 function getUniverseColor(nodes: DMXNode[], fixture: DMXFixture): string {
@@ -67,6 +67,7 @@ interface DMXSidebarProps {
   onStopSequence: () => void
   onToggleLoop: () => void
   onFadeOut: (durationSec: number) => void
+  onBlackout: () => void
   onRenameSequence: (id: string, name: string) => Promise<void>
   onDeleteSequence: (seq: DMXSequence) => void
   onReorderSequences: (draggedId: string, targetId: string) => void
@@ -88,7 +89,7 @@ export function DMXSidebar({
   cues, activeCueId, editingCueId, cueFadeProgress, onRecallCue, onEnterEditCue, onExitEditCue, onRenameCue, onDeleteCue, onReorderCues, onOpenCues, onSaveCue, onUpdateCue, updateCueLoading,
   sequences, playbackStatus, onPlaySequence, onPauseSequence, onStopSequence, onRenameSequence, onDeleteSequence,
   onReorderSequences, onAddCueToSequence, onReorderSequenceCues, onUpdatePlacement, onRemoveCueFromSequence,
-  onOpenSequences, openSequencesSignal, availableCues, onToggleLoop, onFadeOut, onCreateSequence,
+  onOpenSequences, openSequencesSignal, availableCues, onToggleLoop, onFadeOut, onBlackout, onCreateSequence,
 }: DMXSidebarProps) {
   const [active, setActive] = useState<ActiveSection>('fixtures')
 
@@ -948,6 +949,15 @@ export function DMXSidebar({
                                 className={`p-0.5 rounded transition-colors ${isThisPlaying ? 'text-green-400 hover:text-green-200' : 'text-slate-500 hover:text-green-400'}`}
                               >
                                 {isThisPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                              </button>
+
+                              {/* Blackout */}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onBlackout() }}
+                                title="Blackout — zero all fixture channels"
+                                className="p-0.5 rounded text-slate-500 hover:text-yellow-400 transition-colors"
+                              >
+                                <ZapOff className="w-3 h-3" />
                               </button>
 
                               {/* Stop / Stop with fadeout — only when active */}

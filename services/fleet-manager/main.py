@@ -386,6 +386,10 @@ async def startup_event():
         await cloud_manager.connect(get_redis())
     else:
         print("⚠️ Cloud Manager not started (requires Redis)")
+
+    # Load persisted DMX settings (interval, etc.)
+    if db_ok:
+        await playback_engine.load_settings()
     # Subscribe NATS for external DMX lighting entity control
     if state_manager.nc:
         async def _on_dmx_lighting_state(msg):

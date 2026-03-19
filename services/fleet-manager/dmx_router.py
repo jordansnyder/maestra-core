@@ -1423,6 +1423,25 @@ async def get_playback_status():
     return playback_engine.status
 
 
+@router.get("/playback/config")
+async def get_playback_config():
+    """Return current playback engine configuration."""
+    from dmx_playback_engine import playback_engine
+    return {"interval_ms": round(playback_engine._send_interval * 1000)}
+
+
+class PlaybackConfigUpdate(BaseModel):
+    interval_ms: float
+
+
+@router.put("/playback/config")
+async def update_playback_config(data: PlaybackConfigUpdate):
+    """Update playback engine configuration at runtime and persist it."""
+    from dmx_playback_engine import playback_engine
+    await playback_engine.set_interval(data.interval_ms)
+    return {"interval_ms": round(playback_engine._send_interval * 1000)}
+
+
 @router.post("/playback/play")
 async def playback_play(data: PlaybackPlayRequest):
     """Start sequence playback."""
@@ -1483,3 +1502,54 @@ async def playback_cue_fade(data: PlaybackCueFadeRequest):
     if not ok:
         raise HTTPException(status_code=404, detail="Target cue has no fixture snapshots")
     return {"status": "fading"}
+
+
+@router.post("/playback/blackout")
+async def playback_blackout(db: AsyncSession = Depends(get_db)):
+    """Immediately zero all channels on every fixture entity."""
+    from dmx_playback_engine import playback_engine, _normalize_state
+    from state_manager import state_manager
+
+    rows = await db.execute(text("""
+        SELECT f.entity_id, f.channel_map,
+               e.id, e.slug, e.path, et.name AS entity_type, e.state
+        FROM dmx_fixtures f
+        JOIN entities e ON e.id = CAST(f.entity_id AS uuid)
+        JOIN entity_types et ON et.id = e.entity_type_id
+        WHERE f.entity_id IS NOT NULL AND f.entity_id != ''
+    """))
+    fixtures = rows.fetchall()
+
+    for row in fixtures:
+        channel_map = row.channel_map or {}
+        zero_state = {}
+        for key, ch in channel_map.items():
+            ch_type = ch.get('type', 'range') if isinstance(ch, dict) else 'range'
+            if ch_type == 'boolean':
+                zero_state[key] = False
+            elif ch_type == 'number':
+                zero_state[key] = 0
+            else:
+                zero_state[key] = 0.0
+
+        await db.execute(text("""
+            UPDATE entities
+            SET state = CAST(:state AS jsonb), state_updated_at = NOW()
+            WHERE id = CAST(:id AS uuid)
+        """), {"state": json.dumps(zero_state), "id": str(row.id)})
+
+        try:
+            await state_manager.broadcast_state_change(
+                entity_id=str(row.id),
+                entity_slug=row.slug,
+                entity_type=row.entity_type,
+                entity_path=row.path,
+                previous_state=row.state or {},
+                new_state=zero_state,
+                source='dashboard-dmx',
+            )
+        except Exception:
+            pass
+
+    await db.commit()
+    return {"status": "blackout", "fixtures": len(fixtures)}

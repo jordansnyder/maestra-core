@@ -95,6 +95,7 @@ export {
   RefreshCw,
   Settings,
   ChevronDown,
+  ChevronUp,
   BookOpen,
   Network,
   Layers,
@@ -105,6 +106,9 @@ export {
   ListOrdered,
   Repeat,
   Sunset,
+  RotateCcw,
+  ZapOff,
+  Undo2,
 } from 'lucide-react'
 
 // Device type icon lookup

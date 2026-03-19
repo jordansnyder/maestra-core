@@ -24,8 +24,35 @@ from state_manager import state_manager
 
 logger = logging.getLogger(__name__)
 
-DMX_SEND_INTERVAL = 0.08          # 80 ms — matches frontend DMX_SEND_INTERVAL_MS
+DMX_SEND_INTERVAL_DEFAULT = 0.02   # 20 ms — 50 Hz update rate (used before DB loads)
 DIMMER_PATTERN = re.compile(r'dimmer|intensity|master|brightness', re.IGNORECASE)
+
+
+def _normalize_state(state: dict, channel_map: dict) -> dict:
+    """
+    Normalize cue snapshot values to native entity-state format.
+
+    Cue snapshots captured before the native-format migration may contain raw
+    0–255 DMX integers.  This detects and converts them:
+      range / color  →  0.0–1.0   (legacy 0–255 int: divide by 255)
+      number         →  0–100     (legacy 0–255 int: scale to 0–100)
+    """
+    result = {}
+    for key, value in state.items():
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            result[key] = value
+            continue
+        ch = channel_map.get(key, {})
+        ch_type = ch.get('type', 'range') if isinstance(ch, dict) else 'range'
+        if ch_type in ('range', 'color'):
+            # Native: 0.0–1.0. Values > 1 are legacy 0–255.
+            result[key] = round(value / 255, 4) if value > 1.0 else float(value)
+        elif ch_type == 'number':
+            # Native: 0–100. Values > 100 are legacy 0–255.
+            result[key] = round((value / 255) * 100, 2) if value > 100 else float(value)
+        else:
+            result[key] = value
+    return result
 
 
 def _ease_in_out(t: float) -> float:
@@ -37,11 +64,27 @@ def _interpolate_state(
     to_state: dict,
     t: float,
 ) -> dict:
+    """
+    Interpolate between two state dicts at position t (0.0–1.0).
+
+    Preserves decimal precision for native-format values (range/color = 0.0–1.0,
+    number = 0–100). Booleans and non-numeric values snap at t = 0.5.
+    """
     keys = set(from_state) | set(to_state)
-    return {
-        k: round((from_state.get(k, 0) or 0) + ((to_state.get(k, 0) or 0) - (from_state.get(k, 0) or 0)) * t)
-        for k in keys
-    }
+    result = {}
+    for k in keys:
+        from_v = from_state.get(k, 0) or 0
+        to_v = to_state.get(k, 0) or 0
+        # Booleans: snap at midpoint
+        if isinstance(from_v, bool) or isinstance(to_v, bool):
+            result[k] = bool(to_v) if t >= 0.5 else bool(from_v)
+        # Non-numeric: snap at midpoint
+        elif not isinstance(from_v, (int, float)) or not isinstance(to_v, (int, float)):
+            result[k] = to_v if t >= 0.5 else from_v
+        else:
+            # Smooth float interpolation — do NOT round; gateway handles floats correctly
+            result[k] = from_v + (to_v - from_v) * t
+    return result
 
 
 class DMXPlaybackEngine:
@@ -52,6 +95,9 @@ class DMXPlaybackEngine:
     """
 
     def __init__(self):
+        # Configurable tick interval (seconds); loaded from DB at startup
+        self._send_interval: float = DMX_SEND_INTERVAL_DEFAULT
+
         # Playback state
         self._play_state: str = 'stopped'   # stopped | playing | paused
         self._sequence_id: Optional[str] = None
@@ -65,6 +111,9 @@ class DMXPlaybackEngine:
         self._progress: float = 0.0
         self._hold_progress: float = 0.0
         self._fade_progress: Optional[float] = None
+
+        # Live states captured at play() time — used as "from" for the first cue transition
+        self._live_from_fixtures: list = []
 
         # asyncio tasks
         self._task: Optional[asyncio.Task] = None
@@ -86,7 +135,40 @@ class DMXPlaybackEngine:
             "hold_progress": self._hold_progress,
             "loop": self._loop,
             "fade_progress": self._fade_progress,
+            "interval_ms": round(self._send_interval * 1000),
         }
+
+    async def load_settings(self) -> None:
+        """Load persisted settings from DB (called once at startup)."""
+        try:
+            async with async_session_maker() as db:
+                row = await db.execute(text(
+                    "SELECT value FROM dmx_settings WHERE key = 'playback_interval_ms'"
+                ))
+                val = row.scalar()
+                if val is not None:
+                    ms = float(val)
+                    if 10 <= ms <= 1000:
+                        self._send_interval = ms / 1000.0
+                        logger.info("Loaded playback interval: %.0f ms", ms)
+        except Exception as e:
+            logger.warning("Could not load DMX settings: %s", e)
+
+    async def set_interval(self, interval_ms: float) -> None:
+        """Update tick interval at runtime and persist to DB."""
+        ms = max(10.0, min(1000.0, interval_ms))
+        self._send_interval = ms / 1000.0
+        try:
+            async with async_session_maker() as db:
+                await db.execute(text("""
+                    INSERT INTO dmx_settings (key, value, updated_at)
+                    VALUES ('playback_interval_ms', CAST(:v AS jsonb), NOW())
+                    ON CONFLICT (key) DO UPDATE
+                    SET value = CAST(:v AS jsonb), updated_at = NOW()
+                """), {"v": str(ms)})
+                await db.commit()
+        except Exception as e:
+            logger.error("Failed to persist playback interval: %s", e)
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -110,12 +192,25 @@ class DMXPlaybackEngine:
         self._progress = 0.0 if first_transition > 0 else 1.0
         self._hold_progress = 0.0
 
-        # Apply initial fixture states
-        if first_transition == 0:
-            await self._send_hard(first['fixtures'])
+        # Capture current live entity states so the first cue fades FROM the
+        # current output rather than snapping to black.
+        if first_transition > 0:
+            first_entity_ids = [f['entity_id'] for f in first['fixtures']]
+            live_map = await self._fetch_live_states(first_entity_ids)
+            self._live_from_fixtures = [
+                {
+                    'entity_id': f['entity_id'],
+                    'fixture_id': f['fixture_id'],
+                    'state': _normalize_state(
+                        live_map.get(f['entity_id'], {k: 0 for k in f['state']}),
+                        f.get('channel_map', {}),
+                    ),
+                }
+                for f in first['fixtures']
+            ]
         else:
-            zeros = [{**f, 'state': {k: 0 for k in f['state']}} for f in first['fixtures']]
-            await self._send_hard(zeros)
+            self._live_from_fixtures = []
+            await self._send_hard(first['fixtures'])
 
         await self._set_dmx_lighting_active(
             active_sequence_id=sequence_id,
@@ -205,7 +300,7 @@ class DMXPlaybackEngine:
         if duration_ms <= 0:
             async with async_session_maker() as db:
                 rows = await db.execute(text("""
-                    SELECT entity_id, state FROM dmx_cue_fixtures WHERE cue_id = :cue_id
+                    SELECT entity_id, state FROM dmx_cue_fixtures WHERE cue_id = CAST(:cue_id AS uuid)
                 """), {"cue_id": to_cue_id})
                 snapshots = rows.fetchall()
             if snapshots:
@@ -219,29 +314,13 @@ class DMXPlaybackEngine:
                 )
             return True
 
-        # Load from-fixtures
+        # Load from-fixtures (normalized)
         from_fixtures = []
         if from_cue_id:
-            async with async_session_maker() as db:
-                rows = await db.execute(text("""
-                    SELECT fixture_id, entity_id, state FROM dmx_cue_fixtures
-                    WHERE cue_id = :cue_id
-                """), {"cue_id": from_cue_id})
-                from_fixtures = [
-                    {"fixture_id": str(r.fixture_id), "entity_id": str(r.entity_id), "state": r.state or {}}
-                    for r in rows.fetchall()
-                ]
+            from_fixtures = await self._load_cue_fixtures(from_cue_id)
 
-        # Load to-fixtures
-        async with async_session_maker() as db:
-            rows = await db.execute(text("""
-                SELECT fixture_id, entity_id, state FROM dmx_cue_fixtures
-                WHERE cue_id = :cue_id
-            """), {"cue_id": to_cue_id})
-            to_fixtures = [
-                {"fixture_id": str(r.fixture_id), "entity_id": str(r.entity_id), "state": r.state or {}}
-                for r in rows.fetchall()
-            ]
+        # Load to-fixtures (normalized)
+        to_fixtures = await self._load_cue_fixtures(to_cue_id)
 
         if not to_fixtures:
             self._fade_progress = None
@@ -259,7 +338,7 @@ class DMXPlaybackEngine:
         try:
             while self._play_state == 'playing':
                 await self._tick()
-                await asyncio.sleep(DMX_SEND_INTERVAL)
+                await asyncio.sleep(self._send_interval)
         except asyncio.CancelledError:
             pass
         except Exception as e:
@@ -281,13 +360,16 @@ class DMXPlaybackEngine:
             eased = _ease_in_out(t)
             self._progress = t
 
-            if now - self._last_dmx_send >= DMX_SEND_INTERVAL:
+            if now - self._last_dmx_send >= self._send_interval:
                 self._last_dmx_send = now
                 prev = self._loaded[self._cue_index - 1] if self._cue_index > 0 else None
                 if duration_s == 0:
                     await self._send_hard(current['fixtures'])
                 elif self._cue_index == 0:
-                    await self._apply_from_black(current['fixtures'], eased)
+                    if self._live_from_fixtures:
+                        await self._apply_interpolated(self._live_from_fixtures, current['fixtures'], eased)
+                    else:
+                        await self._apply_from_black(current['fixtures'], eased)
                 elif prev:
                     await self._apply_interpolated(prev['fixtures'], current['fixtures'], eased)
 
@@ -349,15 +431,20 @@ class DMXPlaybackEngine:
                 updates = []
                 for f in fixtures:
                     faded = {
-                        k: round(v * dim_factor) if DIMMER_PATTERN.search(k) else v
+                        k: v * dim_factor if DIMMER_PATTERN.search(k) else v
                         for k, v in (f['state'] or {}).items()
+                        if isinstance(v, (int, float)) and not isinstance(v, bool)
                     }
+                    # Preserve non-numeric values unchanged
+                    for k, v in (f['state'] or {}).items():
+                        if k not in faded:
+                            faded[k] = v
                     updates.append((f['entity_id'], f['state'], faded))
                 await self._batch_update(updates)
 
                 if t >= 1.0:
                     break
-                await asyncio.sleep(DMX_SEND_INTERVAL)
+                await asyncio.sleep(self._send_interval)
         except asyncio.CancelledError:
             pass
         finally:
@@ -403,7 +490,7 @@ class DMXPlaybackEngine:
 
                 if t >= 1.0:
                     break
-                await asyncio.sleep(DMX_SEND_INTERVAL)
+                await asyncio.sleep(self._send_interval)
 
             # Snap to exact final state
             final = [(f['entity_id'], {}, f['state'] or {}) for f in to_fixtures]
@@ -482,6 +569,45 @@ class DMXPlaybackEngine:
                     pass
         except Exception as e:
             logger.error("DMX batch entity update error: %s", e)
+
+    async def _fetch_live_states(self, entity_ids: list) -> dict:
+        """Fetch current entity states from DB. Returns {entity_id: state_dict}."""
+        try:
+            async with async_session_maker() as db:
+                rows = await db.execute(text("""
+                    SELECT id, state FROM entities
+                    WHERE id = ANY(CAST(:ids AS uuid[]))
+                """), {"ids": entity_ids})
+                return {str(r.id): r.state or {} for r in rows.fetchall()}
+        except Exception as e:
+            logger.error("Failed to fetch live entity states: %s", e)
+            return {}
+
+    async def _load_cue_fixtures(self, cue_id: str) -> list:
+        """
+        Load fixture snapshots for a cue, joined with the fixture's channel_map
+        so values can be normalized from legacy 0–255 to native format.
+        """
+        try:
+            async with async_session_maker() as db:
+                rows = await db.execute(text("""
+                    SELECT cf.fixture_id, cf.entity_id, cf.state, f.channel_map
+                    FROM dmx_cue_fixtures cf
+                    JOIN dmx_fixtures f ON f.id = CAST(cf.fixture_id AS uuid)
+                    WHERE cf.cue_id = CAST(:cue_id AS uuid)
+                """), {"cue_id": cue_id})
+                return [
+                    {
+                        "fixture_id": str(r.fixture_id),
+                        "entity_id": str(r.entity_id),
+                        "channel_map": r.channel_map or {},
+                        "state": _normalize_state(r.state or {}, r.channel_map or {}),
+                    }
+                    for r in rows.fetchall()
+                ]
+        except Exception as e:
+            logger.error("Failed to load cue fixtures for cue %s: %s", cue_id, e)
+            return []
 
     async def _cache_entity_info(self, entity_ids: list):
         try:
@@ -564,14 +690,17 @@ class DMXPlaybackEngine:
                 loaded = []
                 for p in placements:
                     fixture_rows = await db.execute(text("""
-                        SELECT fixture_id, entity_id, state
-                        FROM dmx_cue_fixtures WHERE cue_id = :cue_id
+                        SELECT cf.fixture_id, cf.entity_id, cf.state, f.channel_map
+                        FROM dmx_cue_fixtures cf
+                        JOIN dmx_fixtures f ON f.id = CAST(cf.fixture_id AS uuid)
+                        WHERE cf.cue_id = CAST(:cue_id AS uuid)
                     """), {"cue_id": str(p.cue_id)})
                     fixtures = [
                         {
                             "fixture_id": str(r.fixture_id),
                             "entity_id": str(r.entity_id),
-                            "state": r.state or {},
+                            "channel_map": r.channel_map or {},
+                            "state": _normalize_state(r.state or {}, r.channel_map or {}),
                         }
                         for r in fixture_rows.fetchall()
                     ]

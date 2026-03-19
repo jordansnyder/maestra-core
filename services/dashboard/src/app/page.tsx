@@ -178,8 +178,16 @@ function CompactDeviceRow({ device }: { device: Device }) {
         <Icon className="w-3.5 h-3.5 text-slate-400" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{device.name}</p>
-        <p className="text-xs text-slate-500">{device.device_type.replace('_', ' ')}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium truncate">{device.name}</p>
+          {device.device_type === 'artnet_node' && (
+            <span className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25">
+              <Zap className="w-2.5 h-2.5" />
+              DMX
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-slate-500">{device.device_type.replace(/_/g, ' ')}</p>
       </div>
       <StatusBadge status={device.status} />
     </div>

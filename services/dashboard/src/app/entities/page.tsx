@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Entity, EntityType, EntityTreeNode } from '@/lib/types'
 import { entitiesApi, entityTypesApi, dmxApi } from '@/lib/api'
 import { useToast } from '@/components/Toast'
-import { ENTITY_TYPE_ICONS, DEFAULT_ENTITY_ICON, Plus, Search, Pencil, Trash2, Boxes } from '@/components/icons'
+import { ENTITY_TYPE_ICONS, DEFAULT_ENTITY_ICON, Plus, Search, Pencil, Trash2, Boxes, Zap } from '@/components/icons'
 import { EmptyState } from '@/components/EmptyState'
 import { getDocsUrl } from '@/lib/hosts'
 import type { LucideIcon } from 'lucide-react'
@@ -264,8 +264,8 @@ function EntityList({
                       {entity.status}
                     </span>
                     {isDmxLinked && (
-                      <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-900/40 text-amber-400 border border-amber-800/50">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                      <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                        <Zap className="w-2.5 h-2.5" />
                         DMX
                       </span>
                     )}
@@ -352,8 +352,8 @@ function EntityTree({
                 {node.status}
               </span>
               {isDmxLinked && (
-                <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-900/40 text-amber-400 border border-amber-800/50">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                  <Zap className="w-2.5 h-2.5" />
                   DMX
                 </span>
               )}

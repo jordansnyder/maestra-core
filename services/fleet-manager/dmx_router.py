@@ -1506,19 +1506,16 @@ async def playback_cue_fade(data: PlaybackCueFadeRequest):
 
 @router.post("/playback/blackout")
 async def playback_blackout(db: AsyncSession = Depends(get_db)):
-    """Immediately zero all channels on every fixture entity."""
-    from dmx_playback_engine import playback_engine, _normalize_state
+    """Immediately zero all channels on every fixture — sends raw Art-Net zeros to every universe."""
+    import json as _json
     from state_manager import state_manager
 
-    rows = await db.execute(text("""
-        SELECT f.entity_id, f.channel_map,
-               e.id, e.slug, e.path, et.name AS entity_type, e.state
-        FROM dmx_fixtures f
-        JOIN entities e ON e.id = CAST(f.entity_id AS uuid)
-        JOIN entity_types et ON et.id = e.entity_type_id
-        WHERE f.entity_id IS NOT NULL AND f.entity_id != ''
+    # Step 1: zero entity states in DB for all linked fixtures
+    fixture_rows = await db.execute(text("""
+        SELECT entity_id, channel_map FROM dmx_fixtures
+        WHERE entity_id IS NOT NULL
     """))
-    fixtures = rows.fetchall()
+    fixtures = fixture_rows.fetchall()
 
     for row in fixtures:
         channel_map = row.channel_map or {}
@@ -1535,21 +1532,44 @@ async def playback_blackout(db: AsyncSession = Depends(get_db)):
         await db.execute(text("""
             UPDATE entities
             SET state = CAST(:state AS jsonb), state_updated_at = NOW()
-            WHERE id = CAST(:id AS uuid)
-        """), {"state": json.dumps(zero_state), "id": str(row.id)})
-
-        try:
-            await state_manager.broadcast_state_change(
-                entity_id=str(row.id),
-                entity_slug=row.slug,
-                entity_type=row.entity_type,
-                entity_path=row.path,
-                previous_state=row.state or {},
-                new_state=zero_state,
-                source='dashboard-dmx',
-            )
-        except Exception:
-            pass
+            WHERE id = :entity_id
+        """), {"state": _json.dumps(zero_state), "entity_id": row.entity_id})
 
     await db.commit()
-    return {"status": "blackout", "fixtures": len(fixtures)}
+
+    # Step 2: send raw 512-zero Art-Net packets to every configured universe on every node
+    cleared_universes = 0
+    if state_manager.nc:
+        universe_rows = await db.execute(text("""
+            SELECT DISTINCT f.node_id, f.universe FROM dmx_fixtures f
+        """))
+        fixture_universes = universe_rows.fetchall()
+
+        if fixture_universes:
+            node_ids = list({r.node_id for r in fixture_universes})
+            node_rows = await db.execute(text("""
+                SELECT id, universes FROM dmx_nodes WHERE id = ANY(:ids)
+            """), {"ids": node_ids})
+
+            node_universe_map: dict[str, dict[int, int]] = {}
+            for nr in node_rows.fetchall():
+                universes_cfg = nr.universes or []
+                mapping = {}
+                for uc in universes_cfg:
+                    if isinstance(uc, dict):
+                        mapping[uc.get("id", 0)] = uc.get("artnet_universe", 0)
+                node_universe_map[nr.id] = mapping
+
+            artnet_universes: set[int] = set()
+            for row in fixture_universes:
+                node_map = node_universe_map.get(row.node_id, {})
+                artnet_u = node_map.get(row.universe, row.universe)
+                artnet_universes.add(artnet_u)
+
+            zeros_payload = _json.dumps({"channels": [0] * 512}).encode()
+            for artnet_u in artnet_universes:
+                await state_manager.nc.publish(f"maestra.to_artnet.universe.{artnet_u}", zeros_payload)
+
+            cleared_universes = len(artnet_universes)
+
+    return {"status": "blackout", "fixtures": len(fixtures), "universes": cleared_universes}

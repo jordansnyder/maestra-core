@@ -36,8 +36,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/entities', label: 'Entities', icon: Boxes },
   { href: '/routing', label: 'Routing', icon: GitFork },
   { href: '/streams', label: 'Streams', icon: Cast },
-  { href: '/settings', label: 'Settings', icon: Settings },
   { href: '/dmx', label: 'DMX Lighting', icon: Zap },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 const GETTING_STARTED_ITEM: NavItem = { href: '/#getting-started', label: 'Getting Started', icon: Sparkles }

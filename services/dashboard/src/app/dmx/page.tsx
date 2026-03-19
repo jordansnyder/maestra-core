@@ -8,7 +8,7 @@ import { NodeSetupForm } from '@/components/dmx/NodeSetupForm'
 import { AddFixtureModal } from '@/components/dmx/AddFixtureModal'
 import { DMXFixture, DMXNode, DMXNodeCreate, OFLSyncStatus, DMXCue, DMXSequence, DMXCuePlacement } from '@/lib/types'
 import { DMXChannelModal } from '@/components/dmx/DMXChannelModal'
-import { Zap, Network, X, Trash2, Pause, Play, AlertTriangle } from '@/components/icons'
+import { Zap, Network, X, Trash2, Pause, Play, AlertTriangle, ZapOff } from '@/components/icons'
 import { oflApi, entitiesApi, devicesApi, dmxApi, playbackApi } from '@/lib/api'
 import { DeleteFixtureDialog } from '@/components/dmx/DeleteFixtureDialog'
 import { useSequencePlayback } from '@/hooks/useSequencePlayback'
@@ -191,6 +191,21 @@ export default function DMXPage() {
       setIsPaused(result.paused)
     } catch {
       // silently ignore — state remains unchanged
+    } finally {
+      setPauseLoading(false)
+    }
+  }
+
+  const handleBlackoutAndPause = async () => {
+    setPauseLoading(true)
+    try {
+      if (!isPaused) {
+        const result = await dmxApi.pauseOutput()
+        setIsPaused(result.paused)
+      }
+      await playbackApi.blackout()
+    } catch {
+      // silently ignore
     } finally {
       setPauseLoading(false)
     }
@@ -515,6 +530,17 @@ export default function DMXPage() {
               External signals paused
             </span>
           )}
+
+          {/* Global Blackout */}
+          <button
+            onClick={() => playbackApi.blackout().catch(() => {})}
+            onDoubleClick={(e) => { e.preventDefault(); handleBlackoutAndPause() }}
+            title="Blackout — double-click to blackout and pause"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-700 bg-slate-800 text-slate-400 hover:text-yellow-300 hover:border-yellow-700/50 hover:bg-yellow-900/20 transition-colors"
+          >
+            <ZapOff className="w-3 h-3" />
+            Blackout
+          </button>
 
           {/* Node scale picker */}
           <div className="flex items-center rounded-lg overflow-hidden border border-slate-700">

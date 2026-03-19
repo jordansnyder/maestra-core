@@ -1,0 +1,120 @@
+name: Release SDK
+
+on:
+  workflow_dispatch:
+    inputs:
+      sdk:
+        description: 'SDK to release'
+        required: true
+        type: choice
+        options:
+          - python
+          - js
+          - arduino
+          - unity
+          - unreal
+          - touchdesigner
+          - all
+      version:
+        description: 'Version (semver, e.g., 0.2.0)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run (bump version but do not tag/push)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Bump version and create tag(s)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js (for JSON manipulation)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate version format
+        run: |
+          if ! [[ "${{ inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Version must be semver format (e.g., 0.2.0, 1.0.0-beta.1)"
+            exit 1
+          fi
+
+      - name: Bump version in manifest(s)
+        run: |
+          chmod +x scripts/bump-sdk-version.sh
+          scripts/bump-sdk-version.sh "${{ inputs.sdk }}" "${{ inputs.version }}"
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No version changes to commit"
+          else
+            git commit -m "chore: bump ${{ inputs.sdk }} SDK to v${{ inputs.version }}"
+            git push
+          fi
+
+      - name: Create and push tag(s)
+        if: ${{ !inputs.dry_run }}
+        run: |
+          create_tag() {
+            local sdk="$1"
+            local tag="${sdk}/v${{ inputs.version }}"
+            echo "Creating tag: $tag"
+            git tag "$tag" -m "$sdk SDK v${{ inputs.version }}"
+            git push origin "$tag"
+          }
+
+          if [ "${{ inputs.sdk }}" = "all" ]; then
+            create_tag python
+            create_tag js
+            create_tag arduino
+            create_tag unity
+            create_tag unreal
+            create_tag touchdesigner
+          else
+            create_tag "${{ inputs.sdk }}"
+          fi
+
+      - name: Dry run summary
+        if: ${{ inputs.dry_run }}
+        run: |
+          echo "## Dry Run Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Version bumped to **${{ inputs.version }}** for **${{ inputs.sdk }}** SDK(s)." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "No tags were created. Run again without dry_run to publish." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Release summary
+        if: ${{ !inputs.dry_run }}
+        run: |
+          echo "## SDK Release v${{ inputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${{ inputs.sdk }}" = "all" ]; then
+            echo "Tags created for all SDKs:" >> "$GITHUB_STEP_SUMMARY"
+            echo "- \`python/v${{ inputs.version }}\` → PyPI" >> "$GITHUB_STEP_SUMMARY"
+            echo "- \`js/v${{ inputs.version }}\` → npm" >> "$GITHUB_STEP_SUMMARY"
+            echo "- \`arduino/v${{ inputs.version }}\` → PlatformIO" >> "$GITHUB_STEP_SUMMARY"
+            echo "- \`unity/v${{ inputs.version }}\` → OpenUPM" >> "$GITHUB_STEP_SUMMARY"
+            echo "- \`unreal/v${{ inputs.version }}\` → GitHub Release" >> "$GITHUB_STEP_SUMMARY"
+            echo "- \`touchdesigner/v${{ inputs.version }}\` → GitHub Release" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Tag created: \`${{ inputs.sdk }}/v${{ inputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Per-SDK publish workflows will run automatically." >> "$GITHUB_STEP_SUMMARY"

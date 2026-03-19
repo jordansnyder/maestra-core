@@ -3,7 +3,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import type { WebSocketMessage } from '@/types'
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8765'
+import { getWsUrl } from '@/lib/hosts'
+
+const WS_URL = getWsUrl()
 
 export function useWebSocket(autoConnect = true) {
   const [isConnected, setIsConnected] = useState(false)

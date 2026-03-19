@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Cloud, Settings, Zap } from '@/components/icons'
+import { getServiceLinks } from '@/lib/hosts'
 import { useCloudGateway } from '@/hooks/useCloudGateway'
 import { CloudStatusCard } from './CloudStatusCard'
 import { CloudSetupWizard } from './CloudSetupWizard'
@@ -77,6 +78,7 @@ function TabButton({
 }
 
 function GeneralTab() {
+  const urls = getServiceLinks()
   return (
     <div className="space-y-6">
       <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
@@ -88,15 +90,15 @@ function GeneralTab() {
           </div>
           <div>
             <span className="text-slate-500">Fleet Manager</span>
-            <p className="text-slate-200 mt-1">http://localhost:8080</p>
+            <p className="text-slate-200 mt-1">{urls.fleetManager}</p>
           </div>
           <div>
             <span className="text-slate-500">Message Bus</span>
-            <p className="text-slate-200 mt-1">NATS (nats://localhost:4222)</p>
+            <p className="text-slate-200 mt-1">NATS ({urls.nats})</p>
           </div>
           <div>
             <span className="text-slate-500">Database</span>
-            <p className="text-slate-200 mt-1">TimescaleDB (localhost:5432)</p>
+            <p className="text-slate-200 mt-1">TimescaleDB ({urls.database})</p>
           </div>
         </div>
       </div>

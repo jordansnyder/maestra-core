@@ -14,45 +14,59 @@ theme:
     - navigation.expand
     - search.highlight
     - content.code.copy
+    - content.tabs.link
 
 nav:
   - Home: index.md
-  - Getting Started:
-      - Installation: getting-started/installation.md
-      - Quick Start: getting-started/quickstart.md
-      - Architecture: getting-started/architecture.md
-  - Architecture:
-      - Overview: architecture/overview.md
-      - Services: architecture/services.md
-  - API Reference:
-      - Fleet Manager: api/fleet-manager.md
-      - Entities: api/entities.md
-      - Streams: api/streams.md
-      - WebSocket Gateway: api/websocket.md
-      - OSC Gateway: api/osc.md
+  - Connect Your Tool:
+      - TouchDesigner: connect/touchdesigner.md
+      - Max/MSP: connect/max-msp.md
+      - Unreal Engine: connect/unreal.md
+      - Unity: connect/unity.md
+      - Arduino / ESP32: connect/arduino.md
+      - Web / React / Mobile: connect/web.md
+      - Python: connect/python.md
+      - Raspberry Pi: connect/raspberry-pi.md
+  - Core Concepts:
+      - Entities & State: concepts/entities.md
+      - Streams: concepts/streams.md
+      - Routing: concepts/routing.md
+      - Events & Messages: concepts/events.md
   - Guides:
-      - Choose Your SDK: guides/choose-your-sdk.md
-      - Device Registration: guides/device-registration.md
-      - MQTT Integration: guides/mqtt.md
+      - Choose Your Protocol: guides/choose-your-sdk.md
+      - Using the Dashboard: guides/dashboard.md
+      - Node-RED Automation: guides/nodered.md
+      - DMX / Art-Net Lighting: guides/dmx-gateway.md
+      - Monitoring & Grafana: guides/monitoring.md
       - Streams: guides/streams.md
-      - Node-RED: guides/nodered.md
-      - DMX / Art-Net Gateway: guides/dmx-gateway.md
-      - Monitoring: guides/monitoring.md
-  - Infrastructure:
-      - Docker: infrastructure/docker.md
-      - Configuration: infrastructure/configuration.md
-      - Production: infrastructure/production.md
-  - SDKs:
-      - Overview: sdks/overview.md
-      - Web SDK: sdks/web.md
-      - Python: sdks/python.md
-      - JavaScript: sdks/javascript.md
-      - Arduino/ESP32: sdks/arduino.md
-      - TouchDesigner: sdks/touchdesigner.md
-      - Max/MSP: sdks/max-msp.md
-      - Unreal Engine: sdks/unreal.md
-      - Unity: sdks/unity.md
-      - Raspberry Pi: sdks/raspberry-pi.md
+      - MQTT Integration: guides/mqtt.md
+      - Device Registration: guides/device-registration.md
+  - Setting Up Maestra:
+      - Installation: setup/installation.md
+      - Quick Start (Admin): setup/quickstart.md
+      - Configuration: setup/configuration.md
+      - Releasing SDKs: setup/releasing-sdks.md
+  - Technical Reference:
+      - API Reference:
+          - Fleet Manager: api/fleet-manager.md
+          - Entities: api/entities.md
+          - Streams: api/streams.md
+          - WebSocket Gateway: api/websocket.md
+          - OSC Gateway: api/osc.md
+      - Architecture:
+          - Overview: architecture/overview.md
+          - Services: architecture/services.md
+      - SDK Reference:
+          - Overview: sdks/overview.md
+          - Python: sdks/python.md
+          - JavaScript: sdks/javascript.md
+          - Web: sdks/web.md
+          - Arduino/ESP32: sdks/arduino.md
+          - TouchDesigner: sdks/touchdesigner.md
+          - Max/MSP: sdks/max-msp.md
+          - Unreal Engine: sdks/unreal.md
+          - Unity: sdks/unity.md
+          - Raspberry Pi: sdks/raspberry-pi.md
 
 markdown_extensions:
   - pymdownx.highlight:

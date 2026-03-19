@@ -1,0 +1,52 @@
+name: Publish TouchDesigner SDK (GitHub Release)
+
+on:
+  push:
+    tags:
+      - 'touchdesigner/v*'
+
+permissions:
+  contents: write  # Needed to create releases
+
+jobs:
+  publish:
+    name: Package and release TouchDesigner SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#touchdesigner/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Package SDK as zip
+        run: |
+          cd sdks
+          zip -r "../MaestraTouchDesigner-${{ steps.version.outputs.version }}.zip" touchdesigner/
+          cd ..
+          echo "Created MaestraTouchDesigner-${{ steps.version.outputs.version }}.zip"
+          ls -lh "MaestraTouchDesigner-${{ steps.version.outputs.version }}.zip"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "TouchDesigner SDK v${{ steps.version.outputs.version }}"
+          body: |
+            ## Maestra TouchDesigner SDK — v${{ steps.version.outputs.version }}
+
+            ### Installation
+            1. Download and extract `MaestraTouchDesigner-${{ steps.version.outputs.version }}.zip`
+            2. In TouchDesigner, create a **Text DAT**
+            3. Set its file path to `build_maestra_tox.py` from the extracted folder
+            4. Right-click the DAT → **Run Script**
+
+            See the [TouchDesigner integration guide](https://maestra.dev/docs/connect/touchdesigner/) for full setup instructions.
+
+            ### Files included
+            - `build_maestra_tox.py` — COMP builder script
+            - `MaestraExt.py` — Extension class with API methods
+            - `MaestraDiscovery.py` — mDNS discovery module
+          files: |
+            MaestraTouchDesigner-${{ steps.version.outputs.version }}.zip
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}

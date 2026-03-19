@@ -1,0 +1,63 @@
+name: Publish Unity SDK (UPM Branch)
+
+on:
+  push:
+    tags:
+      - 'unity/v*'
+
+permissions:
+  contents: write  # Needed to push upm branch
+
+jobs:
+  publish:
+    name: Update UPM branch for OpenUPM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for subtree split
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#unity/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify version matches package.json
+        run: |
+          PKG_VERSION=$(node -p "require('./sdks/unity/package.json').version")
+          if [ "$PKG_VERSION" != "${{ steps.version.outputs.version }}" ]; then
+            echo "::error::Tag version (${{ steps.version.outputs.version }}) does not match package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+
+      - name: Split Unity SDK subtree to upm branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create a subtree split containing only sdks/unity/
+          SPLIT_SHA=$(git subtree split --prefix=sdks/unity/ -b upm-split)
+
+          # Force-update the upm branch
+          git push origin "$SPLIT_SHA":refs/heads/upm --force
+
+          # Create a version tag on the upm branch for OpenUPM
+          git tag "v${{ steps.version.outputs.version }}" "$SPLIT_SHA" -f
+          git push origin "v${{ steps.version.outputs.version }}" --force
+
+          echo "UPM branch updated and tagged v${{ steps.version.outputs.version }}"
+
+      - name: Summary
+        run: |
+          echo "## Unity SDK v${{ steps.version.outputs.version }} Published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "The \`upm\` branch has been updated with the latest Unity SDK." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Install via Unity Package Manager" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "https://github.com/${{ github.repository }}.git#upm" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Install via OpenUPM" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "openupm add dev.maestra.sdk" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

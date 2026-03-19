@@ -29,8 +29,9 @@ update-ip: ## Detect current LAN IP and update HOST_IP in .env, then restart das
 	fi; \
 	sed -i '' "s/^HOST_IP=.*/HOST_IP=$$NEW_IP/" .env; \
 	echo "✅ HOST_IP updated to $$NEW_IP"; \
-	$(DOCKER_COMPOSE) up -d --force-recreate dashboard; \
-	echo "✅ Dashboard restarted"
+	$(DOCKER_COMPOSE) rm -sf dashboard; \
+	$(DOCKER_COMPOSE) up -d dashboard; \
+	echo "✅ Dashboard restarted with HOST_IP=$$NEW_IP"
 
 up: ## Start all services
 	$(DOCKER_COMPOSE) --profile full up -d

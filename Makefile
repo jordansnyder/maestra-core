@@ -77,6 +77,7 @@ health: ## Check health of all services
 	@printf "  %-20s " "MQTT" && ($(DOCKER_COMPOSE) exec -T mosquitto mosquitto_sub -t '$$SYS/broker/uptime' -C 1 -W 2 > /dev/null 2>&1 && echo "✅ healthy" || echo "❌ not responding")
 	@printf "  %-20s " "Redis" && ($(DOCKER_COMPOSE) exec -T redis redis-cli ping > /dev/null 2>&1 && echo "✅ healthy" || echo "❌ not responding")
 	@printf "  %-20s " "PostgreSQL" && ($(DOCKER_COMPOSE) exec -T postgres pg_isready > /dev/null 2>&1 && echo "✅ healthy" || echo "❌ not responding")
+	@printf "  %-20s " "DMX Gateway" && ($(DOCKER_COMPOSE) ps dmx-gateway 2>/dev/null | grep -q "running" && echo "✅ running" || echo "⚪ not started (use make up-dmx)")
 	@echo ""
 
 build: ## Rebuild all custom services
@@ -190,17 +191,8 @@ test-mqtt-state: ## Test MQTT entity state update (requires SLUG=entity-slug)
 # DMX / ART-NET GATEWAY
 # =============================================================================
 
-up-dmx: ## Start full stack including the DMX gateway (requires DMX hardware)
-	$(DOCKER_COMPOSE) --profile dmx up -d
-	@echo ""
-	@echo "✅ Maestra + DMX gateway started."
-	@echo ""
-	@echo "  Configure Art-Net nodes and fixtures via the Dashboard → DMX Lighting."
-	@echo "  The gateway loads config from the database automatically."
-	@echo ""
-
 dev-dmx: ## Start core services + DMX gateway for development
-	$(DOCKER_COMPOSE) --profile dmx up -d nats redis postgres fleet-manager dmx-gateway
+	$(DOCKER_COMPOSE) up -d nats redis postgres fleet-manager dmx-gateway
 	@echo "✅ Core services + DMX gateway started."
 
 logs-dmx: ## View DMX gateway logs
@@ -283,4 +275,4 @@ logs-prod: ## View production environment logs
 .PHONY: migrate migrate-status migrate-dry-run
 .PHONY: backup-db restore-db test-mqtt test-mqtt-state watch stats update
 .PHONY: deploy-test deploy-prod stop-test stop-prod logs-test logs-prod
-.PHONY: up-dmx dev-dmx logs-dmx build-dmx test-dmx sync-ofl ofl-status update-ip
+.PHONY: dev-dmx logs-dmx build-dmx test-dmx sync-ofl ofl-status update-ip

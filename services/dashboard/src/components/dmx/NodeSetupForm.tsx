@@ -108,19 +108,39 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
         />
       </div>
 
-      <div>
-        <label className="block text-xs text-slate-400 mb-1">
-          IP Address <span className="text-red-400">*</span>
-        </label>
-        <div className="relative">
-          <Network className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+      <div className="grid grid-cols-3 gap-3">
+        <div className="col-span-2">
+          <label className="block text-xs text-slate-400 mb-1">
+            IP Address <span className="text-red-400">*</span>
+          </label>
+          <div className="relative">
+            <Network className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+            <input
+              value={ipAddress}
+              onChange={(e) => setIpAddress(e.target.value)}
+              placeholder="192.168.1.100"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+              required
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">
+            UDP Port <span className="text-red-400">*</span>
+          </label>
           <input
-            value={ipAddress}
-            onChange={(e) => setIpAddress(e.target.value)}
-            placeholder="192.168.1.100"
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+            type="number"
+            min={1}
+            max={65535}
+            value={artnetPort}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10)
+              setArtnetPort(isNaN(v) ? 6454 : v)
+            }}
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 font-mono"
             required
           />
+          <p className="text-[10px] text-slate-600 mt-0.5">Default: 6454</p>
         </div>
       </div>
 
@@ -137,17 +157,25 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
             Add
           </button>
         </div>
+        {/* Column headers */}
+        <div className="flex items-center gap-1.5 px-3 mb-1">
+          <span className="w-4 shrink-0" />
+          <span className="w-12 shrink-0 text-[10px] text-slate-600 font-medium">Art-Net #</span>
+          <span className="flex-1 min-w-0 text-[10px] text-slate-600 font-medium">Label</span>
+          <span className="flex-1 min-w-0 text-[10px] text-slate-600 font-medium">Description</span>
+          <span className="w-4 shrink-0" />
+        </div>
         <div className="space-y-2">
           {universes.map((u) => (
             <div key={u.id} className="bg-slate-800/50 rounded-lg px-3 py-2 space-y-2">
-              {/* Row 1: universe number, artnet universe, label, description, delete */}
+              {/* Row 1: index, artnet universe number, label, description, delete */}
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] text-slate-600 font-mono w-4 shrink-0">{u.id}</span>
                 <input
                   type="number"
                   min={0}
                   max={32767}
-                  title="Art-Net universe number"
+                  title="Art-Net universe number sent in the ArtDMX packet (0–32767)"
                   value={u.artnet_universe}
                   onChange={(e) => {
                     const v = parseInt(e.target.value, 10)
@@ -158,13 +186,13 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
                 <input
                   value={u.port_label}
                   onChange={(e) => updateUniverse(u.id, 'port_label', e.target.value)}
-                  placeholder="Port label"
+                  placeholder="e.g. Output 1"
                   className="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
                 />
                 <input
                   value={u.description}
                   onChange={(e) => updateUniverse(u.id, 'description', e.target.value)}
-                  placeholder="Description"
+                  placeholder="e.g. Stage Left"
                   className="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
                 />
                 {universes.length > 1 && (
@@ -220,19 +248,6 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
 
         {showOptions && (
           <div className="mt-3 space-y-3 pl-1">
-            <div className="flex items-center gap-3">
-              <label className="text-xs text-slate-400 w-28 shrink-0">Art-Net UDP Port</label>
-              <input
-                type="number"
-                value={artnetPort}
-                onChange={(e) => {
-                  const v = parseInt(e.target.value, 10)
-                  setArtnetPort(isNaN(v) ? 6454 : v)
-                }}
-                className="w-24 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500 font-mono"
-              />
-            </div>
-
             <div>
               <label className="block text-xs text-slate-400 mb-1">Notes</label>
               <textarea

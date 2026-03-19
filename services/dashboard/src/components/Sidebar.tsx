@@ -18,7 +18,9 @@ import {
   Zap,
   Settings,
   Cloud,
+  Zap
 } from '@/components/icons'
+import { getServiceLinks } from '@/lib/hosts'
 import { useSystemHealth } from '@/hooks/useSystemHealth'
 import { useEffect, useState } from 'react'
 import { cloudApi } from '@/lib/api'
@@ -37,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/streams', label: 'Streams', icon: Cast },
   { href: '/dmx', label: 'DMX Lighting', icon: Zap },
   { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/dmx', label: 'DMX Lighting', icon: Zap },
 ]
 
 const GETTING_STARTED_ITEM: NavItem = { href: '/#getting-started', label: 'Getting Started', icon: Sparkles }
@@ -47,12 +50,15 @@ interface ServiceLink {
   icon: LucideIcon
 }
 
-const SERVICE_LINKS: ServiceLink[] = [
-  { href: 'http://localhost:1880', label: 'Node-RED', icon: Workflow },
-  { href: 'http://localhost:3000', label: 'Grafana', icon: BarChart3 },
-  { href: 'http://localhost:8080/docs', label: 'API Docs', icon: FileCode },
-  { href: 'http://localhost:8000', label: 'Documentation', icon: BookOpen },
-]
+function getServiceLinkItems(): ServiceLink[] {
+  const urls = getServiceLinks()
+  return [
+    { href: urls.nodeRed, label: 'Node-RED', icon: Workflow },
+    { href: urls.grafana, label: 'Grafana', icon: BarChart3 },
+    { href: urls.apiDocs, label: 'API Docs', icon: FileCode },
+    { href: urls.docs, label: 'Documentation', icon: BookOpen },
+  ]
+}
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -179,7 +185,7 @@ export function Sidebar() {
         <span className="px-3 text-[10px] uppercase tracking-wider text-slate-600 font-medium">
           Services
         </span>
-        {SERVICE_LINKS.map((link) => {
+        {getServiceLinkItems().map((link) => {
           const Icon = link.icon
           return (
             <a

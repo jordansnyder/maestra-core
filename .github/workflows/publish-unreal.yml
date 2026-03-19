@@ -1,0 +1,59 @@
+name: Publish Unreal Plugin (GitHub Release)
+
+on:
+  push:
+    tags:
+      - 'unreal/v*'
+
+permissions:
+  contents: write  # Needed to create releases
+
+jobs:
+  publish:
+    name: Package and release Unreal Plugin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#unreal/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify version matches .uplugin
+        run: |
+          UPLUGIN_VERSION=$(python3 -c "
+          import json
+          with open('sdks/unreal/MaestraPlugin/MaestraPlugin.uplugin') as f:
+              print(json.load(f)['VersionName'])
+          ")
+          if [ "$UPLUGIN_VERSION" != "${{ steps.version.outputs.version }}" ]; then
+            echo "::error::Tag version (${{ steps.version.outputs.version }}) does not match .uplugin VersionName ($UPLUGIN_VERSION)"
+            exit 1
+          fi
+
+      - name: Package plugin as zip
+        run: |
+          cd sdks/unreal
+          zip -r "../../MaestraPlugin-${{ steps.version.outputs.version }}.zip" MaestraPlugin/
+          cd ../..
+          echo "Created MaestraPlugin-${{ steps.version.outputs.version }}.zip"
+          ls -lh "MaestraPlugin-${{ steps.version.outputs.version }}.zip"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Unreal Plugin v${{ steps.version.outputs.version }}"
+          body: |
+            ## MaestraPlugin for Unreal Engine 5 — v${{ steps.version.outputs.version }}
+
+            ### Installation
+            1. Download `MaestraPlugin-${{ steps.version.outputs.version }}.zip`
+            2. Extract into your project's `Plugins/` directory
+            3. Regenerate Visual Studio project files
+            4. Build from Visual Studio
+
+            See the [Unreal Engine integration guide](https://maestra.dev/docs/connect/unreal/) for full setup instructions.
+          files: |
+            MaestraPlugin-${{ steps.version.outputs.version }}.zip
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}

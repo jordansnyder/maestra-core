@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
+import { getServiceLinks } from '@/lib/hosts'
 
 interface OnboardingState {
   dismissed: boolean
@@ -19,16 +20,25 @@ const DEFAULT_STATE: OnboardingState = {
   checklistHidden: false,
 }
 
-export const CHECKLIST_STEPS = [
+interface ChecklistStepDef {
+  id: string
+  label: string
+  description: string
+  auto?: boolean
+  path?: string
+  external?: string
+}
+
+export const CHECKLIST_STEPS: ChecklistStepDef[] = [
   { id: 'explore-dashboard', label: 'Explore the Dashboard', description: 'You\'re here! Take a look around.', auto: true },
   { id: 'view-device', label: 'View Devices', description: 'See connected hardware and their status.', path: '/devices' },
   { id: 'browse-entities', label: 'Browse Entities', description: 'Explore spaces, lights, and sensors.', path: '/entities' },
-  { id: 'open-node-red', label: 'Try Node-RED', description: 'Visual programming for your experience.', external: 'http://localhost:1880' },
+  { id: 'open-node-red', label: 'Try Node-RED', description: 'Visual programming for your experience.', external: getServiceLinks().nodeRed },
   { id: 'view-stream', label: 'View Live Streams', description: 'See real-time data from devices.', path: '/streams' },
-  { id: 'check-grafana', label: 'Check Grafana', description: 'Monitoring dashboards and metrics.', external: 'http://localhost:3000' },
-] as const
+  { id: 'check-grafana', label: 'Check Grafana', description: 'Monitoring dashboards and metrics.', external: getServiceLinks().grafana },
+]
 
-export type ChecklistStep = (typeof CHECKLIST_STEPS)[number]
+export type ChecklistStep = ChecklistStepDef
 
 function loadState(): OnboardingState {
   if (typeof window === 'undefined') return DEFAULT_STATE

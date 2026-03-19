@@ -33,6 +33,9 @@ from dmx_playback_engine import playback_engine
 from cloud_router import router as cloud_router
 from cloud_manager import cloud_manager
 from discovery_router import router as discovery_router
+from dmx_router import router as dmx_router
+from fixtures_router import router as fixtures_router
+from dmx_playback_engine import playback_engine
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -60,6 +63,8 @@ app.include_router(dmx_router)
 app.include_router(fixtures_router)
 app.include_router(cloud_router)
 app.include_router(discovery_router)
+app.include_router(dmx_router)
+app.include_router(fixtures_router)
 
 
 # =============================================================================
@@ -415,6 +420,34 @@ async def startup_event():
         await cloud_manager.connect(get_redis())
     else:
         print("⚠️ Cloud Manager not started (requires Redis)")
+    # Subscribe NATS for external DMX lighting entity control
+    if state_manager.nc:
+        async def _on_dmx_lighting_state(msg):
+            try:
+                event = json.loads(msg.data.decode())
+                if event.get('source') == 'dmx-engine':
+                    return  # Ignore our own broadcasts
+                current_state = event.get('current_state', {}) or {}
+                active_sequence_id = current_state.get('active_sequence_id')
+                active_cue_id = current_state.get('active_cue_id')
+
+                if active_sequence_id:
+                    if playback_engine.status['sequence_id'] != active_sequence_id:
+                        await playback_engine.play(active_sequence_id)
+                elif active_cue_id:
+                    prev_cue = playback_engine.status.get('active_cue_id') if playback_engine.status else None
+                    await playback_engine.recall_cue_fade(prev_cue, active_cue_id, 0)
+                else:
+                    if playback_engine.status['play_state'] != 'stopped':
+                        await playback_engine.stop()
+            except Exception as e:
+                print(f"⚠️ DMX lighting state handler error: {e}")
+
+        await state_manager.subscribe_nats(
+            'maestra.entity.state.dmx_controller.dmx-lighting',
+            _on_dmx_lighting_state,
+        )
+        print("✅ DMX lighting NATS subscriber active")
 
     # Start demo simulator if DEMO_MODE is enabled
     if os.getenv("DEMO_MODE", "").lower() == "true" and state_manager.nc:

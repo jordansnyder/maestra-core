@@ -38,7 +38,7 @@ PATCH  /entities/{id}/state         # Update state (merge)
 PUT    /entities/{id}/state         # Replace state
 ```
 
-### Update State Example
+### Update State (HTTP)
 
 ```bash
 curl -X PATCH http://localhost:8080/entities/{id}/state \
@@ -48,6 +48,38 @@ curl -X PATCH http://localhost:8080/entities/{id}/state \
     "source": "api"
   }'
 ```
+
+### Update State (MQTT)
+
+Devices can update entity state directly via MQTT — no HTTP required:
+
+```bash
+# Merge with existing state (PATCH semantics)
+mosquitto_pub -h localhost -t 'maestra/entity/state/update/my-entity' \
+  -m '{"state": {"brightness": 75}, "source": "mqtt-device"}'
+
+# Replace entire state (PUT semantics)
+mosquitto_pub -h localhost -t 'maestra/entity/state/set/my-entity' \
+  -m '{"state": {"brightness": 75, "active": true}}'
+```
+
+### Update State (NATS)
+
+```
+Subject: maestra.entity.state.update.<slug>   →  merge
+Subject: maestra.entity.state.set.<slug>      →  replace
+Payload: {"state": {...}, "source": "..."}
+```
+
+### Subscribe to State Changes
+
+State changes are broadcast to all protocols automatically:
+
+| Protocol | Topic/Subject |
+|----------|--------------|
+| MQTT | `maestra/entity/state/<type>/<slug>` |
+| NATS | `maestra.entity.state.<type>.<slug>` |
+| WebSocket | Receives all NATS broadcasts |
 
 ## Entity Variables
 

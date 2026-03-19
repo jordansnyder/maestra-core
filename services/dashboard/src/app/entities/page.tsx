@@ -7,6 +7,7 @@ import { entitiesApi, entityTypesApi, dmxApi } from '@/lib/api'
 import { useToast } from '@/components/Toast'
 import { ENTITY_TYPE_ICONS, DEFAULT_ENTITY_ICON, Plus, Search, Pencil, Trash2, Boxes } from '@/components/icons'
 import { EmptyState } from '@/components/EmptyState'
+import { getDocsUrl } from '@/lib/hosts'
 import type { LucideIcon } from 'lucide-react'
 
 type ViewMode = 'list' | 'tree'
@@ -221,7 +222,7 @@ function EntityList({
         title="No entities yet"
         description="Entities represent the things in your experience — rooms, lights, sensors, projectors. Create your first entity to start building."
         action={{ label: 'Create Entity', onClick: onCreateEntity }}
-        secondaryAction={{ label: 'Learn about Entities', href: 'http://localhost:8000/api/entities/' }}
+        secondaryAction={{ label: 'Learn about Entities', href: getDocsUrl('/api/entities/') }}
       />
     )
   }
@@ -322,7 +323,7 @@ function EntityTree({
         icon={Boxes}
         title="No entities yet"
         description="Entities represent the things in your experience — rooms, lights, sensors, projectors. Create your first entity to start building."
-        secondaryAction={{ label: 'Learn about Entities', href: 'http://localhost:8000/api/entities/' }}
+        secondaryAction={{ label: 'Learn about Entities', href: getDocsUrl('/api/entities/') }}
       />
     )
   }

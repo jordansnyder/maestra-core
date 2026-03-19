@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useOnboarding } from '@/hooks/useOnboarding'
 import { X, ExternalLink } from '@/components/icons'
+import { getServiceLinks } from '@/lib/hosts'
 
 export function WelcomeBanner() {
   const { state, dismissWelcome } = useOnboarding()
   const [visible, setVisible] = useState(true)
   const [animating, setAnimating] = useState(false)
+  const serviceUrls = getServiceLinks()
 
   // Sync visibility with state
   useEffect(() => {
@@ -61,7 +63,7 @@ export function WelcomeBanner() {
               Explore Devices
             </Link>
             <a
-              href="http://localhost:1880"
+              href={serviceUrls.nodeRed}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-2 border border-slate-600 hover:border-slate-500 rounded-lg text-sm font-medium text-slate-300 hover:text-white transition-colors"
@@ -70,7 +72,7 @@ export function WelcomeBanner() {
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
             <a
-              href="http://localhost:8000"
+              href={serviceUrls.docs}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-sm text-slate-400 hover:text-blue-400 transition-colors"

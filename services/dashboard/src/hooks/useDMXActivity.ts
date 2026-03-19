@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8765'
+import { getWsUrl } from '@/lib/hosts'
+
+const WS_URL = getWsUrl()
 const ACTIVE_TTL = 600 // ms to keep a fixture lit after last data packet
 
 /**

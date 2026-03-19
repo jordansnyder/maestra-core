@@ -1,19 +1,23 @@
-services:
-  # =============================================================================
-  # MESSAGE BUS & COMMUNICATION LAYER
-  # =============================================================================
+# Maestra Desktop — Self-contained Docker Compose
+# This file is embedded in the desktop app binary and extracted on first launch.
+# It uses pre-built GHCR images instead of local builds and does NOT mount
+# service source code directories — the code is baked into each image.
 
-  # NATS - Primary message bus for service-to-service communication
+services:
+  # ===========================================================================
+  # MESSAGE BUS & COMMUNICATION LAYER
+  # ===========================================================================
+
   nats:
     image: nats:2.10-alpine
     container_name: maestra-nats
     ports:
-      - "4222:4222"  # Client connections
-      - "8222:8222"  # HTTP monitoring
-      - "6222:6222"  # Cluster routing
+      - "4222:4222"
+      - "8222:8222"
+      - "6222:6222"
     command:
       - "--http_port=8222"
-      - "--js"  # Enable JetStream for persistence
+      - "--js"
     volumes:
       - nats-data:/data
     networks:
@@ -25,13 +29,12 @@ services:
       timeout: 5s
       retries: 3
 
-  # Mosquitto - MQTT broker for IoT devices
   mosquitto:
     image: eclipse-mosquitto:2.0
     container_name: maestra-mosquitto
     ports:
-      - "1883:1883"  # MQTT
-      - "9001:9001"  # WebSocket
+      - "1883:1883"
+      - "9001:9001"
     volumes:
       - ./config/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
       - mosquitto-data:/mosquitto/data
@@ -45,7 +48,6 @@ services:
       timeout: 10s
       retries: 3
 
-  # Redis - Caching, pub/sub, and real-time data
   redis:
     image: redis:7-alpine
     container_name: maestra-redis
@@ -63,11 +65,10 @@ services:
       timeout: 5s
       retries: 3
 
-  # =============================================================================
+  # ===========================================================================
   # DATABASE LAYER
-  # =============================================================================
+  # ===========================================================================
 
-  # PostgreSQL with TimescaleDB for device data and time-series metrics
   postgres:
     image: timescale/timescaledb:latest-pg16
     container_name: maestra-postgres
@@ -89,11 +90,10 @@ services:
       timeout: 5s
       retries: 5
 
-  # =============================================================================
+  # ===========================================================================
   # VISUAL PROGRAMMING & LOGIC ENGINE
-  # =============================================================================
+  # ===========================================================================
 
-  # Node-RED - Visual programming and automation
   nodered:
     image: nodered/node-red:latest
     container_name: maestra-nodered
@@ -119,15 +119,12 @@ services:
       timeout: 10s
       retries: 3
 
-  # =============================================================================
-  # DEVICE & FLEET MANAGEMENT
-  # =============================================================================
+  # ===========================================================================
+  # DEVICE & FLEET MANAGEMENT (pre-built images)
+  # ===========================================================================
 
-  # Fleet Management API - Device registration, configuration, and monitoring
   fleet-manager:
-    build:
-      context: ./services/fleet-manager
-      dockerfile: Dockerfile
+    image: ghcr.io/jordansnyder/maestra-fleet-manager:latest
     container_name: maestra-fleet-manager
     environment:
       - DATABASE_URL=postgresql://maestra:${POSTGRES_PASSWORD:-maestra_dev_password}@postgres:5432/maestra
@@ -139,8 +136,6 @@ services:
     ports:
       - "8080:8080"
       - "19000-19004:19000-19004/udp"
-    volumes:
-      - ./services/fleet-manager:/app
     networks:
       - maestra-network
     depends_on:
@@ -154,15 +149,12 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # =============================================================================
-  # WEB DASHBOARD & CONTROL PANEL
-  # =============================================================================
+  # ===========================================================================
+  # WEB DASHBOARD & MONITORING
+  # ===========================================================================
 
-  # Next.js Dashboard - Main web interface for control and configuration
   dashboard:
-    build:
-      context: ./services/dashboard
-      dockerfile: Dockerfile
+    image: ghcr.io/jordansnyder/maestra-dashboard:latest
     container_name: maestra-dashboard
     environment:
       - NEXT_PUBLIC_API_URL=http://${HOST_IP:-localhost}:8080
@@ -174,17 +166,12 @@ services:
       - NEXT_PUBLIC_MQTT_WS_URL=ws://${HOST_IP:-localhost}:9001
     ports:
       - "3001:3000"
-    volumes:
-      - ./services/dashboard:/app
-      - /app/node_modules
-      - /app/.next
     networks:
       - maestra-network
     depends_on:
       - fleet-manager
     restart: unless-stopped
 
-  # Grafana - Monitoring and visualization dashboards
   grafana:
     image: grafana/grafana:latest
     container_name: maestra-grafana
@@ -209,11 +196,10 @@ services:
       - redis
     restart: unless-stopped
 
-  # =============================================================================
-  # INFRASTRUCTURE & MANAGEMENT
-  # =============================================================================
+  # ===========================================================================
+  # INFRASTRUCTURE
+  # ===========================================================================
 
-  # Traefik - Reverse proxy and load balancer
   traefik:
     image: traefik:v2.11
     container_name: maestra-traefik
@@ -227,15 +213,13 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "8081:8080"  # Traefik dashboard
+      - "8081:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./config/traefik:/etc/traefik
     networks:
       - maestra-network
     restart: unless-stopped
 
-  # Portainer - Docker container management UI
   portainer:
     image: portainer/portainer-ce:latest
     container_name: maestra-portainer
@@ -250,33 +234,12 @@ services:
       - maestra-network
     restart: unless-stopped
 
-  # =============================================================================
-  # DOCUMENTATION & SDK SERVICES
-  # =============================================================================
+  # ===========================================================================
+  # GATEWAY SERVICES (pre-built images)
+  # ===========================================================================
 
-  # MkDocs - SDK documentation server
-  docs:
-    image: squidfunk/mkdocs-material:latest
-    container_name: maestra-docs
-    profiles: ["full"]
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./docs:/docs
-    command: serve --dev-addr=0.0.0.0:8000
-    networks:
-      - maestra-network
-    restart: unless-stopped
-
-  # =============================================================================
-  # GATEWAY SERVICES FOR SDK INTEGRATION
-  # =============================================================================
-
-  # OSC Gateway - Bridge for TouchDesigner, Max/MSP, etc.
   osc-gateway:
-    build:
-      context: ./services/osc-gateway
-      dockerfile: Dockerfile
+    image: ghcr.io/jordansnyder/maestra-osc-gateway:latest
     container_name: maestra-osc-gateway
     environment:
       - NATS_URL=nats://nats:4222
@@ -284,8 +247,8 @@ services:
       - OSC_IN_PORT=${OSC_IN_PORT:-57120}
       - OSC_OUT_PORT=${OSC_OUT_PORT:-57121}
     ports:
-      - "${OSC_IN_PORT:-57120}:${OSC_IN_PORT:-57120}/udp"  # OSC input
-      - "${OSC_OUT_PORT:-57121}:${OSC_OUT_PORT:-57121}/udp"  # OSC output
+      - "${OSC_IN_PORT:-57120}:${OSC_IN_PORT:-57120}/udp"
+      - "${OSC_OUT_PORT:-57121}:${OSC_OUT_PORT:-57121}/udp"
     networks:
       - maestra-network
     depends_on:
@@ -293,11 +256,8 @@ services:
       - redis
     restart: unless-stopped
 
-  # WebSocket Gateway - For browser-based SDKs
   websocket-gateway:
-    build:
-      context: ./services/websocket-gateway
-      dockerfile: Dockerfile
+    image: ghcr.io/jordansnyder/maestra-websocket-gateway:latest
     container_name: maestra-websocket-gateway
     environment:
       - NATS_URL=nats://nats:4222
@@ -311,11 +271,8 @@ services:
       - redis
     restart: unless-stopped
 
-  # MQTT-NATS Bridge - Bidirectional MQTT and NATS routing
   mqtt-nats-bridge:
-    build:
-      context: ./services/mqtt-nats-bridge
-      dockerfile: Dockerfile
+    image: ghcr.io/jordansnyder/maestra-mqtt-nats-bridge:latest
     container_name: maestra-mqtt-nats-bridge
     environment:
       - MQTT_BROKER=mosquitto
@@ -328,17 +285,14 @@ services:
       - mosquitto
     restart: unless-stopped
 
-  # =============================================================================
+  # ===========================================================================
   # DEVICE DISCOVERY
-  # =============================================================================
+  # ===========================================================================
 
-  # Discovery Service - mDNS/DNS-SD auto-detection of Maestra devices
   discovery-service:
-    build:
-      context: ./services/discovery-service
-      dockerfile: Dockerfile
+    image: ghcr.io/jordansnyder/maestra-discovery-service:latest
     container_name: maestra-discovery
-    network_mode: host  # Required for mDNS multicast on the local network
+    network_mode: host
     environment:
       - FLEET_MANAGER_URL=http://${HOST_IP:-localhost}:8080
       - HOST_IP=${HOST_IP:-localhost}
@@ -348,36 +302,15 @@ services:
       - API_URL=http://${HOST_IP:-localhost}:8080
       - WS_URL=ws://${HOST_IP:-localhost}:8765
     depends_on:
-      fleet-manager:
-        condition: service_healthy
+      - fleet-manager
     restart: unless-stopped
-  # OFL Fixture Sync - Syncs Open Fixture Library data into PostgreSQL
-  # Never runs automatically. Invoke manually: make sync-ofl
-  ofl-sync:
-    build:
-      context: ./scripts
-      dockerfile: Dockerfile.sync
-    profiles: ["ofl-sync"]
-    container_name: maestra-ofl-sync
-    environment:
-      - DATABASE_URL=postgresql://maestra:${POSTGRES_PASSWORD:-maestra_dev_password}@postgres:5432/maestra
-      - OFL_EXPECTED_MAJOR_VERSION=${OFL_EXPECTED_MAJOR_VERSION:-12}
-      - OFL_PATH=/vendor/ofl
-    volumes:
-      - ./vendor/ofl:/vendor/ofl:ro
-    networks:
-      - maestra-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: "no"
 
-  # DMX / Art-Net Gateway - Bridges NATS entity state to physical DMX fixtures via Art-Net UDP
-  # Opt-in service: requires DMX hardware. Enable with: make up-dmx  or  docker compose --profile dmx up -d
+  # ===========================================================================
+  # DMX / Art-Net (opt-in)
+  # ===========================================================================
+
   dmx-gateway:
-    build:
-      context: ./services/dmx-gateway
-      dockerfile: Dockerfile
+    image: ghcr.io/jordansnyder/maestra-dmx-gateway:latest
     profiles: ["dmx"]
     container_name: maestra-dmx-gateway
     environment:
@@ -399,9 +332,6 @@ services:
 networks:
   maestra-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.28.0.0/16
 
 # =============================================================================
 # VOLUMES

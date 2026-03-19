@@ -1,0 +1,28 @@
+# Docker Compose override for Maestra Desktop app
+# Replaces local builds with pre-built GHCR images for faster startup
+# Usage: docker compose -f docker-compose.yml -f docker-compose.desktop.yml up -d
+#
+# When both `image` and `build` are present, `docker compose pull` uses the
+# image and skips building. `docker compose up` also prefers the pulled image.
+
+services:
+  fleet-manager:
+    image: ghcr.io/jordansnyder/maestra-fleet-manager:latest
+
+  dashboard:
+    image: ghcr.io/jordansnyder/maestra-dashboard:latest
+
+  osc-gateway:
+    image: ghcr.io/jordansnyder/maestra-osc-gateway:latest
+
+  websocket-gateway:
+    image: ghcr.io/jordansnyder/maestra-websocket-gateway:latest
+
+  mqtt-nats-bridge:
+    image: ghcr.io/jordansnyder/maestra-mqtt-nats-bridge:latest
+
+  discovery-service:
+    image: ghcr.io/jordansnyder/maestra-discovery-service:latest
+
+  dmx-gateway:
+    image: ghcr.io/jordansnyder/maestra-dmx-gateway:latest

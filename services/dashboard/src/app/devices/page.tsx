@@ -20,6 +20,7 @@ import {
   Monitor,
 } from '@/components/icons'
 import { EmptyState } from '@/components/EmptyState'
+import { getDocsUrl } from '@/lib/hosts'
 import { devicesApi, discoveryApi } from '@/lib/api'
 import type { Device, DeviceApproval } from '@/lib/types'
 
@@ -337,7 +338,7 @@ export default function DevicesPage() {
                   title="No devices registered"
                   description="Devices connect to Maestra via MQTT, WebSocket, or OSC. Register your first device, or enable auto-discovery to detect devices on your network."
                   action={{ label: 'Register a Device', onClick: () => setShowRegisterForm(true) }}
-                  secondaryAction={{ label: 'Read the Device Guide', href: 'http://localhost:8000/guides/device-registration/' }}
+                  secondaryAction={{ label: 'Read the Device Guide', href: getDocsUrl('/guides/device-registration/') }}
                 />
               ) : (
                 <p className="text-slate-400 text-center py-12">

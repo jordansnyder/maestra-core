@@ -29,7 +29,11 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
   const [showOptions, setShowOptions] = useState(false)
 
   const [name, setName] = useState(node?.name ?? '')
+  const [slug, setSlug] = useState(node?.slug ?? '')
+  const [slugTouched, setSlugTouched] = useState(!!node?.slug)
   const [ipAddress, setIpAddress] = useState(node?.ip_address ?? '')
+
+  const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   const [universes, setUniverses] = useState<UniverseConfig[]>(
     node?.universes.length
       ? node.universes.map((u, i) => ({ ...u, color: u.color ?? UNIVERSE_PALETTE[i % UNIVERSE_PALETTE.length] }))
@@ -69,6 +73,7 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
     try {
       await onSubmit({
         name: name.trim(),
+        slug: (slug.trim() || toSlug(name.trim())) || undefined,
         ip_address: ipAddress.trim(),
         artnet_port: artnetPort,
         universe_count: universeCount,
@@ -94,18 +99,36 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
         </div>
       )}
 
-      <div>
-        <label className="block text-xs text-slate-400 mb-1">
-          Node Name <span className="text-red-400">*</span>
-        </label>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Stage Left Node"
-          autoFocus
-          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
-          required
-        />
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">
+            Node Name <span className="text-red-400">*</span>
+          </label>
+          <input
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value)
+              if (!slugTouched) setSlug(toSlug(e.target.value))
+            }}
+            placeholder="e.g. Stage Left Node"
+            autoFocus
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-400 mb-1">
+            Hardware ID / Slug <span className="text-red-400">*</span>
+          </label>
+          <input
+            value={slug}
+            onChange={(e) => { setSlug(e.target.value); setSlugTouched(true) }}
+            onBlur={(e) => setSlug(toSlug(e.target.value))}
+            placeholder="stage-left-node"
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+          />
+          <p className="text-[10px] text-slate-600 mt-0.5">Unique identifier used in device registry</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3">

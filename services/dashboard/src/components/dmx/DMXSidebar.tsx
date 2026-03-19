@@ -91,7 +91,28 @@ export function DMXSidebar({
   onReorderSequences, onAddCueToSequence, onReorderSequenceCues, onUpdatePlacement, onRemoveCueFromSequence,
   onOpenSequences, openSequencesSignal, availableCues, onToggleLoop, onFadeOut, onBlackout, onCreateSequence,
 }: DMXSidebarProps) {
-  const [active, setActive] = useState<ActiveSection>('fixtures')
+  const SESSION_KEY = 'dmx-sidebar-section'
+  const [active, setActive] = useState<ActiveSection>(() => {
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY)
+      if (saved === 'nodes' || saved === 'fixtures' || saved === 'cues' || saved === 'sequences') return saved
+    } catch {}
+    return 'fixtures'
+  })
+  const setActiveSection = (s: ActiveSection) => {
+    setActive(s)
+    try { sessionStorage.setItem(SESSION_KEY, s) } catch {}
+  }
+
+  // Auto-switch to sequences if one is playing when the sidebar mounts
+  const didAutoSwitch = useRef(false)
+  useEffect(() => {
+    if (!didAutoSwitch.current && playbackStatus.playState !== 'stopped') {
+      didAutoSwitch.current = true
+      setActiveSection('sequences')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playbackStatus.playState])
 
   // ── Node drag state ────────────────────────────────────────────────────────
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
@@ -159,7 +180,7 @@ export function DMXSidebar({
   // Auto-switch to sequences section when a new sequence is added externally
   useEffect(() => {
     if (!openSequencesSignal) return
-    setActive('sequences')
+    setActiveSection('sequences')
     onOpenSequences()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openSequencesSignal])
@@ -215,7 +236,7 @@ export function DMXSidebar({
       {/* ── Art-Net Nodes section ───────────────────────────────────── */}
       <div className="flex flex-col shrink-0" style={{ transition: 'flex 350ms cubic-bezier(0.4,0,0.2,1)' }}>
         <div
-          onClick={() => setActive('nodes')}
+          onClick={() => setActiveSection('nodes')}
           className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 cursor-pointer select-none ${
             active === 'nodes' ? 'border-b border-slate-800' : 'hover:bg-slate-800/40'
           }`}
@@ -324,7 +345,7 @@ export function DMXSidebar({
         }}
       >
         <div
-          onClick={() => setActive('fixtures')}
+          onClick={() => setActiveSection('fixtures')}
           className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 border-t border-slate-800 cursor-pointer select-none ${
             active === 'fixtures' ? 'border-b border-slate-800' : 'hover:bg-slate-800/40'
           }`}
@@ -525,7 +546,7 @@ export function DMXSidebar({
         }}
       >
         <button
-          onClick={() => { setActive('cues'); if (active !== 'cues') onOpenCues() }}
+          onClick={() => { setActiveSection('cues'); if (active !== 'cues') onOpenCues() }}
           className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 border-t border-slate-800 ${
             active === 'cues' ? 'border-b border-slate-800' : 'hover:bg-slate-800/40'
           }`}
@@ -768,7 +789,7 @@ export function DMXSidebar({
         }}
       >
         <div
-          onClick={() => { setActive('sequences'); if (active !== 'sequences') onOpenSequences() }}
+          onClick={() => { setActiveSection('sequences'); if (active !== 'sequences') onOpenSequences() }}
           className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 border-t border-slate-800 cursor-pointer select-none ${
             active === 'sequences' ? 'border-b border-slate-800' : 'hover:bg-slate-800/40'
           }`}

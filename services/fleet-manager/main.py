@@ -419,6 +419,30 @@ async def startup_event():
         )
         print("✅ DMX lighting NATS subscriber active")
 
+        # Subscribe to DMX gateway node heartbeats to update devices.last_seen
+        async def _on_dmx_node_heartbeat(msg):
+            try:
+                data = json.loads(msg.data.decode())
+                node_id = data.get('node_id')
+                if not node_id:
+                    return
+                from database import get_db as _get_db
+                from sqlalchemy import text as _text
+                async for db in _get_db():
+                    await db.execute(_text("""
+                        UPDATE devices SET last_seen = NOW(), status = 'online'
+                        WHERE id = (SELECT device_id FROM dmx_nodes WHERE id = CAST(:node_id AS uuid))
+                    """), {"node_id": node_id})
+                    await db.commit()
+            except Exception as e:
+                print(f"⚠️ DMX node heartbeat handler error: {e}")
+
+        await state_manager.subscribe_nats(
+            'maestra.dmx.node.heartbeat.*',
+            _on_dmx_node_heartbeat,
+        )
+        print("✅ DMX node heartbeat subscriber active")
+
     # Start demo simulator if DEMO_MODE is enabled
     if os.getenv("DEMO_MODE", "").lower() == "true" and state_manager.nc:
         await demo_simulator.start(state_manager.nc)

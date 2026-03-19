@@ -101,6 +101,7 @@ class UniverseConfig(BaseModel):
 
 class DMXNodeCreate(BaseModel):
     name: str
+    slug: Optional[str] = None
     manufacturer: Optional[str] = None
     model: Optional[str] = None
     ip_address: str
@@ -116,6 +117,7 @@ class DMXNodeCreate(BaseModel):
 
 class DMXNodeUpdate(BaseModel):
     name: Optional[str] = None
+    slug: Optional[str] = None
     manufacturer: Optional[str] = None
     model: Optional[str] = None
     ip_address: Optional[str] = None
@@ -180,9 +182,11 @@ class FixturePositionUpdate(BaseModel):
 # =============================================================================
 
 def _row_to_node(row) -> dict:
+    keys = row._mapping.keys() if hasattr(row, '_mapping') else []
     return {
         "id": str(row.id),
         "name": row.name,
+        "slug": row.hardware_id if 'hardware_id' in keys else None,
         "manufacturer": row.manufacturer,
         "model": row.model,
         "ip_address": row.ip_address,
@@ -194,6 +198,7 @@ def _row_to_node(row) -> dict:
         "firmware_version": row.firmware_version,
         "notes": row.notes,
         "device_id": str(row.device_id) if row.device_id else None,
+        "last_seen": row.last_seen.isoformat() if 'last_seen' in keys and row.last_seen else None,
         "sort_order": row.sort_order if hasattr(row, "sort_order") else 0,
         "metadata": row.metadata if row.metadata else {},
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -348,9 +353,12 @@ async def _require_node(node_id: UUID, db: AsyncSession) -> None:
 @router.get("/nodes")
 async def list_nodes(db: AsyncSession = Depends(get_db)):
     """List all configured Art-Net nodes."""
-    result = await db.execute(text(
-        "SELECT * FROM dmx_nodes ORDER BY sort_order ASC, created_at ASC"
-    ))
+    result = await db.execute(text("""
+        SELECT n.*, d.hardware_id, d.last_seen
+        FROM dmx_nodes n
+        LEFT JOIN devices d ON d.id = n.device_id
+        ORDER BY n.sort_order ASC, n.created_at ASC
+    """))
     return [_row_to_node(r) for r in result.fetchall()]
 
 
@@ -374,7 +382,8 @@ async def create_node(data: DMXNodeCreate, db: AsyncSession = Depends(get_db)):
     metadata_json = json.dumps(data.metadata)
 
     # Auto-create a linked device record for this Art-Net node
-    hardware_id = data.mac_address or data.ip_address
+    import re as _re
+    hardware_id = data.slug or _re.sub(r'[^a-z0-9]+', '-', data.name.lower()).strip('-') or data.ip_address
     device_meta = json.dumps({
         "artnet_node": True,
         "ip_address": data.ip_address,
@@ -421,16 +430,23 @@ async def create_node(data: DMXNodeCreate, db: AsyncSession = Depends(get_db)):
     })
     await db.commit()
 
-    result = await db.execute(text("SELECT * FROM dmx_nodes WHERE id = :id"), {"id": node_id})
+    result = await db.execute(text("""
+        SELECT n.*, d.hardware_id, d.last_seen
+        FROM dmx_nodes n LEFT JOIN devices d ON d.id = n.device_id
+        WHERE n.id = :id
+    """), {"id": node_id})
     return _row_to_node(result.fetchone())
 
 
 @router.get("/nodes/{node_id}")
 async def get_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get a single Art-Net node by ID."""
-    result = await db.execute(
-        text("SELECT * FROM dmx_nodes WHERE id = :id"), {"id": str(node_id)}
-    )
+    result = await db.execute(text("""
+        SELECT n.*, d.hardware_id, d.last_seen
+        FROM dmx_nodes n
+        LEFT JOIN devices d ON d.id = n.device_id
+        WHERE n.id = :id
+    """), {"id": str(node_id)})
     row = result.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="DMX node not found")
@@ -443,33 +459,54 @@ async def update_node(node_id: UUID, data: DMXNodeUpdate, db: AsyncSession = Dep
     await _require_node(node_id, db)
 
     updates = data.model_dump(exclude_unset=True)
-    if not updates:
-        result = await db.execute(
-            text("SELECT * FROM dmx_nodes WHERE id = :id"), {"id": str(node_id)}
-        )
-        return _row_to_node(result.fetchone())
 
-    set_clauses = []
-    params: Dict[str, Any] = {"id": str(node_id)}
-    for key, value in updates.items():
-        if key == "universes":
-            set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
-            params[key] = json.dumps([u if isinstance(u, dict) else u.model_dump() for u in value])
-        elif key == "metadata":
-            set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
-            params[key] = json.dumps(value)
-        else:
-            set_clauses.append(f"{key} = :{key}")
-            params[key] = value
+    # Separate slug from node-table fields — slug lives in devices.hardware_id
+    new_slug = updates.pop("slug", None)
 
-    await db.execute(text(
-        f"UPDATE dmx_nodes SET {', '.join(set_clauses)} WHERE id = :id"
-    ), params)
+    node_updates = {k: v for k, v in updates.items()}
+
+    if node_updates:
+        set_clauses = []
+        params: Dict[str, Any] = {"id": str(node_id)}
+        for key, value in node_updates.items():
+            if key == "universes":
+                set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
+                params[key] = json.dumps([u if isinstance(u, dict) else u.model_dump() for u in value])
+            elif key == "metadata":
+                set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
+                params[key] = json.dumps(value)
+            else:
+                set_clauses.append(f"{key} = :{key}")
+                params[key] = value
+
+        await db.execute(text(
+            f"UPDATE dmx_nodes SET {', '.join(set_clauses)} WHERE id = :id"
+        ), params)
+
+    # Sync changed ip_address and/or slug back to the linked devices row
+    device_set: list[str] = []
+    device_params: Dict[str, Any] = {"node_id": str(node_id)}
+    if new_slug is not None:
+        device_set.append("hardware_id = :hardware_id")
+        device_params["hardware_id"] = new_slug
+    if "ip_address" in node_updates:
+        device_set.append("ip_address = :ip_address")
+        device_params["ip_address"] = node_updates["ip_address"]
+    if "name" in node_updates:
+        device_set.append("name = :name")
+        device_params["name"] = node_updates["name"]
+    if device_set:
+        await db.execute(text(
+            f"UPDATE devices SET {', '.join(device_set)} WHERE id = (SELECT device_id FROM dmx_nodes WHERE id = :node_id)"
+        ), device_params)
+
     await db.commit()
 
-    result = await db.execute(
-        text("SELECT * FROM dmx_nodes WHERE id = :id"), {"id": str(node_id)}
-    )
+    result = await db.execute(text("""
+        SELECT n.*, d.hardware_id, d.last_seen
+        FROM dmx_nodes n LEFT JOIN devices d ON d.id = n.device_id
+        WHERE n.id = :id
+    """), {"id": str(node_id)})
     return _row_to_node(result.fetchone())
 
 

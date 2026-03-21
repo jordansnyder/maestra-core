@@ -180,8 +180,8 @@ export function DMXCanvas({
         })}
       </svg>
 
-      {/* Adjust DMX — centered top overlay, visible when any fixture is selected */}
-      {selectedIds.size > 0 && (
+      {/* Adjust DMX — centered top overlay, visible when multiple fixtures are selected */}
+      {selectedIds.size > 1 && (
         <div
           className="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-auto"
           style={{ zIndex: 20 }}
@@ -252,6 +252,7 @@ export function DMXCanvas({
             onMouseDown={(e) => handleMouseDown(e, fixture.id)}
             onContextMenu={(e) => handleContextMenu(e, fixture.id)}
             onClick={(shiftKey) => onSelect(fixture.id, shiftKey)}
+            onDoubleClick={() => { onSelect(fixture.id, false); onAdjustDMX() }}
           />
         )
       })}

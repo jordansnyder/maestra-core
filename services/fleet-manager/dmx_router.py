@@ -101,6 +101,7 @@ class UniverseConfig(BaseModel):
 
 class DMXNodeCreate(BaseModel):
     name: str
+    slug: Optional[str] = None
     manufacturer: Optional[str] = None
     model: Optional[str] = None
     ip_address: str
@@ -116,6 +117,7 @@ class DMXNodeCreate(BaseModel):
 
 class DMXNodeUpdate(BaseModel):
     name: Optional[str] = None
+    slug: Optional[str] = None
     manufacturer: Optional[str] = None
     model: Optional[str] = None
     ip_address: Optional[str] = None
@@ -180,9 +182,11 @@ class FixturePositionUpdate(BaseModel):
 # =============================================================================
 
 def _row_to_node(row) -> dict:
+    keys = row._mapping.keys() if hasattr(row, '_mapping') else []
     return {
         "id": str(row.id),
         "name": row.name,
+        "slug": row.hardware_id if 'hardware_id' in keys else None,
         "manufacturer": row.manufacturer,
         "model": row.model,
         "ip_address": row.ip_address,
@@ -194,6 +198,7 @@ def _row_to_node(row) -> dict:
         "firmware_version": row.firmware_version,
         "notes": row.notes,
         "device_id": str(row.device_id) if row.device_id else None,
+        "last_seen": row.last_seen.isoformat() if 'last_seen' in keys and row.last_seen else None,
         "sort_order": row.sort_order if hasattr(row, "sort_order") else 0,
         "metadata": row.metadata if row.metadata else {},
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -348,9 +353,12 @@ async def _require_node(node_id: UUID, db: AsyncSession) -> None:
 @router.get("/nodes")
 async def list_nodes(db: AsyncSession = Depends(get_db)):
     """List all configured Art-Net nodes."""
-    result = await db.execute(text(
-        "SELECT * FROM dmx_nodes ORDER BY sort_order ASC, created_at ASC"
-    ))
+    result = await db.execute(text("""
+        SELECT n.*, d.hardware_id, d.last_seen
+        FROM dmx_nodes n
+        LEFT JOIN devices d ON d.id = n.device_id
+        ORDER BY n.sort_order ASC, n.created_at ASC
+    """))
     return [_row_to_node(r) for r in result.fetchall()]
 
 
@@ -374,7 +382,8 @@ async def create_node(data: DMXNodeCreate, db: AsyncSession = Depends(get_db)):
     metadata_json = json.dumps(data.metadata)
 
     # Auto-create a linked device record for this Art-Net node
-    hardware_id = data.mac_address or data.ip_address
+    import re as _re
+    hardware_id = data.slug or _re.sub(r'[^a-z0-9]+', '-', data.name.lower()).strip('-') or data.ip_address
     device_meta = json.dumps({
         "artnet_node": True,
         "ip_address": data.ip_address,
@@ -421,16 +430,23 @@ async def create_node(data: DMXNodeCreate, db: AsyncSession = Depends(get_db)):
     })
     await db.commit()
 
-    result = await db.execute(text("SELECT * FROM dmx_nodes WHERE id = :id"), {"id": node_id})
+    result = await db.execute(text("""
+        SELECT n.*, d.hardware_id, d.last_seen
+        FROM dmx_nodes n LEFT JOIN devices d ON d.id = n.device_id
+        WHERE n.id = :id
+    """), {"id": node_id})
     return _row_to_node(result.fetchone())
 
 
 @router.get("/nodes/{node_id}")
 async def get_node(node_id: UUID, db: AsyncSession = Depends(get_db)):
     """Get a single Art-Net node by ID."""
-    result = await db.execute(
-        text("SELECT * FROM dmx_nodes WHERE id = :id"), {"id": str(node_id)}
-    )
+    result = await db.execute(text("""
+        SELECT n.*, d.hardware_id, d.last_seen
+        FROM dmx_nodes n
+        LEFT JOIN devices d ON d.id = n.device_id
+        WHERE n.id = :id
+    """), {"id": str(node_id)})
     row = result.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="DMX node not found")
@@ -443,33 +459,54 @@ async def update_node(node_id: UUID, data: DMXNodeUpdate, db: AsyncSession = Dep
     await _require_node(node_id, db)
 
     updates = data.model_dump(exclude_unset=True)
-    if not updates:
-        result = await db.execute(
-            text("SELECT * FROM dmx_nodes WHERE id = :id"), {"id": str(node_id)}
-        )
-        return _row_to_node(result.fetchone())
 
-    set_clauses = []
-    params: Dict[str, Any] = {"id": str(node_id)}
-    for key, value in updates.items():
-        if key == "universes":
-            set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
-            params[key] = json.dumps([u if isinstance(u, dict) else u.model_dump() for u in value])
-        elif key == "metadata":
-            set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
-            params[key] = json.dumps(value)
-        else:
-            set_clauses.append(f"{key} = :{key}")
-            params[key] = value
+    # Separate slug from node-table fields — slug lives in devices.hardware_id
+    new_slug = updates.pop("slug", None)
 
-    await db.execute(text(
-        f"UPDATE dmx_nodes SET {', '.join(set_clauses)} WHERE id = :id"
-    ), params)
+    node_updates = {k: v for k, v in updates.items()}
+
+    if node_updates:
+        set_clauses = []
+        params: Dict[str, Any] = {"id": str(node_id)}
+        for key, value in node_updates.items():
+            if key == "universes":
+                set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
+                params[key] = json.dumps([u if isinstance(u, dict) else u.model_dump() for u in value])
+            elif key == "metadata":
+                set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
+                params[key] = json.dumps(value)
+            else:
+                set_clauses.append(f"{key} = :{key}")
+                params[key] = value
+
+        await db.execute(text(
+            f"UPDATE dmx_nodes SET {', '.join(set_clauses)} WHERE id = :id"
+        ), params)
+
+    # Sync changed ip_address and/or slug back to the linked devices row
+    device_set: list[str] = []
+    device_params: Dict[str, Any] = {"node_id": str(node_id)}
+    if new_slug is not None:
+        device_set.append("hardware_id = :hardware_id")
+        device_params["hardware_id"] = new_slug
+    if "ip_address" in node_updates:
+        device_set.append("ip_address = :ip_address")
+        device_params["ip_address"] = node_updates["ip_address"]
+    if "name" in node_updates:
+        device_set.append("name = :name")
+        device_params["name"] = node_updates["name"]
+    if device_set:
+        await db.execute(text(
+            f"UPDATE devices SET {', '.join(device_set)} WHERE id = (SELECT device_id FROM dmx_nodes WHERE id = :node_id)"
+        ), device_params)
+
     await db.commit()
 
-    result = await db.execute(
-        text("SELECT * FROM dmx_nodes WHERE id = :id"), {"id": str(node_id)}
-    )
+    result = await db.execute(text("""
+        SELECT n.*, d.hardware_id, d.last_seen
+        FROM dmx_nodes n LEFT JOIN devices d ON d.id = n.device_id
+        WHERE n.id = :id
+    """), {"id": str(node_id)})
     return _row_to_node(result.fetchone())
 
 
@@ -1423,6 +1460,25 @@ async def get_playback_status():
     return playback_engine.status
 
 
+@router.get("/playback/config")
+async def get_playback_config():
+    """Return current playback engine configuration."""
+    from dmx_playback_engine import playback_engine
+    return {"interval_ms": round(playback_engine._send_interval * 1000)}
+
+
+class PlaybackConfigUpdate(BaseModel):
+    interval_ms: float
+
+
+@router.put("/playback/config")
+async def update_playback_config(data: PlaybackConfigUpdate):
+    """Update playback engine configuration at runtime and persist it."""
+    from dmx_playback_engine import playback_engine
+    await playback_engine.set_interval(data.interval_ms)
+    return {"interval_ms": round(playback_engine._send_interval * 1000)}
+
+
 @router.post("/playback/play")
 async def playback_play(data: PlaybackPlayRequest):
     """Start sequence playback."""
@@ -1483,3 +1539,74 @@ async def playback_cue_fade(data: PlaybackCueFadeRequest):
     if not ok:
         raise HTTPException(status_code=404, detail="Target cue has no fixture snapshots")
     return {"status": "fading"}
+
+
+@router.post("/playback/blackout")
+async def playback_blackout(db: AsyncSession = Depends(get_db)):
+    """Immediately zero all channels on every fixture — sends raw Art-Net zeros to every universe."""
+    import json as _json
+    from state_manager import state_manager
+
+    # Step 1: zero entity states in DB for all linked fixtures
+    fixture_rows = await db.execute(text("""
+        SELECT entity_id, channel_map FROM dmx_fixtures
+        WHERE entity_id IS NOT NULL
+    """))
+    fixtures = fixture_rows.fetchall()
+
+    for row in fixtures:
+        channel_map = row.channel_map or {}
+        zero_state = {}
+        for key, ch in channel_map.items():
+            ch_type = ch.get('type', 'range') if isinstance(ch, dict) else 'range'
+            if ch_type == 'boolean':
+                zero_state[key] = False
+            elif ch_type == 'number':
+                zero_state[key] = 0
+            else:
+                zero_state[key] = 0.0
+
+        await db.execute(text("""
+            UPDATE entities
+            SET state = CAST(:state AS jsonb), state_updated_at = NOW()
+            WHERE id = :entity_id
+        """), {"state": _json.dumps(zero_state), "entity_id": row.entity_id})
+
+    await db.commit()
+
+    # Step 2: send raw 512-zero Art-Net packets to every configured universe on every node
+    cleared_universes = 0
+    if state_manager.nc:
+        universe_rows = await db.execute(text("""
+            SELECT DISTINCT f.node_id, f.universe FROM dmx_fixtures f
+        """))
+        fixture_universes = universe_rows.fetchall()
+
+        if fixture_universes:
+            node_ids = list({r.node_id for r in fixture_universes})
+            node_rows = await db.execute(text("""
+                SELECT id, universes FROM dmx_nodes WHERE id = ANY(:ids)
+            """), {"ids": node_ids})
+
+            node_universe_map: dict[str, dict[int, int]] = {}
+            for nr in node_rows.fetchall():
+                universes_cfg = nr.universes or []
+                mapping = {}
+                for uc in universes_cfg:
+                    if isinstance(uc, dict):
+                        mapping[uc.get("id", 0)] = uc.get("artnet_universe", 0)
+                node_universe_map[nr.id] = mapping
+
+            artnet_universes: set[int] = set()
+            for row in fixture_universes:
+                node_map = node_universe_map.get(row.node_id, {})
+                artnet_u = node_map.get(row.universe, row.universe)
+                artnet_universes.add(artnet_u)
+
+            zeros_payload = _json.dumps({"channels": [0] * 512}).encode()
+            for artnet_u in artnet_universes:
+                await state_manager.nc.publish(f"maestra.to_artnet.universe.{artnet_u}", zeros_payload)
+
+            cleared_universes = len(artnet_universes)
+
+    return {"status": "blackout", "fixtures": len(fixtures), "universes": cleared_universes}

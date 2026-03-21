@@ -622,6 +622,18 @@ export const playbackApi = {
       method: 'POST',
       body: JSON.stringify({ from_cue_id: fromCueId, to_cue_id: toCueId, duration_ms: durationMs }),
     }),
+
+  blackout: () =>
+    fetchApi<{ status: string; fixtures: number }>('/dmx/playback/blackout', { method: 'POST' }),
+
+  getConfig: () =>
+    fetchApi<{ interval_ms: number }>('/dmx/playback/config'),
+
+  setConfig: (intervalMs: number) =>
+    fetchApi<{ interval_ms: number }>('/dmx/playback/config', {
+      method: 'PUT',
+      body: JSON.stringify({ interval_ms: intervalMs }),
+    }),
 }
 
 // OFL Fixture Library API

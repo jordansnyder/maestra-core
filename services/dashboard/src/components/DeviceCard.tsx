@@ -1,8 +1,7 @@
 import type { Device } from '@/lib/types'
 import { StatusBadge } from './StatusBadge'
 import { Card } from './Card'
-import { DEVICE_TYPE_ICONS, DEFAULT_DEVICE_ICON } from './icons'
-import { Trash2 } from './icons'
+import { DEVICE_TYPE_ICONS, DEFAULT_DEVICE_ICON, Trash2, Zap } from './icons'
 
 interface DeviceCardProps {
   device: Device
@@ -23,8 +22,16 @@ export function DeviceCard({ device, onDelete }: DeviceCardProps) {
             <Icon className="w-5 h-5 text-slate-300" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-lg mb-1">{device.name}</h3>
-            <p className="text-sm text-slate-400 mb-2">{device.device_type.replace('_', ' ')}</p>
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-semibold text-lg">{device.name}</h3>
+              {device.device_type === 'artnet_node' && (
+                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                  <Zap className="w-2.5 h-2.5" />
+                  DMX
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-slate-400 mb-2">{device.device_type.replace(/_/g, ' ')}</p>
             <StatusBadge status={device.status} />
           </div>
         </div>

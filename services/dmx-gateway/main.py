@@ -149,7 +149,8 @@ async def on_entity_state(msg):
         return
 
     entity_path = data.get('entity_path') or data.get('path')
-    state = data.get('state', {})
+    # Fleet Manager publishes 'current_state'; direct NATS clients use 'state'
+    state = data.get('current_state') or data.get('state') or {}
 
     if not entity_path or not state or mapper is None:
         return
@@ -221,15 +222,22 @@ async def _publish_fixture_debug(entity_path: str, updates: dict) -> None:
 
 # ─── Keep-Alive Loop ─────────────────────────────────────────────────────────
 
+_heartbeat_counter: int = 0
+
 async def keepalive_loop(hz: float) -> None:
     """
     Send all universe buffers at a fixed rate to prevent Art-Net nodes
     from timing out between entity state changes.
+    Publishes a NATS heartbeat for each active node every 10 seconds.
     """
+    global _heartbeat_counter
     interval = 1.0 / hz
+    heartbeat_every = max(1, int(10.0 / interval))  # every ~10s
     logger.info(f"Keep-alive loop at {hz} Hz (every {interval:.3f}s)")
     while True:
         await asyncio.sleep(interval)
+        _heartbeat_counter += 1
+        publish_heartbeat = (_heartbeat_counter % heartbeat_every == 0)
         for node_id, sender in senders.items():
             node_buffers = buffers.get(node_id)
             if not node_buffers:
@@ -241,6 +249,12 @@ async def keepalive_loop(hz: float) -> None:
                     logger.error(
                         f"Keep-alive failed node={node_id} universe={universe_id}: {e}"
                     )
+            if publish_heartbeat and nc:
+                try:
+                    payload = json.dumps({"node_id": node_id}).encode()
+                    await nc.publish(f"maestra.dmx.node.heartbeat.{node_id}", payload)
+                except Exception:
+                    pass
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────

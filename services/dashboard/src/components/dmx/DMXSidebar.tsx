@@ -7,7 +7,7 @@ import { UNIVERSE_PALETTE } from '@/lib/dmx-constants'
 import { SequencePlaybackStatus } from '@/hooks/useSequencePlayback'
 import {
   Pencil, Network, Layers, SlidersHorizontal, ChevronRight, BookOpen, Trash2,
-  GripVertical, X, Check, Play, Pause, Square, ListOrdered, Plus, Repeat, Sunset, ExternalLink,
+  GripVertical, X, Check, Play, Pause, Square, ListOrdered, Plus, Repeat, Sunset, ExternalLink, ZapOff,
 } from '@/components/icons'
 
 function getUniverseColor(nodes: DMXNode[], fixture: DMXFixture): string {
@@ -67,6 +67,7 @@ interface DMXSidebarProps {
   onStopSequence: () => void
   onToggleLoop: () => void
   onFadeOut: (durationSec: number) => void
+  onBlackout: () => void
   onRenameSequence: (id: string, name: string) => Promise<void>
   onDeleteSequence: (seq: DMXSequence) => void
   onReorderSequences: (draggedId: string, targetId: string) => void
@@ -88,9 +89,30 @@ export function DMXSidebar({
   cues, activeCueId, editingCueId, cueFadeProgress, onRecallCue, onEnterEditCue, onExitEditCue, onRenameCue, onDeleteCue, onReorderCues, onOpenCues, onSaveCue, onUpdateCue, updateCueLoading,
   sequences, playbackStatus, onPlaySequence, onPauseSequence, onStopSequence, onRenameSequence, onDeleteSequence,
   onReorderSequences, onAddCueToSequence, onReorderSequenceCues, onUpdatePlacement, onRemoveCueFromSequence,
-  onOpenSequences, openSequencesSignal, availableCues, onToggleLoop, onFadeOut, onCreateSequence,
+  onOpenSequences, openSequencesSignal, availableCues, onToggleLoop, onFadeOut, onBlackout, onCreateSequence,
 }: DMXSidebarProps) {
-  const [active, setActive] = useState<ActiveSection>('fixtures')
+  const SESSION_KEY = 'dmx-sidebar-section'
+  const [active, setActive] = useState<ActiveSection>(() => {
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY)
+      if (saved === 'nodes' || saved === 'fixtures' || saved === 'cues' || saved === 'sequences') return saved
+    } catch {}
+    return 'fixtures'
+  })
+  const setActiveSection = (s: ActiveSection) => {
+    setActive(s)
+    try { sessionStorage.setItem(SESSION_KEY, s) } catch {}
+  }
+
+  // Auto-switch to sequences if one is playing when the sidebar mounts
+  const didAutoSwitch = useRef(false)
+  useEffect(() => {
+    if (!didAutoSwitch.current && playbackStatus.playState !== 'stopped') {
+      didAutoSwitch.current = true
+      setActiveSection('sequences')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playbackStatus.playState])
 
   // ── Node drag state ────────────────────────────────────────────────────────
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
@@ -158,7 +180,7 @@ export function DMXSidebar({
   // Auto-switch to sequences section when a new sequence is added externally
   useEffect(() => {
     if (!openSequencesSignal) return
-    setActive('sequences')
+    setActiveSection('sequences')
     onOpenSequences()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openSequencesSignal])
@@ -214,7 +236,7 @@ export function DMXSidebar({
       {/* ── Art-Net Nodes section ───────────────────────────────────── */}
       <div className="flex flex-col shrink-0" style={{ transition: 'flex 350ms cubic-bezier(0.4,0,0.2,1)' }}>
         <div
-          onClick={() => setActive('nodes')}
+          onClick={() => setActiveSection('nodes')}
           className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 cursor-pointer select-none ${
             active === 'nodes' ? 'border-b border-slate-800' : 'hover:bg-slate-800/40'
           }`}
@@ -323,7 +345,7 @@ export function DMXSidebar({
         }}
       >
         <div
-          onClick={() => setActive('fixtures')}
+          onClick={() => setActiveSection('fixtures')}
           className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 border-t border-slate-800 cursor-pointer select-none ${
             active === 'fixtures' ? 'border-b border-slate-800' : 'hover:bg-slate-800/40'
           }`}
@@ -524,7 +546,7 @@ export function DMXSidebar({
         }}
       >
         <button
-          onClick={() => { setActive('cues'); if (active !== 'cues') onOpenCues() }}
+          onClick={() => { setActiveSection('cues'); if (active !== 'cues') onOpenCues() }}
           className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 border-t border-slate-800 ${
             active === 'cues' ? 'border-b border-slate-800' : 'hover:bg-slate-800/40'
           }`}
@@ -767,7 +789,7 @@ export function DMXSidebar({
         }}
       >
         <div
-          onClick={() => { setActive('sequences'); if (active !== 'sequences') onOpenSequences() }}
+          onClick={() => { setActiveSection('sequences'); if (active !== 'sequences') onOpenSequences() }}
           className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 border-t border-slate-800 cursor-pointer select-none ${
             active === 'sequences' ? 'border-b border-slate-800' : 'hover:bg-slate-800/40'
           }`}
@@ -948,6 +970,15 @@ export function DMXSidebar({
                                 className={`p-0.5 rounded transition-colors ${isThisPlaying ? 'text-green-400 hover:text-green-200' : 'text-slate-500 hover:text-green-400'}`}
                               >
                                 {isThisPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                              </button>
+
+                              {/* Blackout */}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onBlackout() }}
+                                title="Blackout — zero all fixture channels"
+                                className="p-0.5 rounded text-slate-500 hover:text-yellow-400 transition-colors"
+                              >
+                                <ZapOff className="w-3 h-3" />
                               </button>
 
                               {/* Stop / Stop with fadeout — only when active */}

@@ -398,6 +398,7 @@ export interface UniverseConfig {
 export interface DMXNode {
   id: string
   name: string
+  slug?: string
   manufacturer?: string
   model?: string
   ip_address: string
@@ -409,6 +410,7 @@ export interface DMXNode {
   firmware_version?: string
   notes?: string
   device_id?: string
+  last_seen?: string
   sort_order: number
   metadata: Record<string, unknown>
   created_at: string
@@ -417,6 +419,7 @@ export interface DMXNode {
 
 export interface DMXNodeCreate {
   name: string
+  slug?: string
   manufacturer?: string
   model?: string
   ip_address: string

@@ -58,11 +58,11 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
   const initialChannelCount = source?.channel_count ?? 1
   const [nodeId, setNodeId] = useState(initialNodeId)
   const [universe, setUniverse] = useState(initialUniverse)
-  const [startChannel, setStartChannel] = useState(() => {
-    if (isEditing) return String(source?.start_channel ?? 1)
-    return String(suggestStartChannel(fixtures, initialNodeId, initialUniverse, initialChannelCount, source?.id))
-  })
-  const [channelCount, setChannelCount] = useState(String(initialChannelCount))
+  const initialStartChannel = isEditing
+    ? (source?.start_channel ?? 1)
+    : suggestStartChannel(fixtures, initialNodeId, initialUniverse, initialChannelCount, source?.id)
+  const [startChannel, setStartChannel] = useState(String(initialStartChannel))
+  const [endChannel, setEndChannel] = useState(String(initialStartChannel + initialChannelCount - 1))
 
   // OFL Library state (not shown in edit mode)
   const [mfrSearch, setMfrSearch] = useState('')
@@ -109,14 +109,19 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
     }).catch(() => {})
   }, [])
 
-  // Re-suggest start channel when node, universe, or channel count changes (add/copy only)
+  // Re-suggest start channel when node or universe changes (add/copy only).
+  // Preserves the current channel span (end - start + 1) and shifts both fields to a new gap.
+  // Never fires on manual edits to either channel field.
   useEffect(() => {
     if (isEditing) return
-    const cc = parseInt(channelCount, 10)
-    if (isNaN(cc) || cc < 1) return
-    setStartChannel(String(suggestStartChannel(fixtures, nodeId, universe, cc, source?.id)))
+    const sc = parseInt(startChannel, 10)
+    const ec = parseInt(endChannel, 10)
+    const count = !isNaN(sc) && !isNaN(ec) && ec >= sc ? ec - sc + 1 : initialChannelCount
+    const newStart = suggestStartChannel(fixtures, nodeId, universe, count, source?.id)
+    setStartChannel(String(newStart))
+    setEndChannel(String(newStart + count - 1))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodeId, universe, channelCount])
+  }, [nodeId, universe])
 
   // In edit mode, load OFL fixture profile if linked
   useEffect(() => {
@@ -225,12 +230,14 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
 
     setOflFixtureId(oflFixture.id)
 
-    // Auto-select first mode
+    // Auto-select first mode and re-suggest start/end channels for the new count
     const firstMode = oflFixture.modes[0] ?? null
     if (firstMode) {
       setSelectedMode(firstMode)
       setFixtureMode(firstMode.shortName)
-      setChannelCount(String(firstMode.channel_count))
+      const suggestedStart = suggestStartChannel(fixtures, nodeId, universe, firstMode.channel_count, source?.id)
+      setStartChannel(String(suggestedStart))
+      setEndChannel(String(suggestedStart + firstMode.channel_count - 1))
     }
 
     // Auto-populate name: find duplicates of same model and increment
@@ -250,7 +257,14 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
   const handleSelectMode = (mode: OFLFixtureMode) => {
     setSelectedMode(mode)
     setFixtureMode(mode.shortName)
-    setChannelCount(String(mode.channel_count))
+    if (!isEditing) {
+      // In add/copy mode, auto-suggest a matching channel range for the new mode
+      const suggestedStart = suggestStartChannel(fixtures, nodeId, universe, mode.channel_count, source?.id)
+      setStartChannel(String(suggestedStart))
+      setEndChannel(String(suggestedStart + mode.channel_count - 1))
+    }
+    // In edit mode: start/end channels are user-controlled. Mode selection only updates
+    // fixture_mode (label) and channel_map — it does not overwrite the channel range.
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -258,9 +272,11 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
     if (!name.trim()) { setError('Name is required'); return }
     if (!nodeId) { setError('Select an Art-Net node'); return }
     const sc = parseInt(startChannel, 10)
-    const cc = parseInt(channelCount, 10)
+    const ec = parseInt(endChannel, 10)
     if (isNaN(sc) || sc < 1 || sc > 512) { setError('Start channel must be 1–512'); return }
-    if (isNaN(cc) || cc < 1 || cc > 512) { setError('Channel count must be 1–512'); return }
+    if (isNaN(ec) || ec < 1 || ec > 512) { setError('End channel must be 1–512'); return }
+    if (ec < sc) { setError('End channel must be ≥ start channel'); return }
+    const cc = ec - sc + 1
 
     setSubmitting(true)
     setError(null)
@@ -554,11 +570,7 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
                     value={selectedMode?.shortName ?? ''}
                     onChange={(e) => {
                       const mode = editOFLFixture.modes.find((m) => m.shortName === e.target.value)
-                      if (mode) {
-                        setSelectedMode(mode)
-                        setFixtureMode(mode.shortName)
-                        setChannelCount(String(mode.channel_count))
-                      }
+                      if (mode) handleSelectMode(mode)
                     }}
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                   >
@@ -626,17 +638,34 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
               </div>
 
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Channel Count</label>
+                <label className="block text-xs text-slate-400 mb-1">End Channel</label>
                 <input
                   type="text"
                   inputMode="numeric"
-                  value={channelCount}
-                  onChange={(e) => setChannelCount(e.target.value)}
+                  value={endChannel}
+                  onChange={(e) => setEndChannel(e.target.value)}
                   placeholder="1"
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
                 />
               </div>
             </div>
+
+            {/* Channel count preview */}
+            {(() => {
+              const sc = parseInt(startChannel, 10)
+              const ec = parseInt(endChannel, 10)
+              if (isNaN(sc) || isNaN(ec)) return null
+              if (ec < sc) {
+                return <p className="text-[10px] font-mono -mt-2 text-red-400">End channel must be ≥ start channel</p>
+              }
+              const count = ec - sc + 1
+              const overflows = ec > 512
+              return (
+                <p className={`text-[10px] font-mono -mt-2 ${overflows ? 'text-red-400' : 'text-slate-500'}`}>
+                  {count} channel{count !== 1 ? 's' : ''}{overflows ? ' — exceeds 512!' : ''}
+                </p>
+              )
+            })()}
 
             {/* Entity link — edit mode only (create mode auto-links) */}
             {isEditing && (

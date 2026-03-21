@@ -2,9 +2,32 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { DMXFixture, ChannelMapping } from '@/lib/types'
-import { X, SlidersHorizontal } from '@/components/icons'
+import { X, SlidersHorizontal, RotateCcw, ChevronUp, ChevronDown, Undo2 } from '@/components/icons'
 import { entitiesApi } from '@/lib/api'
 import { useWebSocket } from '@/hooks/useWebSocket'
+
+/**
+ * Convert a native entity-state value to a 0–255 integer for slider display.
+ * Entity state uses semantic units: range/color = 0.0–1.0, number = 0–100,
+ * boolean = true/false. We display all channels as 0–255 DMX values.
+ */
+function toDisplayValue(native: unknown, type: ChannelMapping['type']): number {
+  if (type === 'boolean') return native === true || native === 1 ? 255 : 0
+  const n = typeof native === 'number' ? native : 0
+  if (type === 'number') return Math.round(Math.max(0, Math.min(255, (n / 100) * 255)))
+  // 'range', 'color', 'enum' (fallback) — stored as 0.0–1.0
+  return Math.round(Math.max(0, Math.min(255, n * 255)))
+}
+
+/**
+ * Convert a 0–255 slider display value back to the native entity-state format.
+ */
+function toNativeValue(display: number, type: ChannelMapping['type']): number | boolean {
+  if (type === 'boolean') return display > 127
+  if (type === 'number') return Math.round((display / 255) * 100)
+  // 'range', 'color', 'enum' — stored as 0.0–1.0; keep 4 decimal places
+  return Math.round((display / 255) * 10000) / 10000
+}
 
 interface DMXChannelModalProps {
   fixtures: DMXFixture[]
@@ -21,6 +44,9 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
   const [loading, setLoading] = useState(true)
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
+  // Snapshot of state at the time the panel opened — used by Cancel & Reset
+  const initialSnapshot = useRef<Record<string, number> | null>(null)
+
   // Build set of all fixture entity IDs for fast lookup
   const fixtureEntityIds = new Set(fixtures.map((f) => f.entity_id).filter(Boolean))
 
@@ -33,11 +59,25 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
     entitiesApi.getState(primary.entity_id)
       .then((resp) => {
         const initial: Record<string, number> = {}
-        for (const [key] of channels) {
-          const v = resp.state[key]
-          initial[key] = typeof v === 'number' ? Math.round(Math.max(0, Math.min(255, v))) : 0
+        for (const [key, ch] of channels) {
+          initial[key] = toDisplayValue(resp.state[key], (ch as ChannelMapping).type)
         }
         setValues(initial)
+        // Lock in the snapshot — only set once, never overwritten
+        initialSnapshot.current = initial
+        // Resync: push DB state to all fixtures so the floor matches what the panel shows
+        for (const fixture of fixtures) {
+          if (!fixture.entity_id) continue
+          const nativeState: Record<string, number | boolean> = {}
+          for (const [key] of channels) {
+            const chType = fixture.channel_map[key]?.type ?? 'range'
+            nativeState[key] = toNativeValue(initial[key] ?? 0, chType)
+          }
+          entitiesApi.updateState(fixture.entity_id, {
+            state: nativeState,
+            source: 'dashboard-dmx',
+          }).catch(() => {})
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -61,14 +101,33 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
     const incoming = (event.current_state ?? {}) as Record<string, unknown>
     setValues((prev) => {
       const next = { ...prev }
-      for (const [key] of channels) {
+      for (const [key, ch] of channels) {
         const v = incoming[key]
-        if (typeof v === 'number') next[key] = Math.round(Math.max(0, Math.min(255, v)))
+        if (v !== undefined) next[key] = toDisplayValue(v, (ch as ChannelMapping).type)
       }
       return next
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastMessage])
+
+  const handleZeroAll = useCallback(() => {
+    const zeroed: Record<string, number> = {}
+    for (const [key] of channels) zeroed[key] = 0
+    setValues(zeroed)
+    onDMXChannelChange?.()
+    for (const fixture of fixtures) {
+      if (!fixture.entity_id) continue
+      const nativeZeros: Record<string, number | boolean> = {}
+      for (const [key] of channels) {
+        const chType = fixture.channel_map[key]?.type ?? 'range'
+        nativeZeros[key] = toNativeValue(0, chType)
+      }
+      entitiesApi.updateState(fixture.entity_id, {
+        state: nativeZeros,
+        source: 'dashboard-dmx',
+      }).catch(() => {})
+    }
+  }, [fixtures, channels, onDMXChannelChange])
 
   const handleChange = useCallback((key: string, value: number) => {
     setValues(prev => ({ ...prev, [key]: value }))
@@ -77,13 +136,35 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
     debounceRefs.current[key] = setTimeout(() => {
       for (const fixture of fixtures) {
         if (!fixture.entity_id) continue
+        const chType = fixture.channel_map[key]?.type ?? 'range'
         entitiesApi.updateState(fixture.entity_id, {
-          state: { [key]: value },
+          state: { [key]: toNativeValue(value, chType) },
           source: 'dashboard-dmx',
         }).catch(() => {})
       }
     }, 50)
   }, [fixtures, onDMXChannelChange])
+
+  const handleCancelAndReset = useCallback(() => {
+    const snapshot = initialSnapshot.current
+    if (!snapshot) { onClose(); return }
+    // Restore UI
+    setValues(snapshot)
+    // Push snapshot back to all fixtures
+    for (const fixture of fixtures) {
+      if (!fixture.entity_id) continue
+      const nativeState: Record<string, number | boolean> = {}
+      for (const [key] of channels) {
+        const chType = fixture.channel_map[key]?.type ?? 'range'
+        nativeState[key] = toNativeValue(snapshot[key] ?? 0, chType)
+      }
+      entitiesApi.updateState(fixture.entity_id, {
+        state: nativeState,
+        source: 'dashboard-dmx',
+      }).catch(() => {})
+    }
+    onClose()
+  }, [fixtures, channels, onClose])
 
   useEffect(() => {
     const timers = debounceRefs.current
@@ -91,10 +172,10 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
   }, [])
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleCancelAndReset() }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [onClose])
+  }, [handleCancelAndReset])
 
   return (
     <div className="fixed inset-0 z-50 flex items-start pointer-events-none" style={{ paddingTop: '3rem' }}>
@@ -134,9 +215,27 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
               )}
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleZeroAll}
+              title="Zero all channels"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-slate-400 bg-slate-800 hover:bg-slate-700 hover:text-white transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Zero All
+            </button>
+            <button
+              onClick={handleCancelAndReset}
+              title="Cancel and restore original values (Esc)"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-slate-400 bg-slate-800 hover:bg-red-900/60 hover:text-red-300 hover:border-red-700/50 border border-transparent transition-colors"
+            >
+              <Undo2 className="w-3 h-3" />
+              Cancel & Reset
+            </button>
+            <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Sliders */}
@@ -156,12 +255,22 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
               {channels.map(([key, ch]) => {
                 const val = values[key] ?? 0
                 const label = (ch as ChannelMapping).label ?? key
+                const arrowBtn = 'flex items-center justify-center w-6 h-5 rounded text-slate-500 hover:text-white hover:bg-slate-700 transition-colors shrink-0'
                 return (
-                  <div key={key} className="flex flex-col items-center gap-1.5" style={{ width: 44 }}>
+                  <div key={key} className="flex flex-col items-center gap-1" style={{ width: 44 }}>
                     {/* Value readout */}
                     <div className="text-xs font-mono font-medium text-blue-400 tabular-nums text-center w-full">
                       {val}
                     </div>
+
+                    {/* Up arrow */}
+                    <button
+                      className={arrowBtn}
+                      onClick={() => handleChange(key, Math.min(255, val + 1))}
+                      title="Increment"
+                    >
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </button>
 
                     {/* Vertical slider */}
                     <div style={{ height: 160, width: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -181,6 +290,15 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
                         }}
                       />
                     </div>
+
+                    {/* Down arrow */}
+                    <button
+                      className={arrowBtn}
+                      onClick={() => handleChange(key, Math.max(0, val - 1))}
+                      title="Decrement"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
 
                     {/* Channel offset */}
                     <div className="text-[9px] font-mono text-slate-600 text-center">

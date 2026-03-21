@@ -14,6 +14,7 @@ interface FixtureNodeProps {
   onMouseDown: (e: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent) => void
   onClick: (shiftKey: boolean) => void
+  onDoubleClick?: () => void
 }
 
 export function FixtureNode({
@@ -27,6 +28,7 @@ export function FixtureNode({
   onMouseDown,
   onContextMenu,
   onClick,
+  onDoubleClick,
 }: FixtureNodeProps) {
   const [hovered, setHovered] = useState(false)
   const color = universeColor
@@ -42,6 +44,7 @@ export function FixtureNode({
       onMouseDown={onMouseDown}
       onContextMenu={onContextMenu}
       onClick={(e) => { e.stopPropagation(); onClick(e.shiftKey) }}
+      onDoubleClick={(e) => { e.stopPropagation(); onDoubleClick?.() }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className="absolute flex items-center select-none"

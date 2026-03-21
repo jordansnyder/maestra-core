@@ -373,12 +373,10 @@ services:
     restart: "no"
 
   # DMX / Art-Net Gateway - Bridges NATS entity state to physical DMX fixtures via Art-Net UDP
-  # Opt-in service: requires DMX hardware. Enable with: make up-dmx  or  docker compose --profile dmx up -d
   dmx-gateway:
     build:
       context: ./services/dmx-gateway
       dockerfile: Dockerfile
-    profiles: ["dmx"]
     container_name: maestra-dmx-gateway
     environment:
       - NATS_URL=nats://nats:4222

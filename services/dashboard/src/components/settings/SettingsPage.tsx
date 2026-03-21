@@ -1,14 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Cloud, Settings } from '@/components/icons'
+import { Cloud, Settings, Zap } from '@/components/icons'
 import { getServiceLinks } from '@/lib/hosts'
 import { useCloudGateway } from '@/hooks/useCloudGateway'
 import { CloudStatusCard } from './CloudStatusCard'
 import { CloudSetupWizard } from './CloudSetupWizard'
 import { PolicyEditor } from './PolicyEditor'
+import { DMXGatewaySettings } from './DMXGatewaySettings'
 
-type Tab = 'general' | 'cloud'
+type Tab = 'general' | 'cloud' | 'dmx'
 
 export function SettingsPage() {
   const [tab, setTab] = useState<Tab>('cloud')
@@ -34,11 +35,18 @@ export function SettingsPage() {
           icon={<Cloud className="w-4 h-4" />}
           label="Cloud Gateway"
         />
+        <TabButton
+          active={tab === 'dmx'}
+          onClick={() => setTab('dmx')}
+          icon={<Zap className="w-4 h-4" />}
+          label="DMX / Art-Net"
+        />
       </div>
 
       {/* Tab content */}
       {tab === 'general' && <GeneralTab />}
       {tab === 'cloud' && <CloudTab cloud={cloud} isConnected={isConnected} />}
+      {tab === 'dmx' && <DMXGatewaySettings />}
     </div>
   )
 }

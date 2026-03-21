@@ -46,6 +46,11 @@ db_mod.RouteDB = _make_stub_class("RouteDB", [
     "target_input", "route_metadata", "active", "created_at", "updated_at"])
 db_mod.RoutePresetDB = _make_stub_class("RoutePresetDB", [
     "id", "name", "description", "routes", "created_at", "updated_at"])
+db_mod.BlockedDeviceDB = _make_stub_class("BlockedDeviceDB", [
+    "id", "hardware_id", "reason", "blocked_at", "created_at", "updated_at"])
+db_mod.DeviceProvisionDB = _make_stub_class("DeviceProvisionDB", [
+    "id", "hardware_id", "name", "device_type", "auto_approve",
+    "provision_metadata", "created_at", "updated_at"])
 db_mod.StreamTypeDB = _make_stub_class("StreamTypeDB", [
     "id", "name", "display_name", "description", "icon",
     "default_config", "stream_type_metadata", "created_at", "updated_at"])

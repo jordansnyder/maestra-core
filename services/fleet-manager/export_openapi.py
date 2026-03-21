@@ -73,6 +73,14 @@ rc_mod.close_redis = None
 rc_mod.get_redis = lambda: None
 sys.modules["redis_client"] = rc_mod
 
+# cloud_manager.py — depends on httpx and redis.asyncio
+cm_mod = types.ModuleType("cloud_manager")
+cm_mod.cloud_manager = type("CM", (), {
+    "connect": lambda s, *a, **kw: None,
+    "disconnect": lambda s, *a, **kw: None,
+})()
+sys.modules["cloud_manager"] = cm_mod
+
 # demo_simulator.py — depends on nats which is not installed in CI
 ds_mod = types.ModuleType("demo_simulator")
 ds_mod.demo_simulator = type("DS", (), {

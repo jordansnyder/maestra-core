@@ -82,7 +82,7 @@ sys.modules["redis_client"] = rc_mod
 cm_mod = types.ModuleType("cloud_manager")
 cm_mod.cloud_manager = type("CM", (), {
     "connect": lambda s, *a, **kw: None,
-    "disconnect": lambda s, *a, **kw: None,
+    "disconnect": lambda s,*a, **kw: None,
 })()
 sys.modules["cloud_manager"] = cm_mod
 

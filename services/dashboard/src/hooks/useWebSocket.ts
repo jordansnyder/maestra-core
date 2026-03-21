@@ -3,7 +3,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import type { WebSocketMessage } from '@/types'
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8765'
+import { getWsUrl } from '@/lib/hosts'
+
+const WS_URL = getWsUrl()
 
 export function useWebSocket(autoConnect = true) {
   const [isConnected, setIsConnected] = useState(false)
@@ -65,7 +67,7 @@ export function useWebSocket(autoConnect = true) {
     }
   }, [])
 
-  const send = useCallback((data: any) => {
+  const send = useCallback((data: unknown) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(data))
     } else {
@@ -80,7 +82,7 @@ export function useWebSocket(autoConnect = true) {
     })
   }, [send])
 
-  const publish = useCallback((subject: string, data: any) => {
+  const publish = useCallback((subject: string, data: unknown) => {
     send({
       type: 'publish',
       subject,

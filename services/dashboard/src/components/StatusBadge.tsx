@@ -1,5 +1,5 @@
 interface StatusBadgeProps {
-  status: 'online' | 'offline' | 'error' | 'maintenance' | 'checking' | 'healthy' | 'unhealthy'
+  status: 'online' | 'offline' | 'error' | 'maintenance' | 'checking' | 'healthy' | 'unhealthy' | 'pending'
   showDot?: boolean
   className?: string
 }
@@ -12,6 +12,7 @@ const statusConfig = {
   unhealthy: { color: 'bg-red-500', text: 'Unhealthy', textColor: 'text-red-400' },
   maintenance: { color: 'bg-yellow-500', text: 'Maintenance', textColor: 'text-yellow-400' },
   checking: { color: 'bg-yellow-500 animate-pulse', text: 'Checking', textColor: 'text-yellow-400' },
+  pending: { color: 'bg-amber-500 animate-pulse', text: 'Pending Approval', textColor: 'text-amber-400' },
 }
 
 export function StatusBadge({ status, showDot = true, className = '' }: StatusBadgeProps) {

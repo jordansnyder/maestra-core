@@ -1,0 +1,9 @@
+{
+  "name": "ofl-sync",
+  "version": "1.0.0",
+  "description": "Open Fixture Library sync script for Maestra",
+  "main": "sync-ofl.js",
+  "dependencies": {
+    "pg": "^8.12.0"
+  }
+}

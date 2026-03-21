@@ -97,6 +97,7 @@ services:
   nodered:
     image: nodered/node-red:latest
     container_name: maestra-nodered
+    profiles: ["full"]
     environment:
       - TZ=UTC
     ports:
@@ -133,8 +134,8 @@ services:
       - REDIS_URL=redis://redis:6379
       - NATS_URL=nats://nats:4222
       - MQTT_BROKER=mosquitto
-      - HOST_IP=${HOST_IP:-10.0.0.199}
-      - DEMO_MODE=${DEMO_MODE:-true}
+      - HOST_IP=${HOST_IP:-localhost}
+      - DEMO_MODE=${DEMO_MODE:-false}
     ports:
       - "8080:8080"
       - "19000-19004:19000-19004/udp"
@@ -164,10 +165,13 @@ services:
       dockerfile: Dockerfile
     container_name: maestra-dashboard
     environment:
-      - NEXT_PUBLIC_API_URL=http://10.0.0.199:8080
-      - NEXT_PUBLIC_NODERED_URL=http://10.0.0.199:1880
-      - NEXT_PUBLIC_GRAFANA_URL=http://10.0.0.199:3000
-      - NEXT_PUBLIC_MQTT_WS_URL=ws://10.0.0.199:9001
+      - NEXT_PUBLIC_API_URL=http://${HOST_IP:-localhost}:8080
+      - NEXT_PUBLIC_WS_URL=ws://${HOST_IP:-localhost}:8765
+      - NEXT_PUBLIC_NODERED_URL=http://${HOST_IP:-localhost}:1880
+      - NEXT_PUBLIC_GRAFANA_URL=http://${HOST_IP:-localhost}:3000
+      - NEXT_PUBLIC_DOCS_URL=http://${HOST_IP:-localhost}:8000
+      - NEXT_PUBLIC_NATS_URL=http://${HOST_IP:-localhost}:8222
+      - NEXT_PUBLIC_MQTT_WS_URL=ws://${HOST_IP:-localhost}:9001
     ports:
       - "3001:3000"
     volumes:
@@ -184,10 +188,11 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: maestra-grafana
+    profiles: ["full"]
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
-      - GF_INSTALL_PLUGINS=redis-datasource
+      - GF_PLUGINS_PREINSTALL=redis-datasource
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-maestra_dev_password}
     ports:
       - "3000:3000"
@@ -195,6 +200,8 @@ services:
       - grafana-data:/var/lib/grafana
       - ./config/grafana/provisioning:/etc/grafana/provisioning
       - ./config/grafana/dashboards:/var/lib/grafana/dashboards
+    dns:
+      - 8.8.8.8
     networks:
       - maestra-network
     depends_on:
@@ -210,6 +217,7 @@ services:
   traefik:
     image: traefik:v2.11
     container_name: maestra-traefik
+    profiles: ["full"]
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
@@ -231,6 +239,7 @@ services:
   portainer:
     image: portainer/portainer-ce:latest
     container_name: maestra-portainer
+    profiles: ["full"]
     ports:
       - "9443:9443"
       - "9000:9000"
@@ -249,6 +258,7 @@ services:
   docs:
     image: squidfunk/mkdocs-material:latest
     container_name: maestra-docs
+    profiles: ["full"]
     ports:
       - "8000:8000"
     volumes:
@@ -271,11 +281,11 @@ services:
     environment:
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
-      - OSC_IN_PORT=9000
-      - OSC_OUT_PORT=9001
+      - OSC_IN_PORT=${OSC_IN_PORT:-57120}
+      - OSC_OUT_PORT=${OSC_OUT_PORT:-57121}
     ports:
-      - "57120:57120/udp"  # OSC input
-      - "57121:57121/udp"  # OSC output
+      - "${OSC_IN_PORT:-57120}:${OSC_IN_PORT:-57120}/udp"  # OSC input
+      - "${OSC_OUT_PORT:-57121}:${OSC_OUT_PORT:-57121}/udp"  # OSC output
     networks:
       - maestra-network
     depends_on:
@@ -316,6 +326,69 @@ services:
     depends_on:
       - nats
       - mosquitto
+    restart: unless-stopped
+
+  # =============================================================================
+  # DEVICE DISCOVERY
+  # =============================================================================
+
+  # Discovery Service - mDNS/DNS-SD auto-detection of Maestra devices
+  discovery-service:
+    build:
+      context: ./services/discovery-service
+      dockerfile: Dockerfile
+    container_name: maestra-discovery
+    network_mode: host  # Required for mDNS multicast on the local network
+    environment:
+      - FLEET_MANAGER_URL=http://${HOST_IP:-localhost}:8080
+      - HOST_IP=${HOST_IP:-localhost}
+      - NATS_URL=nats://${HOST_IP:-localhost}:4222
+      - MQTT_BROKER=${HOST_IP:-localhost}
+      - MQTT_PORT=1883
+      - API_URL=http://${HOST_IP:-localhost}:8080
+      - WS_URL=ws://${HOST_IP:-localhost}:8765
+    depends_on:
+      fleet-manager:
+        condition: service_healthy
+    restart: unless-stopped
+  # OFL Fixture Sync - Syncs Open Fixture Library data into PostgreSQL
+  # Never runs automatically. Invoke manually: make sync-ofl
+  ofl-sync:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.sync
+    profiles: ["ofl-sync"]
+    container_name: maestra-ofl-sync
+    environment:
+      - DATABASE_URL=postgresql://maestra:${POSTGRES_PASSWORD:-maestra_dev_password}@postgres:5432/maestra
+      - OFL_EXPECTED_MAJOR_VERSION=${OFL_EXPECTED_MAJOR_VERSION:-12}
+      - OFL_PATH=/vendor/ofl
+    volumes:
+      - ./vendor/ofl:/vendor/ofl:ro
+    networks:
+      - maestra-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # DMX / Art-Net Gateway - Bridges NATS entity state to physical DMX fixtures via Art-Net UDP
+  dmx-gateway:
+    build:
+      context: ./services/dmx-gateway
+      dockerfile: Dockerfile
+    container_name: maestra-dmx-gateway
+    environment:
+      - NATS_URL=nats://nats:4222
+      - FLEET_MANAGER_URL=http://fleet-manager:8080
+      - LOG_LEVEL=${DMX_LOG_LEVEL:-INFO}
+      - CONFIG_REFRESH_INTERVAL=${DMX_CONFIG_REFRESH:-30}
+      - KEEPALIVE_HZ=${DMX_KEEPALIVE_HZ:-4}
+    networks:
+      - maestra-network
+    depends_on:
+      - nats
+      - fleet-manager
     restart: unless-stopped
 
 # =============================================================================

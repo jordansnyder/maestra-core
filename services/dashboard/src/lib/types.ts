@@ -158,10 +158,40 @@ export interface Device {
   ip_address?: string
   location?: Record<string, unknown>
   metadata?: Record<string, unknown>
-  status: 'online' | 'offline' | 'error' | 'maintenance'
+  status: 'online' | 'offline' | 'error' | 'maintenance' | 'pending'
   last_seen?: string
   created_at: string
   updated_at: string
+}
+
+// =============================================================================
+// Discovery & Provisioning Types
+// =============================================================================
+
+export interface BlockedDevice {
+  id: string
+  hardware_id: string
+  reason?: string
+  blocked_at: string
+}
+
+export interface DeviceProvision {
+  device_id: string
+  provision_status: 'pending' | 'approved' | 'provisioned'
+  api_url: string
+  nats_url: string
+  mqtt_broker: string
+  mqtt_port: number
+  ws_url?: string
+  entity_id?: string
+  env_vars: Record<string, string>
+}
+
+export interface DeviceApproval {
+  name?: string
+  entity_id?: string
+  env_vars?: Record<string, string>
+  device_type?: string
 }
 
 // =============================================================================
@@ -353,6 +383,180 @@ export interface AudioPreviewData {
   _seq: number
 }
 
+// =============================================================================
+// DMX / Art-Net Types
+// =============================================================================
+
+export interface UniverseConfig {
+  id: number
+  artnet_universe: number
+  port_label: string
+  description: string
+  color?: string
+}
+
+export interface DMXNode {
+  id: string
+  name: string
+  slug?: string
+  manufacturer?: string
+  model?: string
+  ip_address: string
+  mac_address?: string
+  artnet_port: number
+  universe_count: number
+  universes: UniverseConfig[]
+  poe_powered: boolean
+  firmware_version?: string
+  notes?: string
+  device_id?: string
+  last_seen?: string
+  sort_order: number
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface DMXNodeCreate {
+  name: string
+  slug?: string
+  manufacturer?: string
+  model?: string
+  ip_address: string
+  mac_address?: string
+  artnet_port?: number
+  universe_count?: number
+  universes?: UniverseConfig[]
+  poe_powered?: boolean
+  firmware_version?: string
+  notes?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface DMXNodeUpdate {
+  name?: string
+  manufacturer?: string
+  model?: string
+  ip_address?: string
+  mac_address?: string
+  artnet_port?: number
+  universe_count?: number
+  universes?: UniverseConfig[]
+  poe_powered?: boolean
+  firmware_version?: string
+  notes?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface ChannelMapping {
+  offset: number
+  type: 'range' | 'number' | 'boolean' | 'enum' | 'color'
+  label?: string
+  enum_dmx_values?: Record<string, number>
+}
+
+export interface DMXFixture {
+  id: string
+  name: string
+  label?: string
+  ofl_manufacturer?: string
+  ofl_model?: string
+  node_id: string
+  universe: number
+  start_channel: number
+  channel_count: number
+  fixture_mode?: string
+  channel_map: Record<string, ChannelMapping>
+  entity_id?: string
+  ofl_fixture_id?: string
+  position_x: number
+  position_y: number
+  sort_order: number
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface DMXFixtureCreate {
+  name: string
+  label?: string
+  node_id: string
+  universe: number
+  start_channel: number
+  channel_count?: number
+  fixture_mode?: string
+  channel_map?: Record<string, ChannelMapping>
+  entity_id?: string
+  ofl_fixture_id?: string
+  position_x?: number
+  position_y?: number
+  metadata?: Record<string, unknown>
+}
+
+export interface DMXFixtureUpdate {
+  name?: string
+  label?: string
+  node_id?: string
+  universe?: number
+  start_channel?: number
+  channel_count?: number
+  fixture_mode?: string
+  channel_map?: Record<string, ChannelMapping>
+  /** Pass null explicitly to unlink from an entity; omit to leave unchanged. */
+  entity_id?: string | null
+  position_x?: number
+  position_y?: number
+  metadata?: Record<string, unknown>
+}
+
+export interface FixturePositionUpdate {
+  id: string
+  position_x: number
+  position_y: number
+}
+
+export interface DMXCue {
+  id: string
+  name: string
+  fade_duration: number
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface DMXCueRecallResult {
+  recalled: number
+  skipped: number
+  cue_id: string
+  cue_name: string
+}
+
+export interface DMXCuePlacement {
+  id: string
+  sequence_id: string
+  cue_id: string
+  cue_name: string
+  position: number
+  transition_time: number // seconds; 0 = hard cut
+  hold_duration: number   // seconds to hold before advancing
+}
+
+export interface DMXSequence {
+  id: string
+  name: string
+  fade_out_duration: number
+  sort_order: number
+  cue_placements: DMXCuePlacement[]
+  created_at: string
+  updated_at: string
+}
+
+export interface DMXCueFixtureSnapshot {
+  fixture_id: string
+  entity_id: string
+  state: Record<string, number>
+}
+
 export interface DataPreviewData {
   type: string
   _seq: number
@@ -360,3 +564,56 @@ export interface DataPreviewData {
 }
 
 export type PreviewData = SensorPreviewData | AudioPreviewData | DataPreviewData
+
+// =============================================================================
+// OFL Fixture Library Types
+// =============================================================================
+
+export interface OFLManufacturer {
+  id: string
+  key: string
+  name: string
+  website?: string
+  fixture_count?: number
+  synced_at?: string
+}
+
+export interface OFLChannelDef {
+  name: string
+  type: string
+  defaultValue?: number
+}
+
+export interface OFLFixtureMode {
+  shortName: string
+  name: string
+  channels: OFLChannelDef[]
+  channel_count: number
+}
+
+export interface OFLFixture {
+  id: string
+  manufacturer_key: string
+  fixture_key: string
+  name: string
+  source: 'ofl' | 'custom'
+  categories: string[]
+  channel_count_min?: number
+  channel_count_max?: number
+  physical?: Record<string, unknown>
+  modes: OFLFixtureMode[]
+  ofl_last_modified?: string
+  synced_at?: string
+}
+
+export interface OFLSyncStatus {
+  ran_at: string
+  ofl_commit_sha?: string
+  ofl_schema_version?: string
+  fixtures_added: number
+  fixtures_updated: number
+  fixtures_skipped: number
+  fixtures_errored: number
+  status: 'success' | 'partial' | 'failed'
+  errors: unknown[]
+}

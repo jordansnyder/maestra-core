@@ -6,9 +6,11 @@
 #include "UObject/NoExportTypes.h"
 #include "MaestraTypes.h"
 #include "Interfaces/IHttpRequest.h"
+#include "MaestraDiscovery.h"
 #include "MaestraClient.generated.h"
 
 class UMaestraEntity;
+class UMaestraDiscovery;
 
 /**
  * Main client for connecting to the Maestra platform.
@@ -65,6 +67,27 @@ public:
      */
     UFUNCTION(BlueprintCallable, Category = "Maestra")
     UMaestraEntity* GetCachedEntity(const FString& Slug);
+
+    /**
+     * Discover this device, wait for admin approval, then auto-initialize the client.
+     * Combines AdvertiseDevice + WaitForProvisioning + Initialize in one call.
+     * @param ApiUrl The base URL for the Fleet Manager API
+     * @param HardwareId Unique hardware identifier for this device
+     * @param DeviceType Device type string (e.g. "unreal")
+     * @param Name Human-readable name for the device
+     */
+    UFUNCTION(BlueprintCallable, Category = "Maestra|Discovery")
+    void DiscoverAndConnect(const FString& ApiUrl, const FString& HardwareId, const FString& DeviceType, const FString& Name);
+
+    // Discovery events (forwarded from UMaestraDiscovery)
+    UPROPERTY(BlueprintAssignable, Category = "Maestra|Discovery")
+    FOnDeviceRegistered OnDeviceDiscovered;
+
+    UPROPERTY(BlueprintAssignable, Category = "Maestra|Discovery")
+    FOnProvisionReceived OnProvisionConfigReceived;
+
+    UPROPERTY(BlueprintAssignable, Category = "Maestra|Discovery")
+    FOnDiscoveryError OnDiscoveryFailed;
 
     // Events
     UPROPERTY(BlueprintAssignable, Category = "Maestra")
@@ -190,6 +213,19 @@ private:
     void HandleGetSessionsResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bSuccess);
     void HandleStopSessionResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bSuccess, FString SessionId);
     void HandleSessionHeartbeatResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bSuccess);
+
+    // Discovery
+    UPROPERTY()
+    UMaestraDiscovery* Discovery;
+
+    UFUNCTION()
+    void HandleDiscoveryRegistered(const FString& DeviceId);
+
+    UFUNCTION()
+    void HandleDiscoveryProvisioned(const FMaestraProvisionConfig& Config);
+
+    UFUNCTION()
+    void HandleDiscoveryFailed(const FString& ErrorMessage);
 
     // Helpers
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> CreateRequest(const FString& Endpoint, const FString& Verb);

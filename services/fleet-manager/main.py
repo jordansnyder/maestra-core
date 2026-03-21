@@ -27,6 +27,12 @@ from routing_router import router as routing_router
 from stream_router import router as stream_router
 from stream_preview import router as stream_preview_router
 from analytics_router import router as analytics_router
+from cloud_router import router as cloud_router
+from cloud_manager import cloud_manager
+from discovery_router import router as discovery_router
+from dmx_router import router as dmx_router
+from fixtures_router import router as fixtures_router
+from dmx_playback_engine import playback_engine
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -50,6 +56,10 @@ app.include_router(routing_router)
 app.include_router(stream_router)
 app.include_router(stream_preview_router)
 app.include_router(analytics_router)
+app.include_router(cloud_router)
+app.include_router(discovery_router)
+app.include_router(dmx_router)
+app.include_router(fixtures_router)
 
 
 # =============================================================================
@@ -371,6 +381,68 @@ async def startup_event():
     else:
         print("⚠️ Stream Manager not started (requires Redis + NATS)")
 
+    # Initialize cloud manager (needs Redis)
+    if redis_ok:
+        await cloud_manager.connect(get_redis())
+    else:
+        print("⚠️ Cloud Manager not started (requires Redis)")
+
+    # Load persisted DMX settings (interval, etc.)
+    if db_ok:
+        await playback_engine.load_settings()
+    # Subscribe NATS for external DMX lighting entity control
+    if state_manager.nc:
+        async def _on_dmx_lighting_state(msg):
+            try:
+                event = json.loads(msg.data.decode())
+                if event.get('source') == 'dmx-engine':
+                    return  # Ignore our own broadcasts
+                current_state = event.get('current_state', {}) or {}
+                active_sequence_id = current_state.get('active_sequence_id')
+                active_cue_id = current_state.get('active_cue_id')
+
+                if active_sequence_id:
+                    if playback_engine.status['sequence_id'] != active_sequence_id:
+                        await playback_engine.play(active_sequence_id)
+                elif active_cue_id:
+                    prev_cue = playback_engine.status.get('active_cue_id') if playback_engine.status else None
+                    await playback_engine.recall_cue_fade(prev_cue, active_cue_id, 0)
+                else:
+                    if playback_engine.status['play_state'] != 'stopped':
+                        await playback_engine.stop()
+            except Exception as e:
+                print(f"⚠️ DMX lighting state handler error: {e}")
+
+        await state_manager.subscribe_nats(
+            'maestra.entity.state.dmx_controller.dmx-lighting',
+            _on_dmx_lighting_state,
+        )
+        print("✅ DMX lighting NATS subscriber active")
+
+        # Subscribe to DMX gateway node heartbeats to update devices.last_seen
+        async def _on_dmx_node_heartbeat(msg):
+            try:
+                data = json.loads(msg.data.decode())
+                node_id = data.get('node_id')
+                if not node_id:
+                    return
+                from database import get_db as _get_db
+                from sqlalchemy import text as _text
+                async for db in _get_db():
+                    await db.execute(_text("""
+                        UPDATE devices SET last_seen = NOW(), status = 'online'
+                        WHERE id = (SELECT device_id FROM dmx_nodes WHERE id = CAST(:node_id AS uuid))
+                    """), {"node_id": node_id})
+                    await db.commit()
+            except Exception as e:
+                print(f"⚠️ DMX node heartbeat handler error: {e}")
+
+        await state_manager.subscribe_nats(
+            'maestra.dmx.node.heartbeat.*',
+            _on_dmx_node_heartbeat,
+        )
+        print("✅ DMX node heartbeat subscriber active")
+
     # Start demo simulator if DEMO_MODE is enabled
     if os.getenv("DEMO_MODE", "").lower() == "true" and state_manager.nc:
         await demo_simulator.start(state_manager.nc)
@@ -383,7 +455,9 @@ async def startup_event():
 async def shutdown_event():
     """Cleanup on shutdown"""
     print("👋 Maestra Fleet Manager shutting down...")
+    await playback_engine.shutdown()
     await demo_simulator.stop()
+    await cloud_manager.disconnect()
     await stream_manager.disconnect()
     await state_manager.disconnect()
     await close_redis()

@@ -22,8 +22,19 @@ init: ## Initialize environment (copy .env.example to .env)
 		echo "⚠️  .env already exists. Skipping..."; \
 	fi
 
+update-ip: ## Detect current LAN IP and update HOST_IP in .env, then restart dashboard
+	@NEW_IP=$$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null); \
+	if [ -z "$$NEW_IP" ]; then \
+		echo "❌ Could not detect LAN IP. Set HOST_IP manually in .env"; exit 1; \
+	fi; \
+	sed -i '' "s/^HOST_IP=.*/HOST_IP=$$NEW_IP/" .env; \
+	echo "✅ HOST_IP updated to $$NEW_IP"; \
+	$(DOCKER_COMPOSE) rm -sf dashboard; \
+	$(DOCKER_COMPOSE) up -d dashboard; \
+	echo "✅ Dashboard restarted with HOST_IP=$$NEW_IP"
+
 up: ## Start all services
-	$(DOCKER_COMPOSE) up -d
+	$(DOCKER_COMPOSE) --profile full up -d
 	@echo ""
 	@echo "✅ All services started."
 	@echo ""
@@ -34,15 +45,15 @@ up: ## Start all services
 	@echo ""
 
 down: ## Stop all services
-	$(DOCKER_COMPOSE) down
+	$(DOCKER_COMPOSE) --profile full down
 	@echo "✅ All services stopped."
 
 restart: ## Restart all services
-	$(DOCKER_COMPOSE) restart
+	$(DOCKER_COMPOSE) --profile full restart
 	@echo "✅ All services restarted."
 
 logs: ## View logs from all services (Ctrl+C to exit)
-	$(DOCKER_COMPOSE) logs -f
+	$(DOCKER_COMPOSE) --profile full logs -f
 
 logs-service: ## View logs from a specific service (usage: make logs-service SERVICE=fleet-manager)
 	@if [ -z "$(SERVICE)" ]; then \
@@ -52,7 +63,7 @@ logs-service: ## View logs from a specific service (usage: make logs-service SER
 	$(DOCKER_COMPOSE) logs -f $(SERVICE)
 
 ps: ## Show status of all services
-	$(DOCKER_COMPOSE) ps
+	$(DOCKER_COMPOSE) --profile full ps
 
 health: ## Check health of all services
 	@echo ""
@@ -67,6 +78,7 @@ health: ## Check health of all services
 	@printf "  %-20s " "MQTT" && ($(DOCKER_COMPOSE) exec -T mosquitto mosquitto_sub -t '$$SYS/broker/uptime' -C 1 -W 2 > /dev/null 2>&1 && echo "✅ healthy" || echo "❌ not responding")
 	@printf "  %-20s " "Redis" && ($(DOCKER_COMPOSE) exec -T redis redis-cli ping > /dev/null 2>&1 && echo "✅ healthy" || echo "❌ not responding")
 	@printf "  %-20s " "PostgreSQL" && ($(DOCKER_COMPOSE) exec -T postgres pg_isready > /dev/null 2>&1 && echo "✅ healthy" || echo "❌ not responding")
+	@printf "  %-20s " "DMX Gateway" && ($(DOCKER_COMPOSE) ps dmx-gateway 2>/dev/null | grep -q "running" && echo "✅ running" || echo "⚪ not started (use make up-dmx)")
 	@echo ""
 
 build: ## Rebuild all custom services
@@ -80,7 +92,7 @@ build-service: ## Rebuild a specific service (usage: make build-service SERVICE=
 	$(DOCKER_COMPOSE) build $(SERVICE)
 
 clean: ## Stop and remove all containers, networks (keeps volumes)
-	$(DOCKER_COMPOSE) down
+	$(DOCKER_COMPOSE) --profile full down
 	@echo "✅ Containers and networks removed. Volumes preserved."
 
 clean-all: ## Stop and remove everything including volumes (⚠️  DELETES ALL DATA)
@@ -88,7 +100,7 @@ clean-all: ## Stop and remove everything including volumes (⚠️  DELETES ALL 
 	@read -p "Are you sure? [y/N] " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		$(DOCKER_COMPOSE) down -v; \
+		$(DOCKER_COMPOSE) --profile full down -v; \
 		echo "✅ Everything removed including volumes."; \
 	else \
 		echo "❌ Cancelled."; \
@@ -110,7 +122,7 @@ demo: ## Start Maestra with demo data (recommended for first-time users)
 	@echo ""
 	@echo "🎭 Starting Maestra with demo data..."
 	@echo ""
-	@DEMO_MODE=true $(DOCKER_COMPOSE) up -d
+	@DEMO_MODE=true $(DOCKER_COMPOSE) --profile full up -d
 	@echo ""
 	@echo "⏳ Waiting for services to initialize..."
 	@sleep 8
@@ -170,16 +182,67 @@ test-mqtt: ## Test MQTT connection (publishes test message)
 	$(DOCKER_COMPOSE) exec mosquitto mosquitto_pub -t "maestra/test" -m "Hello from Maestra"
 	@echo "✅ Test message published to MQTT topic: maestra/test"
 
+test-mqtt-state: ## Test MQTT entity state update (requires SLUG=entity-slug)
+	@if [ -z "$(SLUG)" ]; then echo "Usage: make test-mqtt-state SLUG=my-entity"; exit 1; fi
+	$(DOCKER_COMPOSE) exec mosquitto mosquitto_pub -t "maestra/entity/state/update/$(SLUG)" \
+		-m '{"state": {"test_value": 42, "source_test": true}, "source": "make-test"}'
+	@echo "✅ State update published for entity: $(SLUG)"
+
+# =============================================================================
+# DMX / ART-NET GATEWAY
+# =============================================================================
+
+dev-dmx: ## Start core services + DMX gateway for development
+	$(DOCKER_COMPOSE) up -d nats redis postgres fleet-manager dmx-gateway
+	@echo "✅ Core services + DMX gateway started."
+
+logs-dmx: ## View DMX gateway logs
+	$(DOCKER_COMPOSE) logs -f dmx-gateway
+
+build-dmx: ## Rebuild the DMX gateway image
+	$(DOCKER_COMPOSE) build dmx-gateway
+
+test-dmx: ## Send a test entity state change via NATS
+	@echo "📡 Publishing test entity state to NATS..."
+	$(DOCKER_COMPOSE) exec nats nats pub maestra.entity.state.test \
+	  '{"entity_path":"test.fixture","state":{"intensity":0.8,"red":1.0,"green":0.0,"blue":0.0}}'
+	@echo "✅ Test state published. Check DMX gateway logs: make logs-dmx"
+
+bootstrap-venue: ## Create venue entities in Maestra from config/dmx/patch.yaml
+	python3 scripts/bootstrap_venue.py --patch config/dmx/patch.yaml --api http://localhost:8080
+
+bootstrap-venue-dry: ## Preview venue bootstrap without creating anything
+	python3 scripts/bootstrap_venue.py --patch config/dmx/patch.yaml --dry-run
+sync-ofl: ## Run OFL fixture sync manually (never runs automatically)
+	docker compose --profile ofl-sync run --build --rm ofl-sync
+
+ofl-status: ## Show last 5 OFL sync results
+	docker compose exec postgres psql -U maestra -d maestra \
+	  -c "SELECT ran_at, ofl_commit_sha, fixtures_added, fixtures_updated, fixtures_errored, status FROM ofl_sync_log ORDER BY ran_at DESC LIMIT 5;"
+
 watch: ## Watch service logs in real-time (requires watch command)
-	watch -n 2 '$(DOCKER_COMPOSE) ps'
+	watch -n 2 '$(DOCKER_COMPOSE) --profile full ps'
 
 stats: ## Show container resource usage
-	docker stats $$($(DOCKER_COMPOSE) ps -q)
+	docker stats $$($(DOCKER_COMPOSE) --profile full ps -q)
 
 update: ## Pull latest images and restart
-	$(DOCKER_COMPOSE) pull
-	$(DOCKER_COMPOSE) up -d
+	$(DOCKER_COMPOSE) --profile full pull
+	$(DOCKER_COMPOSE) --profile full up -d
 	@echo "✅ Services updated and restarted."
+
+# =============================================================================
+# DESKTOP APP
+# =============================================================================
+
+desktop-dev: ## Run Maestra Desktop in dev mode
+	cd desktop && npm run tauri dev
+
+desktop-build: ## Build Maestra Desktop for distribution
+	cd desktop && npm run tauri build
+
+desktop-install: ## Install desktop app dependencies
+	cd desktop && npm install && cd src-tauri && cargo build
 
 # =============================================================================
 # ENVIRONMENT DEPLOYMENT
@@ -221,8 +284,80 @@ logs-test: ## View test environment logs
 logs-prod: ## View production environment logs
 	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml logs -f
 
+# =============================================================================
+# SDK RELEASES
+# =============================================================================
+# Usage: make release-python VERSION=0.2.0
+#   Bumps version in manifest, commits, tags, and pushes.
+#   The push triggers the corresponding GitHub Actions publish workflow.
+
+VERSION ?= 0.1.0
+
+release-python: ## Release Python SDK to PyPI (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh python $(VERSION)
+	@git add sdks/python/pyproject.toml
+	@git commit -m "chore: bump Python SDK to v$(VERSION)"
+	@git tag "python/v$(VERSION)" -m "Python SDK v$(VERSION)"
+	@git push && git push origin "python/v$(VERSION)"
+	@echo "✅ Python SDK v$(VERSION) tagged. PyPI publish workflow triggered."
+
+release-js: ## Release JS/TS SDK to npm (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh js $(VERSION)
+	@git add sdks/js/package.json
+	@git commit -m "chore: bump JS SDK to v$(VERSION)"
+	@git tag "js/v$(VERSION)" -m "JS SDK v$(VERSION)"
+	@git push && git push origin "js/v$(VERSION)"
+	@echo "✅ JS SDK v$(VERSION) tagged. npm publish workflow triggered."
+
+release-arduino: ## Release Arduino SDK to PlatformIO (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh arduino $(VERSION)
+	@git add sdks/arduino/MaestraClient/library.json
+	@git commit -m "chore: bump Arduino SDK to v$(VERSION)"
+	@git tag "arduino/v$(VERSION)" -m "Arduino SDK v$(VERSION)"
+	@git push && git push origin "arduino/v$(VERSION)"
+	@echo "✅ Arduino SDK v$(VERSION) tagged. PlatformIO publish workflow triggered."
+
+release-unity: ## Release Unity SDK via OpenUPM (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh unity $(VERSION)
+	@git add sdks/unity/package.json
+	@git commit -m "chore: bump Unity SDK to v$(VERSION)"
+	@git tag "unity/v$(VERSION)" -m "Unity SDK v$(VERSION)"
+	@git push && git push origin "unity/v$(VERSION)"
+	@echo "✅ Unity SDK v$(VERSION) tagged. UPM branch update workflow triggered."
+
+release-unreal: ## Release Unreal Plugin as GitHub Release (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh unreal $(VERSION)
+	@git add sdks/unreal/MaestraPlugin/MaestraPlugin.uplugin
+	@git commit -m "chore: bump Unreal Plugin to v$(VERSION)"
+	@git tag "unreal/v$(VERSION)" -m "Unreal Plugin v$(VERSION)"
+	@git push && git push origin "unreal/v$(VERSION)"
+	@echo "✅ Unreal Plugin v$(VERSION) tagged. GitHub Release workflow triggered."
+
+release-td: ## Release TouchDesigner SDK as GitHub Release (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh touchdesigner $(VERSION)
+	@git add sdks/touchdesigner/
+	@git commit --allow-empty -m "chore: bump TouchDesigner SDK to v$(VERSION)"
+	@git tag "touchdesigner/v$(VERSION)" -m "TouchDesigner SDK v$(VERSION)"
+	@git push && git push origin "touchdesigner/v$(VERSION)"
+	@echo "✅ TouchDesigner SDK v$(VERSION) tagged. GitHub Release workflow triggered."
+
+release-all: ## Release all SDKs (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh all $(VERSION)
+	@git add sdks/
+	@git commit -m "chore: bump all SDKs to v$(VERSION)"
+	@git tag "python/v$(VERSION)" -m "Python SDK v$(VERSION)"
+	@git tag "js/v$(VERSION)" -m "JS SDK v$(VERSION)"
+	@git tag "arduino/v$(VERSION)" -m "Arduino SDK v$(VERSION)"
+	@git tag "unity/v$(VERSION)" -m "Unity SDK v$(VERSION)"
+	@git tag "unreal/v$(VERSION)" -m "Unreal Plugin v$(VERSION)"
+	@git tag "touchdesigner/v$(VERSION)" -m "TouchDesigner SDK v$(VERSION)"
+	@git push && git push origin --tags
+	@echo "✅ All SDKs tagged at v$(VERSION). Publish workflows triggered."
+
 # Development shortcuts
 .PHONY: dev-bus dev-db dev-core shell-postgres shell-redis shell-fleet
 .PHONY: migrate migrate-status migrate-dry-run
-.PHONY: backup-db restore-db test-mqtt watch stats update
+.PHONY: backup-db restore-db test-mqtt test-mqtt-state watch stats update
 .PHONY: deploy-test deploy-prod stop-test stop-prod logs-test logs-prod
+.PHONY: up-dmx dev-dmx logs-dmx build-dmx test-dmx sync-ofl ofl-status update-ip
+.PHONY: release-python release-js release-arduino release-unity release-unreal release-td release-all

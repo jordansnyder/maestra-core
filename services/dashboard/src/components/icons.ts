@@ -40,6 +40,7 @@ export {
   Activity,
   CheckCircle2,
   PauseCircle,
+  Pause,
   AlertTriangle,
 } from 'lucide-react'
 
@@ -72,6 +73,11 @@ export {
   Heart,
 } from 'lucide-react'
 
+// Cloud
+export {
+  Cloud,
+} from 'lucide-react'
+
 // Toast / UI
 export {
   XCircle,
@@ -89,7 +95,20 @@ export {
   RefreshCw,
   Settings,
   ChevronDown,
+  ChevronUp,
   BookOpen,
+  Network,
+  Layers,
+  Copy,
+  GripVertical,
+  Check,
+  Square,
+  ListOrdered,
+  Repeat,
+  Sunset,
+  RotateCcw,
+  ZapOff,
+  Undo2,
 } from 'lucide-react'
 
 // Device type icon lookup

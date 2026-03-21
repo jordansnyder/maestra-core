@@ -46,6 +46,11 @@ db_mod.RouteDB = _make_stub_class("RouteDB", [
     "target_input", "route_metadata", "active", "created_at", "updated_at"])
 db_mod.RoutePresetDB = _make_stub_class("RoutePresetDB", [
     "id", "name", "description", "routes", "created_at", "updated_at"])
+db_mod.BlockedDeviceDB = _make_stub_class("BlockedDeviceDB", [
+    "id", "hardware_id", "reason", "blocked_at", "created_at", "updated_at"])
+db_mod.DeviceProvisionDB = _make_stub_class("DeviceProvisionDB", [
+    "id", "hardware_id", "name", "device_type", "auto_approve",
+    "provision_metadata", "created_at", "updated_at"])
 db_mod.StreamTypeDB = _make_stub_class("StreamTypeDB", [
     "id", "name", "display_name", "description", "icon",
     "default_config", "stream_type_metadata", "created_at", "updated_at"])
@@ -72,6 +77,14 @@ rc_mod.init_redis = None
 rc_mod.close_redis = None
 rc_mod.get_redis = lambda: None
 sys.modules["redis_client"] = rc_mod
+
+# cloud_manager.py — depends on httpx and redis.asyncio
+cm_mod = types.ModuleType("cloud_manager")
+cm_mod.cloud_manager = type("CM", (), {
+    "connect": lambda s, *a, **kw: None,
+    "disconnect": lambda s,*a, **kw: None,
+})()
+sys.modules["cloud_manager"] = cm_mod
 
 # demo_simulator.py — depends on nats which is not installed in CI
 ds_mod = types.ModuleType("demo_simulator")

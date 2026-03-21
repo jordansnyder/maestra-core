@@ -38,7 +38,7 @@ PATCH  /entities/{id}/state         # Update state (merge)
 PUT    /entities/{id}/state         # Replace state
 ```
 
-### Update State Example
+### Update State (HTTP)
 
 ```bash
 curl -X PATCH http://localhost:8080/entities/{id}/state \
@@ -48,6 +48,38 @@ curl -X PATCH http://localhost:8080/entities/{id}/state \
     "source": "api"
   }'
 ```
+
+### Update State (MQTT)
+
+Devices can update entity state directly via MQTT — no HTTP required:
+
+```bash
+# Merge with existing state (PATCH semantics)
+mosquitto_pub -h localhost -t 'maestra/entity/state/update/my-entity' \
+  -m '{"state": {"brightness": 75}, "source": "mqtt-device"}'
+
+# Replace entire state (PUT semantics)
+mosquitto_pub -h localhost -t 'maestra/entity/state/set/my-entity' \
+  -m '{"state": {"brightness": 75, "active": true}}'
+```
+
+### Update State (NATS)
+
+```
+Subject: maestra.entity.state.update.<slug>   →  merge
+Subject: maestra.entity.state.set.<slug>      →  replace
+Payload: {"state": {...}, "source": "..."}
+```
+
+### Subscribe to State Changes
+
+State changes are broadcast to all protocols automatically:
+
+| Protocol | Topic/Subject |
+|----------|--------------|
+| MQTT | `maestra/entity/state/<type>/<slug>` |
+| NATS | `maestra.entity.state.<type>.<slug>` |
+| WebSocket | Receives all NATS broadcasts |
 
 ## Entity Variables
 
@@ -256,3 +288,32 @@ Response:
   "defaultValue": {"x": 0, "y": 0, "z": 0}
 }
 ```
+
+---
+
+## Special Entities
+
+### DMX Lighting (`dmx-lighting`)
+
+A singleton entity of type `dmx_controller` is automatically created when DMX migrations are applied. It reflects the current cue and sequence catalog and can be used to trigger DMX playback from any external tool.
+
+**Read state:**
+```bash
+GET /entities/dmx-lighting
+```
+
+**Trigger a cue externally:**
+```bash
+curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
+  -H "Content-Type: application/json" \
+  -d '{"state": {"active_cue_id": "<cue-uuid>"}}'
+```
+
+**Start a sequence externally:**
+```bash
+curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
+  -H "Content-Type: application/json" \
+  -d '{"state": {"active_sequence_id": "<sequence-uuid>"}}'
+```
+
+The Dashboard subscribes to `maestra.entity.state.dmx_controller.dmx-lighting` via WebSocket and reflects cue/sequence highlight changes in real time. See the [DMX Gateway Guide](../guides/dmx-gateway.md) for full details.

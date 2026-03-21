@@ -8,9 +8,17 @@ import {
   RouteData, RouteCreate, RoutePreset, RoutePresetCreate, RoutePresetUpdate,
   RoutePresetDetail, RoutingState,
   StreamInfo, StreamSession, StreamTypeInfo, StreamRegistryState,
+  BlockedDevice, DeviceProvision, DeviceApproval,
+  DMXNode, DMXNodeCreate, DMXNodeUpdate,
+  DMXFixture, DMXFixtureCreate, DMXFixtureUpdate, FixturePositionUpdate,
+  DMXCue, DMXCueRecallResult,
+  DMXSequence, DMXCuePlacement, DMXCueFixtureSnapshot,
+  OFLManufacturer, OFLFixture, OFLSyncStatus,
 } from './types'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+import { getApiUrl } from './hosts'
+
+const API_URL = getApiUrl()
 
 class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -241,6 +249,43 @@ export const devicesApi = {
     }),
 }
 
+// Discovery API
+export const discoveryApi = {
+  listPending: () => fetchApi<Device[]>('/devices/pending'),
+
+  approve: (id: string, data?: DeviceApproval) =>
+    fetchApi<Device>(`/devices/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    }),
+
+  reject: (id: string) =>
+    fetchApi<{ status: string }>(`/devices/${id}/reject`, {
+      method: 'POST',
+    }),
+
+  block: (id: string, reason?: string) =>
+    fetchApi<{ status: string }>(`/devices/${id}/block`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
+  listBlocked: () => fetchApi<BlockedDevice[]>('/devices/blocked'),
+
+  unblock: (hardwareId: string) =>
+    fetchApi<{ status: string }>(`/devices/blocked/${hardwareId}`, {
+      method: 'DELETE',
+    }),
+
+  getProvision: (id: string) => fetchApi<DeviceProvision>(`/devices/${id}/provision`),
+
+  updateProvision: (id: string, data: Partial<DeviceApproval>) =>
+    fetchApi<DeviceProvision>(`/devices/${id}/provision`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+}
+
 // Routing API
 export const routingApi = {
   // Full state (single fetch for frontend)
@@ -373,6 +418,14 @@ export const api = {
   updateEntity: entitiesApi.update,
   deleteEntity: entitiesApi.delete,
 
+  // Discovery
+  listPendingDevices: discoveryApi.listPending,
+  approveDevice: discoveryApi.approve,
+  rejectDevice: discoveryApi.reject,
+  blockDevice: discoveryApi.block,
+  listBlockedDevices: discoveryApi.listBlocked,
+  unblockDevice: discoveryApi.unblock,
+
   // Health
   health: healthApi.check,
   status: healthApi.status,
@@ -401,6 +454,213 @@ export const streamsApi = {
 
   /** Get the SSE preview URL for a stream (use with EventSource) */
   getPreviewUrl: (id: string) => `${API_URL}/streams/${id}/preview`,
+}
+
+// Cloud Gateway API
+import type { CloudConfig, CloudPolicy, CloudStatus, CloudTestResult, CloudSiteRegister } from './cloudTypes'
+
+export const cloudApi = {
+  getConfig: () => fetchApi<CloudConfig>('/cloud/config'),
+
+  saveConfig: (data: { gateway_url: string }) =>
+    fetchApi<CloudConfig>('/cloud/config', { method: 'PUT', body: JSON.stringify(data) }),
+
+  deleteConfig: () =>
+    fetchApi<{ status: string }>('/cloud/config', { method: 'DELETE' }),
+
+  register: (data: CloudSiteRegister) =>
+    fetchApi<{ id: string; slug: string; status: string }>('/cloud/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  activate: () =>
+    fetchApi<{ id: string; status: string }>('/cloud/activate', { method: 'POST' }),
+
+  getStatus: () => fetchApi<CloudStatus>('/cloud/status'),
+
+  issueCertificates: () =>
+    fetchApi<{ certificate: Record<string, unknown>; client_cert_pem: string; ca_cert_pem: string }>(
+      '/cloud/certificates/issue',
+      { method: 'POST' }
+    ),
+
+  getPolicies: () => fetchApi<CloudPolicy[]>('/cloud/policies'),
+
+  savePolicies: (policies: CloudPolicy[]) =>
+    fetchApi<CloudPolicy[]>('/cloud/policies', {
+      method: 'PUT',
+      body: JSON.stringify({ policies }),
+    }),
+
+  test: () => fetchApi<CloudTestResult>('/cloud/test', { method: 'POST' }),
+
+  getMetrics: () => fetchApi<Record<string, unknown>>('/cloud/metrics')
+}
+// DMX API
+export const dmxApi = {
+  // Art-Net Nodes
+  listNodes: () => fetchApi<DMXNode[]>('/dmx/nodes'),
+  getNode: (id: string) => fetchApi<DMXNode>(`/dmx/nodes/${id}`),
+  createNode: (data: DMXNodeCreate) =>
+    fetchApi<DMXNode>('/dmx/nodes', { method: 'POST', body: JSON.stringify(data) }),
+  updateNode: (id: string, data: DMXNodeUpdate) =>
+    fetchApi<DMXNode>(`/dmx/nodes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteNode: (id: string) =>
+    fetchApi<{ status: string; id: string }>(`/dmx/nodes/${id}`, { method: 'DELETE' }),
+  reorderNodes: (ids: string[]) =>
+    fetchApi<{ reordered: number }>('/dmx/nodes/reorder', { method: 'PUT', body: JSON.stringify(ids) }),
+
+  // DMX Fixtures
+  listFixtures: (filters?: { nodeId?: string; entityId?: string }) => {
+    const params = new URLSearchParams()
+    if (filters?.nodeId) params.set('node_id', filters.nodeId)
+    if (filters?.entityId) params.set('entity_id', filters.entityId)
+    const q = params.toString()
+    return fetchApi<DMXFixture[]>(`/dmx/fixtures${q ? `?${q}` : ''}`)
+  },
+  getFixture: (id: string) => fetchApi<DMXFixture>(`/dmx/fixtures/${id}`),
+  getFixtureByEntity: (entityId: string) =>
+    fetchApi<DMXFixture>(`/dmx/entities/${entityId}/fixture`),
+  createFixture: (data: DMXFixtureCreate) =>
+    fetchApi<DMXFixture>('/dmx/fixtures', { method: 'POST', body: JSON.stringify(data) }),
+  updateFixture: (id: string, data: DMXFixtureUpdate) =>
+    fetchApi<DMXFixture>(`/dmx/fixtures/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteFixture: (id: string) =>
+    fetchApi<{ status: string; id: string }>(`/dmx/fixtures/${id}`, { method: 'DELETE' }),
+  reorderFixtures: (ids: string[]) =>
+    fetchApi<{ reordered: number }>('/dmx/fixtures/reorder', { method: 'PUT', body: JSON.stringify(ids) }),
+  bulkUpdatePositions: (positions: FixturePositionUpdate[]) =>
+    fetchApi<{ status: string; count: number }>('/dmx/fixtures/positions/bulk', {
+      method: 'PUT',
+      body: JSON.stringify(positions),
+    }),
+
+  // DMX Output Pause / Resume / Clear
+  getPauseState: () => fetchApi<{ paused: boolean }>('/dmx/pause-state'),
+  pauseOutput: () => fetchApi<{ paused: boolean }>('/dmx/pause', { method: 'POST' }),
+  resumeOutput: () => fetchApi<{ paused: boolean }>('/dmx/resume', { method: 'POST' }),
+  clearOutput: () => fetchApi<{ cleared: number; universes: number[] }>('/dmx/clear', { method: 'POST' }),
+
+  // DMX Cues
+  listCues: () => fetchApi<DMXCue[]>('/dmx/cues'),
+  saveCue: (name: string) =>
+    fetchApi<DMXCue>('/dmx/cues', { method: 'POST', body: JSON.stringify({ name }) }),
+  recallCue: (id: string) =>
+    fetchApi<DMXCueRecallResult>(`/dmx/cues/${id}/recall`, { method: 'POST' }),
+  updateCueSnapshot: (id: string) =>
+    fetchApi<DMXCue>(`/dmx/cues/${id}/snapshot`, { method: 'POST' }),
+  reorderCues: (ids: string[]) =>
+    fetchApi<{ reordered: number }>('/dmx/cues/reorder', { method: 'PUT', body: JSON.stringify(ids) }),
+  renameCue: (id: string, name: string) =>
+    fetchApi<DMXCue>(`/dmx/cues/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
+  deleteCue: (id: string) =>
+    fetchApi<{ status: string; id: string }>(`/dmx/cues/${id}`, { method: 'DELETE' }),
+  getCueFixtures: (id: string) =>
+    fetchApi<DMXCueFixtureSnapshot[]>(`/dmx/cues/${id}/fixtures`),
+
+  // DMX Sequences
+  listSequences: () => fetchApi<DMXSequence[]>('/dmx/sequences'),
+  createSequence: (name: string) =>
+    fetchApi<DMXSequence>('/dmx/sequences', { method: 'POST', body: JSON.stringify({ name }) }),
+  reorderSequences: (ids: string[]) =>
+    fetchApi<{ reordered: number }>('/dmx/sequences/reorder', { method: 'PUT', body: JSON.stringify(ids) }),
+  renameSequence: (id: string, name: string) =>
+    fetchApi<DMXSequence>(`/dmx/sequences/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
+  deleteSequence: (id: string) =>
+    fetchApi<{ status: string; id: string }>(`/dmx/sequences/${id}`, { method: 'DELETE' }),
+  addCueToSequence: (sequenceId: string, cueId: string) =>
+    fetchApi<DMXCuePlacement[]>(`/dmx/sequences/${sequenceId}/cues`, { method: 'POST', body: JSON.stringify({ cue_id: cueId }) }),
+  reorderSequenceCues: (sequenceId: string, ids: string[]) =>
+    fetchApi<DMXCuePlacement[]>(`/dmx/sequences/${sequenceId}/cues/reorder`, { method: 'PUT', body: JSON.stringify(ids) }),
+  updateCuePlacement: (sequenceId: string, placementId: string, data: { transition_time?: number; hold_duration?: number }) =>
+    fetchApi<DMXCuePlacement[]>(`/dmx/sequences/${sequenceId}/cues/${placementId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  removeCueFromSequence: (sequenceId: string, placementId: string) =>
+    fetchApi<DMXCuePlacement[]>(`/dmx/sequences/${sequenceId}/cues/${placementId}`, { method: 'DELETE' }),
+}
+
+// DMX Playback API
+export const playbackApi = {
+  getStatus: () =>
+    fetchApi<{
+      sequence_id: string | null
+      play_state: string
+      phase: string
+      cue_index: number
+      progress: number
+      hold_progress: number
+      loop: boolean
+      fade_progress: number | null
+    }>('/dmx/playback/status'),
+
+  play: (sequenceId: string) =>
+    fetchApi<{ status: string }>('/dmx/playback/play', {
+      method: 'POST',
+      body: JSON.stringify({ sequence_id: sequenceId }),
+    }),
+
+  pause: () =>
+    fetchApi<{ status: string }>('/dmx/playback/pause', { method: 'POST' }),
+
+  resume: () =>
+    fetchApi<{ status: string }>('/dmx/playback/resume', { method: 'POST' }),
+
+  stop: () =>
+    fetchApi<{ status: string }>('/dmx/playback/stop', { method: 'POST' }),
+
+  toggleLoop: () =>
+    fetchApi<{ loop: boolean }>('/dmx/playback/toggle-loop', { method: 'POST' }),
+
+  fadeOut: (durationMs: number = 3000) =>
+    fetchApi<{ status: string }>('/dmx/playback/fadeout', {
+      method: 'POST',
+      body: JSON.stringify({ duration_ms: durationMs }),
+    }),
+
+  recallCueFade: (fromCueId: string | null, toCueId: string, durationMs: number) =>
+    fetchApi<{ status: string }>('/dmx/playback/cue-fade', {
+      method: 'POST',
+      body: JSON.stringify({ from_cue_id: fromCueId, to_cue_id: toCueId, duration_ms: durationMs }),
+    }),
+
+  blackout: () =>
+    fetchApi<{ status: string; fixtures: number }>('/dmx/playback/blackout', { method: 'POST' }),
+
+  getConfig: () =>
+    fetchApi<{ interval_ms: number }>('/dmx/playback/config'),
+
+  setConfig: (intervalMs: number) =>
+    fetchApi<{ interval_ms: number }>('/dmx/playback/config', {
+      method: 'PUT',
+      body: JSON.stringify({ interval_ms: intervalMs }),
+    }),
+}
+
+// OFL Fixture Library API
+export const oflApi = {
+  getManufacturers: (q?: string) => {
+    const params = q ? `?q=${encodeURIComponent(q)}` : ''
+    return fetchApi<OFLManufacturer[]>(`/ofl/manufacturers${params}`)
+  },
+
+  getFixtures: (params: { q?: string; manufacturer?: string; category?: string; page?: number; limit?: number }) => {
+    const sp = new URLSearchParams()
+    if (params.q) sp.set('q', params.q)
+    if (params.manufacturer) sp.set('manufacturer', params.manufacturer)
+    if (params.category) sp.set('category', params.category)
+    if (params.page) sp.set('page', String(params.page))
+    if (params.limit) sp.set('limit', String(params.limit))
+    const qs = sp.toString()
+    return fetchApi<{ items: OFLFixture[]; total: number; page: number; limit: number }>(`/ofl/fixtures${qs ? `?${qs}` : ''}`)
+  },
+
+  getFixture: (manufacturerKey: string, fixtureKey: string) =>
+    fetchApi<OFLFixture>(`/ofl/fixtures/${manufacturerKey}/${fixtureKey}`),
+
+  getFixtureById: (id: string) =>
+    fetchApi<OFLFixture>(`/ofl/fixtures/by-id/${id}`),
+
+  getSyncStatus: () => fetchApi<OFLSyncStatus>(`/ofl/sync/status`),
 }
 
 export { ApiError }

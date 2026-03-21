@@ -1,0 +1,54 @@
+name: Publish Python SDK to PyPI
+
+on:
+  push:
+    tags:
+      - 'python/v*'
+
+permissions:
+  id-token: write  # Required for OIDC trusted publishing
+
+jobs:
+  publish:
+    name: Build and publish to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/maestra/
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#python/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify version matches pyproject.toml
+        working-directory: sdks/python
+        run: |
+          TOML_VERSION=$(python -c "
+          import re
+          with open('pyproject.toml') as f:
+              match = re.search(r'^version = \"(.+)\"', f.read(), re.MULTILINE)
+              print(match.group(1))
+          ")
+          if [ "$TOML_VERSION" != "${{ steps.version.outputs.version }}" ]; then
+            echo "::error::Tag version (${{ steps.version.outputs.version }}) does not match pyproject.toml version ($TOML_VERSION)"
+            exit 1
+          fi
+
+      - name: Build package
+        working-directory: sdks/python
+        run: python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdks/python/dist/

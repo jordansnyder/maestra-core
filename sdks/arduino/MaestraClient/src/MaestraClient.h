@@ -11,6 +11,10 @@
 #include <ArduinoJson.h>
 #include <functional>
 
+#ifdef ESP32
+#include "MaestraDiscovery.h"
+#endif
+
 // Default buffer sizes
 #define MAESTRA_JSON_BUFFER_SIZE 1024
 #define MAESTRA_TOPIC_BUFFER_SIZE 128
@@ -113,6 +117,15 @@ public:
     void disconnect();
     bool isConnected();
     void loop();
+
+#ifdef ESP32
+    /**
+     * Discover Maestra via mDNS, then connect MQTT using the discovered broker.
+     * @param timeoutMs  Maximum time to wait for mDNS discovery (default 5000ms)
+     * @return true if discovery succeeded and MQTT connected
+     */
+    bool discoverAndConnect(unsigned long timeoutMs = 5000);
+#endif
 
     // Entity management
     MaestraEntity* getEntity(const char* slug);

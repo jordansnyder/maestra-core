@@ -26,7 +26,7 @@ make up         # Start all services
 +-----------------------------------------------------------------+
                               |
 +-----------------------------------------------------------------+
-|  GATEWAYS: OSC Gateway | WebSocket Gateway | MQTT Broker        |
+|  GATEWAYS: OSC | WebSocket | MQTT | DMX/Art-Net (opt-in)       |
 +-----------------------------------------------------------------+
                               |
 +-----------------------------------------------------------------+
@@ -65,6 +65,7 @@ Not sure which SDK to use? See the [Choose Your SDK](docs/docs/guides/choose-you
 - **Peer-to-Peer Streaming** -- Advertise and discover live data streams (sensor feeds, audio, video, NDI, texture) with control-plane negotiation and direct P2P data delivery.
 - **Signal Routing** -- Patch inputs and outputs between devices like a virtual signal flow -- connect a sensor's output to a light's input without writing code.
 - **Visual Programming** -- Use Node-RED's flow-based editor to build automation, orchestration, and show control logic with drag-and-drop nodes.
+- **DMX / Art-Net Gateway** -- Control physical DMX lighting fixtures from any Maestra client via Art-Net. Configure nodes and fixtures through the Dashboard, save lighting looks as **Cues**, chain them into automated **Sequences** with cross-fades, and trigger playback from any SDK or the REST API. Opt-in service, no code changes required between venues.
 - **Monitoring** -- Eight pre-built Grafana dashboards give you real-time visibility into device health, message throughput, entity state history, and system performance.
 
 ## Services
@@ -83,13 +84,30 @@ Once running, these services are available on your local machine:
 ## Common Commands
 
 ```bash
+# Lifecycle
 make up              # Start all services
 make down            # Stop all services
+make restart         # Restart all services
 make dev-core        # Start core services only (lighter weight)
 make logs            # View live logs
 make health          # Check all service health
 make ps              # Show service status
+
+# Testing
 make test-mqtt       # Publish a test MQTT message
+
+# Network
+make update-ip       # Detect LAN IP and update HOST_IP in .env, then restart dashboard
+
+# DMX / Art-Net (requires DMX hardware)
+make up-dmx          # Start full stack + DMX gateway
+make dev-dmx         # Start core services + DMX gateway (lighter)
+make logs-dmx        # View DMX gateway logs
+make test-dmx        # Send a test entity state change via NATS
+
+# Open Fixture Library
+make sync-ofl        # Sync OFL fixture catalog into the database (run manually)
+make ofl-status      # Show last 5 OFL sync results
 ```
 
 ## Documentation

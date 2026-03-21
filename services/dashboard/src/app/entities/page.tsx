@@ -3,10 +3,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { Entity, EntityType, EntityTreeNode } from '@/lib/types'
-import { entitiesApi, entityTypesApi } from '@/lib/api'
+import { entitiesApi, entityTypesApi, dmxApi } from '@/lib/api'
 import { useToast } from '@/components/Toast'
-import { ENTITY_TYPE_ICONS, DEFAULT_ENTITY_ICON, Plus, Search, Pencil, Trash2, Boxes } from '@/components/icons'
+import { ENTITY_TYPE_ICONS, DEFAULT_ENTITY_ICON, Plus, Search, Pencil, Trash2, Boxes, Zap } from '@/components/icons'
 import { EmptyState } from '@/components/EmptyState'
+import { getDocsUrl } from '@/lib/hosts'
 import type { LucideIcon } from 'lucide-react'
 
 type ViewMode = 'list' | 'tree'
@@ -24,6 +25,7 @@ export default function EntitiesPage() {
   const [entities, setEntities] = useState<Entity[]>([])
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([])
   const [tree, setTree] = useState<EntityTreeNode[]>([])
+  const [dmxLinkedIds, setDmxLinkedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('list')
@@ -37,16 +39,21 @@ export default function EntitiesPage() {
       setLoading(true)
       setError(null)
 
-      const [typesData, entitiesData] = await Promise.all([
+      const [typesData, entitiesData, fixturesData] = await Promise.all([
         entityTypesApi.list(),
         entitiesApi.list({
           entity_type: selectedType || undefined,
           search: searchQuery || undefined,
         }),
+        dmxApi.listFixtures().catch(() => []),
       ])
 
       setEntityTypes(typesData)
       setEntities(entitiesData)
+      const dmxSet = new Set<string>(fixturesData.flatMap((f) => f.entity_id ? [f.entity_id] : []))
+      const dmxController = entitiesData.find((e) => e.slug === 'dmx-lighting')
+      if (dmxController) dmxSet.add(dmxController.id)
+      setDmxLinkedIds(dmxSet)
 
       if (viewMode === 'tree') {
         const treeData = await entitiesApi.getTree(undefined, selectedType || undefined)
@@ -162,13 +169,14 @@ export default function EntitiesPage() {
           <EntityList
             entities={entities}
             entityTypes={entityTypes}
+            dmxLinkedIds={dmxLinkedIds}
             onDelete={handleDelete}
             onCreateEntity={() => setShowCreateModal(true)}
           />
         )}
 
         {!loading && viewMode === 'tree' && (
-          <EntityTree nodes={tree} entityTypes={entityTypes} />
+          <EntityTree nodes={tree} entityTypes={entityTypes} dmxLinkedIds={dmxLinkedIds} />
         )}
 
         {/* Create Modal */}
@@ -192,11 +200,13 @@ export default function EntitiesPage() {
 function EntityList({
   entities,
   entityTypes,
+  dmxLinkedIds,
   onDelete,
   onCreateEntity,
 }: {
   entities: Entity[]
   entityTypes: EntityType[]
+  dmxLinkedIds: Set<string>
   onDelete: (id: string, name: string) => void
   onCreateEntity: () => void
 }) {
@@ -212,7 +222,7 @@ function EntityList({
         title="No entities yet"
         description="Entities represent the things in your experience — rooms, lights, sensors, projectors. Create your first entity to start building."
         action={{ label: 'Create Entity', onClick: onCreateEntity }}
-        secondaryAction={{ label: 'Learn about Entities', href: 'http://localhost:8000/api/entities/' }}
+        secondaryAction={{ label: 'Learn about Entities', href: getDocsUrl('/api/entities/') }}
       />
     )
   }
@@ -221,6 +231,7 @@ function EntityList({
     <div className="grid gap-3">
       {entities.map((entity) => {
         const Icon = getEntityIcon(entityTypes, entity.entity_type_id)
+        const isDmxLinked = dmxLinkedIds.has(entity.id) || entity.metadata?.dmx_controller === true
         return (
           <div
             key={entity.id}
@@ -252,6 +263,12 @@ function EntityList({
                     >
                       {entity.status}
                     </span>
+                    {isDmxLinked && (
+                      <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                        <Zap className="w-2.5 h-2.5" />
+                        DMX
+                      </span>
+                    )}
                   </div>
                   {entity.description && (
                     <p className="text-sm text-slate-400 mt-2">{entity.description}</p>
@@ -292,10 +309,12 @@ function EntityList({
 function EntityTree({
   nodes,
   entityTypes,
+  dmxLinkedIds,
   level = 0,
 }: {
   nodes: EntityTreeNode[]
   entityTypes: EntityType[]
+  dmxLinkedIds: Set<string>
   level?: number
 }) {
   if (nodes.length === 0 && level === 0) {
@@ -304,7 +323,7 @@ function EntityTree({
         icon={Boxes}
         title="No entities yet"
         description="Entities represent the things in your experience — rooms, lights, sensors, projectors. Create your first entity to start building."
-        secondaryAction={{ label: 'Learn about Entities', href: 'http://localhost:8000/api/entities/' }}
+        secondaryAction={{ label: 'Learn about Entities', href: getDocsUrl('/api/entities/') }}
       />
     )
   }
@@ -313,6 +332,7 @@ function EntityTree({
     <div className={level > 0 ? 'ml-6 border-l border-slate-700 pl-4' : ''}>
       {nodes.map((node) => {
         const Icon = getEntityIconByName(node.entity_type_name)
+        const isDmxLinked = dmxLinkedIds.has(node.id)
         return (
           <div key={node.id} className="py-2">
             <Link
@@ -331,9 +351,15 @@ function EntityTree({
               >
                 {node.status}
               </span>
+              {isDmxLinked && (
+                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                  <Zap className="w-2.5 h-2.5" />
+                  DMX
+                </span>
+              )}
             </Link>
             {node.children.length > 0 && (
-              <EntityTree nodes={node.children} entityTypes={entityTypes} level={level + 1} />
+              <EntityTree nodes={node.children} entityTypes={entityTypes} dmxLinkedIds={dmxLinkedIds} level={level + 1} />
             )}
           </div>
         )

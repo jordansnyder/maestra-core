@@ -4,6 +4,7 @@ import Link from 'next/link'
 import type { StreamInfo, StreamTypeInfo } from '@/lib/types'
 import { STREAM_TYPE_ICONS, DEFAULT_STREAM_ICON, Radio } from '@/components/icons'
 import { EmptyState } from '@/components/EmptyState'
+import { getDocsUrl } from '@/lib/hosts'
 
 // Protocol badge colors
 const PROTOCOL_COLORS: Record<string, string> = {
@@ -40,7 +41,7 @@ export function StreamRegistry({ streams, streamTypes }: StreamRegistryProps) {
         icon={Radio}
         title="No active streams"
         description="Streams let devices share live data — sensor readings, audio, video feeds. Advertise a stream from any connected device to see it here."
-        secondaryAction={{ label: 'Stream Guide', href: 'http://localhost:8000/guides/streams/' }}
+        secondaryAction={{ label: 'Stream Guide', href: getDocsUrl('/guides/streams/') }}
       />
     )
   }

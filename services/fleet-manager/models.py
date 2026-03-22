@@ -2,7 +2,7 @@
 Pydantic models for Fleet Manager API
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, Dict, Any, List, Literal
 from uuid import UUID, uuid4
 from datetime import datetime
@@ -584,6 +584,22 @@ class StreamAdvertise(BaseModel):
     device_id: Optional[UUID] = None
     config: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    multicast_group: Optional[str] = Field(None, description="IP multicast group address (e.g., 239.1.1.1). When set with multicast_port, stream operates in multicast mode.")
+    multicast_port: Optional[int] = Field(None, ge=0, le=65535, description="Multicast port for consumers to join")
+
+    @model_validator(mode='after')
+    def validate_multicast(self):
+        if (self.multicast_group is None) != (self.multicast_port is None):
+            raise ValueError("multicast_group and multicast_port must both be set or both be None")
+        if self.multicast_group:
+            import ipaddress
+            try:
+                addr = ipaddress.ip_address(self.multicast_group)
+            except ValueError:
+                raise ValueError(f"Invalid IP address: {self.multicast_group}")
+            if not addr.is_multicast:
+                raise ValueError(f"Address {self.multicast_group} is not a valid multicast address (must be in 224.0.0.0/4)")
+        return self
 
     class Config:
         use_enum_values = True
@@ -605,6 +621,10 @@ class StreamInfo(BaseModel):
     advertised_at: datetime
     last_heartbeat: datetime
     active_sessions: int = 0
+    multicast_group: Optional[str] = None
+    multicast_port: Optional[int] = None
+    delivery_mode: str = "unicast"
+    active_subscribers: int = 0
 
 
 class StreamRequest(BaseModel):
@@ -685,11 +705,43 @@ class StreamTypeCreate(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
+class StreamJoinRequest(BaseModel):
+    """Request to join a multicast stream (tracking only, no negotiation)"""
+    consumer_id: str = Field(..., min_length=1)
+    consumer_address: str = Field(..., min_length=1)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class StreamJoinResponse(BaseModel):
+    """Response when joining a multicast stream"""
+    subscriber_id: UUID
+    stream_id: UUID
+    stream_name: str
+    stream_type: str
+    protocol: str
+    multicast_group: str
+    multicast_port: int
+    config: Dict[str, Any] = Field(default_factory=dict)
+
+
+class StreamSubscriber(BaseModel):
+    """A consumer subscribed to a multicast stream"""
+    subscriber_id: UUID
+    stream_id: UUID
+    stream_name: str
+    stream_type: str
+    consumer_id: str
+    consumer_address: str
+    joined_at: datetime
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
 class StreamRegistryState(BaseModel):
     """Full state response for dashboard"""
     streams: List[StreamInfo]
     sessions: List[StreamSession]
     stream_types: List[StreamTypeInfo]
+    subscribers: List[StreamSubscriber] = Field(default_factory=list)
 
 
 # =============================================================================

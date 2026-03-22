@@ -323,6 +323,10 @@ export interface StreamInfo {
   advertised_at: string
   last_heartbeat: string
   active_sessions: number
+  multicast_group?: string
+  multicast_port?: number
+  delivery_mode: string
+  active_subscribers: number
 }
 
 export interface StreamSession {
@@ -340,10 +344,22 @@ export interface StreamSession {
   status: string
 }
 
+export interface StreamSubscriber {
+  subscriber_id: string
+  stream_id: string
+  stream_name: string
+  stream_type: string
+  consumer_id: string
+  consumer_address: string
+  joined_at: string
+  metadata: Record<string, unknown>
+}
+
 export interface StreamRegistryState {
   streams: StreamInfo[]
   sessions: StreamSession[]
   stream_types: StreamTypeInfo[]
+  subscribers: StreamSubscriber[]
 }
 
 // Preview types

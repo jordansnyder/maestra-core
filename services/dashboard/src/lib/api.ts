@@ -7,7 +7,7 @@ import {
   RoutingDevice, RoutingDeviceCreate, RoutingDeviceUpdate,
   RouteData, RouteCreate, RoutePreset, RoutePresetCreate, RoutePresetUpdate,
   RoutePresetDetail, RoutingState,
-  StreamInfo, StreamSession, StreamTypeInfo, StreamRegistryState,
+  StreamInfo, StreamSession, StreamSubscriber, StreamTypeInfo, StreamRegistryState,
   BlockedDevice, DeviceProvision, DeviceApproval,
   DMXNode, DMXNodeCreate, DMXNodeUpdate,
   DMXFixture, DMXFixtureCreate, DMXFixtureUpdate, FixturePositionUpdate,
@@ -451,6 +451,11 @@ export const streamsApi = {
     fetchApi<{ status: string }>(`/streams/sessions/${sessionId}`, { method: 'DELETE' }),
 
   listTypes: () => fetchApi<StreamTypeInfo[]>('/streams/types'),
+
+  listSubscribers: (streamId?: string) => {
+    const params = streamId ? `?stream_id=${streamId}` : ''
+    return fetchApi<StreamSubscriber[]>(`/streams/subscribers${params}`)
+  },
 
   /** Get the SSE preview URL for a stream (use with EventSource) */
   getPreviewUrl: (id: string) => `${API_URL}/streams/${id}/preview`,

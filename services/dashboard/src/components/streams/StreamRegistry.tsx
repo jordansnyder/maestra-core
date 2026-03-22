@@ -79,12 +79,24 @@ export function StreamRegistry({ streams, streamTypes }: StreamRegistryProps) {
                   </div>
                 </div>
 
-                {/* Session count badge */}
-                {stream.active_sessions > 0 && (
-                  <span className="px-2 py-0.5 text-[10px] font-medium bg-green-500/20 text-green-300 rounded-full">
-                    {stream.active_sessions} session{stream.active_sessions !== 1 ? 's' : ''}
-                  </span>
-                )}
+                {/* Delivery mode + count badges */}
+                <div className="flex items-center gap-1.5">
+                  {stream.delivery_mode === 'multicast' && (
+                    <span className="px-2 py-0.5 text-[10px] font-medium bg-purple-500/20 text-purple-300 rounded-full">
+                      Multicast
+                    </span>
+                  )}
+                  {stream.delivery_mode === 'multicast' && stream.active_subscribers > 0 && (
+                    <span className="px-2 py-0.5 text-[10px] font-medium bg-green-500/20 text-green-300 rounded-full">
+                      {stream.active_subscribers} sub{stream.active_subscribers !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {stream.delivery_mode !== 'multicast' && stream.active_sessions > 0 && (
+                    <span className="px-2 py-0.5 text-[10px] font-medium bg-green-500/20 text-green-300 rounded-full">
+                      {stream.active_sessions} session{stream.active_sessions !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Details */}
@@ -101,6 +113,14 @@ export function StreamRegistry({ streams, streamTypes }: StreamRegistryProps) {
                     {stream.address}:{stream.port}
                   </span>
                 </div>
+                {stream.multicast_group && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Multicast</span>
+                    <span className="text-slate-300 font-mono">
+                      {stream.multicast_group}:{stream.multicast_port}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500">Protocol</span>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase ${protocolClass}`}>

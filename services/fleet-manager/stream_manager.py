@@ -25,10 +25,14 @@ STREAM_INDEX_TYPE = "streams:by_type:{stream_type}"
 SESSION_KEY = "session:{session_id}"
 SESSION_INDEX_STREAM = "sessions:by_stream:{stream_id}"
 SESSION_INDEX_ALL = "sessions:all"
+SUBSCRIBER_KEY = "subscriber:{subscriber_id}"
+SUBSCRIBER_INDEX_STREAM = "subscribers:by_stream:{stream_id}"
+SUBSCRIBER_INDEX_ALL = "subscribers:all"
 
 # TTL in seconds for Redis keys
 STREAM_TTL = 30
 SESSION_TTL = 30
+SUBSCRIBER_TTL = 30
 
 
 class StreamManager:
@@ -56,7 +60,10 @@ class StreamManager:
             sub2 = await self.nc.subscribe(
                 "maestra.stream.session.heartbeat.>", cb=self._on_session_heartbeat
             )
-            self._subscriptions = [sub1, sub2]
+            sub3 = await self.nc.subscribe(
+                "maestra.stream.subscriber.heartbeat.>", cb=self._on_subscriber_heartbeat
+            )
+            self._subscriptions = [sub1, sub2, sub3]
             print("✅ Stream Manager: NATS subscriptions active")
 
         self._connected = True
@@ -85,6 +92,10 @@ class StreamManager:
         stream_id = str(uuid4())
         now = datetime.utcnow().isoformat() + "Z"
 
+        multicast_group = advert.get("multicast_group") or ""
+        multicast_port = str(advert["multicast_port"]) if advert.get("multicast_port") is not None else ""
+        delivery_mode = "multicast" if multicast_group else "unicast"
+
         stream_data = {
             "id": stream_id,
             "name": advert["name"],
@@ -97,6 +108,9 @@ class StreamManager:
             "device_id": str(advert["device_id"]) if advert.get("device_id") else "",
             "config": json.dumps(advert.get("config", {})),
             "metadata": json.dumps(advert.get("metadata", {})),
+            "multicast_group": multicast_group,
+            "multicast_port": multicast_port,
+            "delivery_mode": delivery_mode,
             "advertised_at": now,
             "last_heartbeat": now,
         }
@@ -141,7 +155,11 @@ class StreamManager:
                 "address": advert["address"],
                 "port": advert["port"],
                 "config": advert.get("config", {}),
+                "delivery_mode": delivery_mode,
             }
+            if multicast_group:
+                mqtt_event["multicast_group"] = multicast_group
+                mqtt_event["multicast_port"] = advert["multicast_port"]
             await self.nc.publish(
                 f"maestra.to_mqtt.maestra.stream.advertise.{advert['stream_type']}",
                 json.dumps(mqtt_event).encode(),
@@ -174,6 +192,14 @@ class StreamManager:
             await self.redis.delete(SESSION_KEY.format(session_id=sid))
             await self.redis.srem(SESSION_INDEX_ALL, sid)
         await self.redis.delete(session_index_key)
+
+        # Clean up any subscriber references (multicast streams)
+        sub_index_key = SUBSCRIBER_INDEX_STREAM.format(stream_id=stream_id)
+        sub_ids = await self.redis.smembers(sub_index_key)
+        for sid in sub_ids:
+            await self.redis.delete(SUBSCRIBER_KEY.format(subscriber_id=sid))
+            await self.redis.srem(SUBSCRIBER_INDEX_ALL, sid)
+        await self.redis.delete(sub_index_key)
 
         # Publish NATS event
         if self.nc and not self.nc.is_closed:
@@ -213,6 +239,11 @@ class StreamManager:
                     SESSION_INDEX_STREAM.format(stream_id=sid)
                 )
                 stream_info["active_sessions"] = session_count
+                # Count active subscribers (multicast)
+                sub_count = await self.redis.scard(
+                    SUBSCRIBER_INDEX_STREAM.format(stream_id=sid)
+                )
+                stream_info["active_subscribers"] = sub_count
                 streams.append(stream_info)
             else:
                 # Stream expired, clean up stale index entry
@@ -234,6 +265,10 @@ class StreamManager:
             SESSION_INDEX_STREAM.format(stream_id=stream_id)
         )
         stream_info["active_sessions"] = session_count
+        sub_count = await self.redis.scard(
+            SUBSCRIBER_INDEX_STREAM.format(stream_id=stream_id)
+        )
+        stream_info["active_subscribers"] = sub_count
         return stream_info
 
     # =========================================================================
@@ -595,6 +630,9 @@ class StreamManager:
     @staticmethod
     def _parse_stream_data(data: Dict[str, str]) -> Dict[str, Any]:
         """Parse Redis hash data into a stream info dict"""
+        multicast_group = data.get("multicast_group", "")
+        multicast_port_str = data.get("multicast_port", "")
+        delivery_mode = data.get("delivery_mode", "unicast")
         return {
             "id": data.get("id", ""),
             "name": data.get("name", ""),
@@ -610,6 +648,10 @@ class StreamManager:
             "advertised_at": data.get("advertised_at", ""),
             "last_heartbeat": data.get("last_heartbeat", ""),
             "active_sessions": 0,
+            "multicast_group": multicast_group if multicast_group else None,
+            "multicast_port": int(multicast_port_str) if multicast_port_str else None,
+            "delivery_mode": delivery_mode,
+            "active_subscribers": 0,
         }
 
     @staticmethod
@@ -630,6 +672,266 @@ class StreamManager:
             ),
             "started_at": data.get("started_at", ""),
             "status": data.get("status", "active"),
+        }
+
+    # =========================================================================
+    # Multicast: Join / Leave / Subscribers
+    # =========================================================================
+
+    async def join_stream(
+        self,
+        stream_id: str,
+        consumer_id: str,
+        consumer_address: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        db_session: Optional[AsyncSession] = None,
+    ) -> Dict[str, Any]:
+        """
+        Join a multicast stream. No NATS negotiation needed.
+        Returns multicast group info for the consumer to IGMP join.
+        """
+        stream_data = await self.get_stream(stream_id)
+        if not stream_data:
+            raise ValueError("Stream not found or expired")
+        if stream_data.get("delivery_mode") != "multicast":
+            raise ValueError(
+                "Stream is not a multicast stream. Use /request for unicast streams."
+            )
+
+        subscriber_id = str(uuid4())
+        now = datetime.utcnow().isoformat() + "Z"
+
+        sub_data = {
+            "subscriber_id": subscriber_id,
+            "stream_id": stream_id,
+            "stream_name": stream_data["name"],
+            "stream_type": stream_data["stream_type"],
+            "publisher_id": stream_data["publisher_id"],
+            "consumer_id": consumer_id,
+            "consumer_address": consumer_address,
+            "multicast_group": stream_data["multicast_group"],
+            "multicast_port": str(stream_data["multicast_port"]),
+            "joined_at": now,
+            "metadata": json.dumps(metadata or {}),
+        }
+
+        # Store in Redis with TTL
+        key = SUBSCRIBER_KEY.format(subscriber_id=subscriber_id)
+        await self.redis.hset(key, mapping=sub_data)
+        await self.redis.expire(key, SUBSCRIBER_TTL)
+        await self.redis.sadd(
+            SUBSCRIBER_INDEX_STREAM.format(stream_id=stream_id),
+            subscriber_id,
+        )
+        await self.redis.sadd(SUBSCRIBER_INDEX_ALL, subscriber_id)
+
+        # Log to Postgres (fire-and-forget)
+        if db_session:
+            asyncio.create_task(
+                self._log_subscriber_join(db_session, sub_data)
+            )
+
+        # Publish NATS event
+        if self.nc and not self.nc.is_closed:
+            event = {
+                "type": "subscriber_joined",
+                "subscriber_id": subscriber_id,
+                "stream_id": stream_id,
+                "consumer_id": consumer_id,
+                "consumer_address": consumer_address,
+                "multicast_group": stream_data["multicast_group"],
+                "multicast_port": stream_data["multicast_port"],
+                "timestamp": now,
+            }
+            await self.nc.publish(
+                "maestra.stream.subscriber.joined",
+                json.dumps(event).encode(),
+            )
+
+        return {
+            "subscriber_id": subscriber_id,
+            "stream_id": stream_id,
+            "stream_name": stream_data["name"],
+            "stream_type": stream_data["stream_type"],
+            "protocol": stream_data["protocol"],
+            "multicast_group": stream_data["multicast_group"],
+            "multicast_port": stream_data["multicast_port"],
+            "config": stream_data.get("config", {}),
+        }
+
+    async def leave_stream(
+        self,
+        stream_id: str,
+        subscriber_id: str,
+        db_session: Optional[AsyncSession] = None,
+    ) -> bool:
+        """Remove a subscriber from a multicast stream"""
+        key = SUBSCRIBER_KEY.format(subscriber_id=subscriber_id)
+        sub_data = await self.redis.hgetall(key)
+
+        if not sub_data:
+            return False
+
+        # Remove from Redis
+        await self.redis.delete(key)
+        await self.redis.srem(SUBSCRIBER_INDEX_ALL, subscriber_id)
+        await self.redis.srem(
+            SUBSCRIBER_INDEX_STREAM.format(stream_id=stream_id),
+            subscriber_id,
+        )
+
+        # Update Postgres record
+        if db_session:
+            asyncio.create_task(
+                self._log_subscriber_leave(db_session, subscriber_id, sub_data)
+            )
+
+        # Publish NATS event
+        if self.nc and not self.nc.is_closed:
+            event = {
+                "type": "subscriber_left",
+                "subscriber_id": subscriber_id,
+                "stream_id": stream_id,
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+            }
+            await self.nc.publish(
+                "maestra.stream.subscriber.left",
+                json.dumps(event).encode(),
+            )
+
+        return True
+
+    async def list_subscribers(
+        self, stream_id: str = None
+    ) -> List[Dict[str, Any]]:
+        """List active subscribers from Redis"""
+        if stream_id:
+            index_key = SUBSCRIBER_INDEX_STREAM.format(stream_id=stream_id)
+        else:
+            index_key = SUBSCRIBER_INDEX_ALL
+
+        sub_ids = await self.redis.smembers(index_key)
+        subscribers = []
+
+        for sid in sub_ids:
+            key = SUBSCRIBER_KEY.format(subscriber_id=sid)
+            data = await self.redis.hgetall(key)
+            if data:
+                subscribers.append(self._parse_subscriber_data(data))
+            else:
+                # Subscriber expired, clean up stale index entry
+                await self.redis.srem(SUBSCRIBER_INDEX_ALL, sid)
+                if stream_id:
+                    await self.redis.srem(index_key, sid)
+
+        return subscribers
+
+    async def refresh_subscriber_ttl(self, subscriber_id: str) -> bool:
+        """Refresh a subscriber's TTL in Redis"""
+        key = SUBSCRIBER_KEY.format(subscriber_id=subscriber_id)
+        exists = await self.redis.exists(key)
+        if exists:
+            await self.redis.expire(key, SUBSCRIBER_TTL)
+            return True
+        return False
+
+    async def _on_subscriber_heartbeat(self, msg):
+        """Handle subscriber heartbeat via NATS"""
+        try:
+            subject_parts = msg.subject.split(".")
+            # maestra.stream.subscriber.heartbeat.{subscriber_id}
+            if len(subject_parts) >= 5:
+                subscriber_id = subject_parts[4]
+                await self.refresh_subscriber_ttl(subscriber_id)
+        except Exception as e:
+            logger.warning(f"Subscriber heartbeat error: {e}")
+
+    async def _log_subscriber_join(
+        self, db_session: AsyncSession, sub_data: Dict[str, Any]
+    ):
+        """Log subscriber join to Postgres hypertable"""
+        try:
+            async with db_session.begin():
+                await db_session.execute(
+                    text("""
+                        INSERT INTO stream_subscribers
+                        (time, subscriber_id, stream_id, stream_name, stream_type,
+                         publisher_id, consumer_id, consumer_address,
+                         multicast_group, multicast_port, status, metadata)
+                        VALUES (:time, :subscriber_id, :stream_id, :stream_name, :stream_type,
+                                :publisher_id, :consumer_id, :consumer_address,
+                                :multicast_group, :multicast_port, 'active', :metadata)
+                    """),
+                    {
+                        "time": datetime.utcnow(),
+                        "subscriber_id": sub_data["subscriber_id"],
+                        "stream_id": sub_data["stream_id"],
+                        "stream_name": sub_data["stream_name"],
+                        "stream_type": sub_data["stream_type"],
+                        "publisher_id": sub_data["publisher_id"],
+                        "consumer_id": sub_data["consumer_id"],
+                        "consumer_address": sub_data.get(
+                            "consumer_address", ""
+                        ),
+                        "multicast_group": sub_data["multicast_group"],
+                        "multicast_port": int(sub_data["multicast_port"]),
+                        "metadata": sub_data.get("metadata", "{}"),
+                    },
+                )
+        except Exception as e:
+            logger.error(f"Failed to log subscriber join: {e}")
+
+    async def _log_subscriber_leave(
+        self,
+        db_session: AsyncSession,
+        subscriber_id: str,
+        sub_data: Dict[str, Any],
+    ):
+        """Update subscriber record in Postgres with leave time"""
+        try:
+            joined_at = sub_data.get("joined_at", "")
+            duration = None
+            if joined_at:
+                try:
+                    start = datetime.fromisoformat(
+                        joined_at.replace("Z", "+00:00")
+                    )
+                    duration = (
+                        datetime.utcnow() - start.replace(tzinfo=None)
+                    ).total_seconds()
+                except Exception:
+                    pass
+
+            async with db_session.begin():
+                await db_session.execute(
+                    text("""
+                        UPDATE stream_subscribers
+                        SET status = 'left',
+                            left_at = :left_at,
+                            duration_seconds = :duration
+                        WHERE subscriber_id = :subscriber_id
+                    """),
+                    {
+                        "subscriber_id": subscriber_id,
+                        "left_at": datetime.utcnow(),
+                        "duration": duration,
+                    },
+                )
+        except Exception as e:
+            logger.error(f"Failed to log subscriber leave: {e}")
+
+    @staticmethod
+    def _parse_subscriber_data(data: Dict[str, str]) -> Dict[str, Any]:
+        """Parse Redis hash data into a subscriber dict"""
+        return {
+            "subscriber_id": data.get("subscriber_id", ""),
+            "stream_id": data.get("stream_id", ""),
+            "stream_name": data.get("stream_name", ""),
+            "stream_type": data.get("stream_type", ""),
+            "consumer_id": data.get("consumer_id", ""),
+            "consumer_address": data.get("consumer_address", ""),
+            "joined_at": data.get("joined_at", ""),
+            "metadata": json.loads(data.get("metadata", "{}")),
         }
 
     @property

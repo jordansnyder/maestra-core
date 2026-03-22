@@ -5,7 +5,7 @@ Connect to the Maestra immersive experience platform
 
 from .client import MaestraClient
 from .entity import Entity, EntityState
-from .stream import StreamPublisher, StreamConsumer
+from .stream import StreamPublisher, StreamConsumer, MulticastConsumer
 from .types import (
     EntityType,
     EntityData,
@@ -19,6 +19,9 @@ from .types import (
     StreamSessionData,
     StreamSessionHistoryData,
     StreamRegistryStateData,
+    StreamJoinParams,
+    StreamJoinResult,
+    StreamSubscriberData,
 )
 
 __version__ = "0.2.0"
@@ -33,6 +36,7 @@ __all__ = [
     # Streams
     "StreamPublisher",
     "StreamConsumer",
+    "MulticastConsumer",
     "StreamTypeData",
     "StreamData",
     "StreamAdvertiseParams",
@@ -41,6 +45,9 @@ __all__ = [
     "StreamSessionData",
     "StreamSessionHistoryData",
     "StreamRegistryStateData",
+    "StreamJoinParams",
+    "StreamJoinResult",
+    "StreamSubscriberData",
     # Discovery (lazy imports - require zeroconf)
     "discover_maestra",
     "advertise_device",

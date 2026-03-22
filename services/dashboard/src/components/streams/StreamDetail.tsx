@@ -1,16 +1,17 @@
 'use client'
 
-import type { StreamInfo, StreamSession, StreamTypeInfo } from '@/lib/types'
+import type { StreamInfo, StreamSession, StreamSubscriber, StreamTypeInfo } from '@/lib/types'
 import { StreamPreview } from './previews'
 import { streamsApi } from '@/lib/api'
 
 interface StreamDetailProps {
   stream: StreamInfo
   sessions: StreamSession[]
+  subscribers: StreamSubscriber[]
   streamTypes: StreamTypeInfo[]
 }
 
-export function StreamDetail({ stream, sessions, streamTypes }: StreamDetailProps) {
+export function StreamDetail({ stream, sessions, subscribers, streamTypes }: StreamDetailProps) {
   const typeInfo = streamTypes.find((t) => t.name === stream.stream_type)
 
   return (
@@ -28,8 +29,12 @@ export function StreamDetail({ stream, sessions, streamTypes }: StreamDetailProp
           <div className="space-y-2.5 text-xs">
             <InfoRow label="Type" value={typeInfo?.display_name || stream.stream_type} />
             <InfoRow label="Protocol" value={stream.protocol.toUpperCase()} />
+            <InfoRow label="Delivery" value={stream.delivery_mode === 'multicast' ? 'Multicast' : 'Unicast'} />
             <InfoRow label="Publisher" value={stream.publisher_id} mono />
             <InfoRow label="Endpoint" value={`${stream.address}:${stream.port}`} mono />
+            {stream.multicast_group && (
+              <InfoRow label="Multicast Group" value={`${stream.multicast_group}:${stream.multicast_port}`} mono />
+            )}
             {stream.entity_id && <InfoRow label="Entity" value={stream.entity_id} mono />}
             {stream.device_id && <InfoRow label="Device" value={stream.device_id} mono />}
             <InfoRow label="Advertised" value={formatAge(stream.advertised_at)} />
@@ -117,6 +122,43 @@ export function StreamDetail({ stream, sessions, streamTypes }: StreamDetailProp
             </div>
           )}
         </div>
+
+        {/* Active Subscribers Card (multicast streams) */}
+        {stream.delivery_mode === 'multicast' && (
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-white">Multicast Subscribers</h3>
+              {subscribers.length > 0 && (
+                <span className="px-2 py-0.5 text-[10px] font-medium bg-purple-500/20 text-purple-300 rounded-full">
+                  {subscribers.length}
+                </span>
+              )}
+            </div>
+
+            {subscribers.length === 0 ? (
+              <p className="text-xs text-slate-500">No active subscribers</p>
+            ) : (
+              <div className="space-y-2">
+                {subscribers.map((sub) => (
+                  <div
+                    key={sub.subscriber_id}
+                    className="p-2.5 bg-slate-800/50 rounded-lg space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-300 font-mono truncate max-w-[180px]">
+                        {sub.consumer_id}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                      <span>{sub.consumer_address}</span>
+                      <span>{formatAge(sub.joined_at)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Type Info Card */}
         {typeInfo && typeInfo.description && (

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { streamsApi } from '@/lib/api'
-import type { StreamInfo, StreamSession, StreamTypeInfo } from '@/lib/types'
+import type { StreamInfo, StreamSession, StreamSubscriber, StreamTypeInfo } from '@/lib/types'
 import { StreamDetail } from '@/components/streams/StreamDetail'
 import { STREAM_TYPE_ICONS, DEFAULT_STREAM_ICON, ChevronRight } from '@/components/icons'
 
@@ -14,6 +14,7 @@ export default function StreamDetailPage() {
 
   const [stream, setStream] = useState<StreamInfo | null>(null)
   const [sessions, setSessions] = useState<StreamSession[]>([])
+  const [subscribers, setSubscribers] = useState<StreamSubscriber[]>([])
   const [streamTypes, setStreamTypes] = useState<StreamTypeInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -22,14 +23,16 @@ export default function StreamDetailPage() {
     try {
       setError(null)
 
-      const [streamData, sessionsData, typesData] = await Promise.all([
+      const [streamData, sessionsData, subscribersData, typesData] = await Promise.all([
         streamsApi.getStream(streamId),
         streamsApi.listSessions(streamId),
+        streamsApi.listSubscribers(streamId),
         streamsApi.listTypes(),
       ])
 
       setStream(streamData)
       setSessions(sessionsData)
+      setSubscribers(subscribersData)
       setStreamTypes(typesData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load stream')
@@ -44,12 +47,14 @@ export default function StreamDetailPage() {
     // Refresh sessions every 5s
     const timer = setInterval(async () => {
       try {
-        const [streamData, sessionsData] = await Promise.all([
+        const [streamData, sessionsData, subscribersData] = await Promise.all([
           streamsApi.getStream(streamId),
           streamsApi.listSessions(streamId),
+          streamsApi.listSubscribers(streamId),
         ])
         setStream(streamData)
         setSessions(sessionsData)
+        setSubscribers(subscribersData)
       } catch {
         // Stream may have expired
       }
@@ -119,7 +124,17 @@ export default function StreamDetailPage() {
                 <span className="text-sm px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded uppercase font-mono">
                   {stream.protocol}
                 </span>
-                {stream.active_sessions > 0 && (
+                {stream.delivery_mode === 'multicast' && (
+                  <span className="text-sm px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded">
+                    Multicast
+                  </span>
+                )}
+                {stream.delivery_mode === 'multicast' && stream.active_subscribers > 0 && (
+                  <span className="text-sm px-2 py-0.5 bg-green-500/20 text-green-300 rounded">
+                    {stream.active_subscribers} subscriber{stream.active_subscribers !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {stream.delivery_mode !== 'multicast' && stream.active_sessions > 0 && (
                   <span className="text-sm px-2 py-0.5 bg-green-500/20 text-green-300 rounded">
                     {stream.active_sessions} session{stream.active_sessions !== 1 ? 's' : ''}
                   </span>
@@ -131,7 +146,7 @@ export default function StreamDetailPage() {
         </header>
 
         {/* Detail content */}
-        <StreamDetail stream={stream} sessions={sessions} streamTypes={streamTypes} />
+        <StreamDetail stream={stream} sessions={sessions} subscribers={subscribers} streamTypes={streamTypes} />
       </div>
     </div>
   )

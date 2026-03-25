@@ -1,0 +1,26 @@
+[
+  {
+    "osc_address": "/sensor/1/value",
+    "entity_slug": "sensor-1",
+    "state_key": "temperature",
+    "operation": "update"
+  },
+  {
+    "osc_address": "/sensor/1/humidity",
+    "entity_slug": "sensor-1",
+    "state_key": "humidity",
+    "operation": "update"
+  },
+  {
+    "osc_address": "/kinect/hand/position",
+    "entity_slug": "tracker-hand",
+    "state_keys": ["x", "y", "z"],
+    "operation": "update"
+  },
+  {
+    "osc_address": "/dmx/fixture/1",
+    "entity_slug": "fixture-1",
+    "state_keys": ["intensity", "red", "green", "blue"],
+    "operation": "update"
+  }
+]

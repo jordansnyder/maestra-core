@@ -71,77 +71,215 @@ async def send_osc():
 asyncio.run(send_osc())
 ```
 
+## Entity State via OSC
+
+The OSC Gateway integrates with Maestra's entity state system, allowing OSC messages to update entity state and receive entity state broadcasts. This means OSC-based installations can participate fully in the Maestra ecosystem alongside MQTT, WebSocket, and HTTP clients.
+
+### OSC → Entity State (Inbound)
+
+Send OSC messages to reserved addresses to update entity state. The gateway publishes to the same NATS subjects that the StateManager listens on, so state updates flow through the database, get recorded in history, and broadcast to all connected devices.
+
+#### Format A: Single-Key Shorthand (Recommended)
+
+The most natural OSC pattern. Put the entity slug and state key in the address:
+
+```
+/entity/update/<slug>/<key>  <value>
+```
+
+Examples:
+
+```
+/entity/update/rgb-light/brightness  128
+/entity/update/rgb-light/on  1
+/entity/update/sensor-1/temperature  23.5
+```
+
+Nested keys are supported with additional path segments:
+
+```
+/entity/update/rgb-light/color/r  255
+→ state: {"color": {"r": 255}}
+```
+
+Use `/entity/set/` instead of `/entity/update/` for full state replacement (PUT semantics).
+
+#### Format B: Multi-Key Update
+
+Send multiple key-value pairs as alternating arguments:
+
+```
+/entity/update/<slug>  <key1> <val1> <key2> <val2> ...
+```
+
+Example:
+
+```
+/entity/update/rgb-light  brightness  128  on  1
+→ state: {"brightness": 128, "on": 1}
+```
+
+#### Format C: JSON Blob
+
+Send a JSON string as a single argument for complex nested state:
+
+```
+/entity/update/<slug>  '{"brightness": 128, "color": {"r": 255, "g": 128, "b": 64}}'
+```
+
+### Entity State → OSC (Outbound)
+
+When entity state changes from any source (API, MQTT, WebSocket, etc.), the gateway sends OSC messages to configured targets.
+
+#### Configuration
+
+Set `OSC_TARGETS` in your `.env` file (comma-separated `ip:port`):
+
+```bash
+OSC_TARGETS=192.168.1.10:57121,192.168.1.20:57121
+```
+
+#### Output Format
+
+For each state change, two types of OSC messages are sent:
+
+**Per-key messages** (one per changed key):
+
+```
+/entity/state/<type>/<slug>/<key>  <value>
+```
+
+Example: `/entity/state/light/rgb-light/brightness 128`
+
+**Full-state message** (one per event):
+
+```
+/entity/state/<type>/<slug>  <json-string>
+```
+
+Loop prevention: state changes originating from OSC (`source: "osc"`) are not echoed back out.
+
+### Address Mapping File
+
+For installations with fixed OSC addresses that can't be changed, create a mapping file at `config/osc-gateway/mappings.json`:
+
+```json
+[
+  {
+    "osc_address": "/sensor/1/value",
+    "entity_slug": "sensor-1",
+    "state_key": "temperature",
+    "operation": "update"
+  },
+  {
+    "osc_address": "/kinect/hand/position",
+    "entity_slug": "tracker-hand",
+    "state_keys": ["x", "y", "z"],
+    "operation": "update"
+  }
+]
+```
+
+- `state_key`: maps a single OSC argument to one state key
+- `state_keys`: maps positional OSC arguments to named keys in order
+- `operation`: `"update"` (merge, default) or `"set"` (replace)
+
+See `config/osc-gateway/mappings.json.example` for more examples.
+
+### Testing Entity State
+
+```bash
+# Send a single-key entity state update via OSC
+make test-osc-state SLUG=my-entity
+
+# Check gateway logs
+make logs-service SERVICE=osc-gateway
+
+# Check fleet-manager logs for state processing
+make logs-service SERVICE=fleet-manager
+```
+
 ## Integration Examples
 
 ### TouchDesigner
 
 **Sending OSC to Maestra:**
 
-1. Add an **OSC Out DAT**
-2. Configure:
-   - Network Address: `<maestra-host>`
-   - Network Port: `57120`
-   - OSC Address: `/device/sensor/temperature`
-3. Send messages via script:
-
 ```python
-# In a Script DAT
-op('oscout1').send('/device/sensor/temperature', [23.5])
+# In a Script DAT or Execute DAT
+n = op('oscout1')
+
+# Generic OSC
+n.send('/device/sensor/temperature', [23.5])
+
+# Entity state update (single key)
+n.send('/entity/update/my-sensor/temperature', [23.5])
+
+# Entity state update (multiple keys)
+n.send('/entity/update/rgb-light', ['brightness', 128, 'on', 1])
 ```
 
-**Receiving OSC from Maestra:**
+**Receiving entity state via OSC** (set `OSC_TARGETS` to include your TD machine):
 
-1. Add an **OSC In DAT**
-2. Configure:
-   - Port: `57121`
-3. Messages will appear in the DAT
+```python
+# In an OSC In DAT callback
+def onReceiveOSC(dat, rowIndex, message, bytes, timeStamp, address, args, peer):
+    # Per-key: /entity/state/light/rgb-light/brightness 128
+    if address.startswith('/entity/state/'):
+        parts = address.split('/')
+        entity_type, slug, key = parts[3], parts[4], parts[5]
+        value = args[0]
+        # Use the value in your network
+```
 
 ### Max/MSP
 
-**Sending OSC to Maestra:**
+**Sending entity state updates:**
 
 ```
-[23.5(
+[128(
 |
-[prepend /device/sensor/temperature]
+[prepend /entity/update/rgb-light/brightness]
 |
 [udpsend <maestra-host> 57120]
 ```
 
-**Receiving OSC from Maestra:**
+**Receiving entity state via OSC** (set `OSC_TARGETS` to include your Max machine):
 
 ```
 [udpreceive 57121]
 |
 [oscparse]
 |
-[route /lights/brightness]
+[route /entity/state/light/rgb-light]
+|
+[route /brightness /on /color]
 |
 [print]
 ```
 
 ### SuperCollider
 
-**Sending OSC to Maestra:**
+**Sending entity state updates:**
 
 ```supercollider
 ~maestra = NetAddr("maestra-host", 57120);
 
-// Send single value
-~maestra.sendMsg("/device/sensor/temperature", 23.5);
+// Single-key entity state update
+~maestra.sendMsg("/entity/update/my-synth/frequency", 440.0);
+~maestra.sendMsg("/entity/update/my-synth/amplitude", 0.8);
 
-// Send multiple values
-~maestra.sendMsg("/lights/rgb", 255, 128, 64);
+// Generic OSC (not entity state, just forwarded to NATS)
+~maestra.sendMsg("/audio/analysis/rms", 0.42);
 ```
 
-**Receiving OSC from Maestra:**
+**Receiving entity state via OSC** (set `OSC_TARGETS` to include your SC machine):
 
 ```supercollider
-OSCdef(\maestraLights, { |msg, time, addr, recvPort|
-    msg.postln;  // Print the message
-}, '/lights/brightness');
+OSCdef(\entityState, { |msg, time, addr, recvPort|
+    msg.postln;
+}, '/entity/state/synth/my-synth/frequency');
 
-// Listen on port 57121
 thisProcess.openUDPPort(57121);
 ```
 

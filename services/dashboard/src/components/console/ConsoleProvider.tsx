@@ -1,0 +1,426 @@
+'use client'
+
+import React, { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react'
+import { useWebSocket } from '@/hooks/useWebSocket'
+import type { WebSocketMessage } from '@/types'
+import type { Device } from '@/types'
+import { api } from '@/lib/api'
+
+// --- Types ---
+
+export type Protocol = 'osc' | 'mqtt' | 'ws' | 'internal'
+
+export interface ConsoleMessage {
+  id: string
+  timestamp: string
+  subject: string
+  protocol: Protocol
+  payload: unknown
+  sourceNode: string | null
+  targetNode: string | null
+  truncated?: boolean
+  isPauseSummary?: boolean
+  pauseCount?: number
+  isDivider?: boolean
+  dividerText?: string
+}
+
+export interface GraphNode {
+  id: string
+  label: string
+  type: 'device' | 'entity' | 'gateway' | 'bus'
+  x?: number
+  y?: number
+  activity: number
+}
+
+export type ConsoleMode = 'debug' | 'ambient'
+
+interface ConsoleFilters {
+  subjectPattern: string
+  protocols: Set<Protocol>
+  textSearch: string
+  hideHeartbeats: boolean
+}
+
+interface ConsoleStats {
+  messagesPerSecond: number
+  totalCount: number
+  bufferDepth: number
+  atCapacity: boolean
+}
+
+// --- Protocol Detection ---
+
+function detectProtocol(subject: string): Protocol {
+  if (subject.startsWith('maestra.osc.')) return 'osc'
+  if (subject.startsWith('maestra.mqtt.')) return 'mqtt'
+  if (subject.includes('websocket') || subject.startsWith('maestra.ws.')) return 'ws'
+  return 'internal'
+}
+
+// --- Source/Destination Resolution ---
+
+function resolveSourceTarget(
+  subject: string,
+  payload: Record<string, unknown> | null,
+  nodeMap: Map<string, GraphNode>
+): { source: string | null; target: string | null } {
+  // Entity state updates: maestra.entity.state.update.<slug> or maestra.entity.state.set.<slug>
+  const entityMatch = subject.match(/maestra\.entity\.state\.(update|set)\.(.+)/)
+  if (entityMatch) {
+    const slug = entityMatch[2]
+    const source = payload?.source as string | undefined
+    let sourceId: string | null = null
+    if (source) {
+      // Try to find a gateway node matching the source protocol
+      for (const [id, node] of nodeMap) {
+        if (node.type === 'gateway' && node.label.toLowerCase().includes(source)) {
+          sourceId = id
+          break
+        }
+      }
+    }
+    // Find target entity by slug
+    let targetId: string | null = null
+    for (const [id, node] of nodeMap) {
+      if (node.label === slug || id === slug) {
+        targetId = id
+        break
+      }
+    }
+    return { source: sourceId, target: targetId }
+  }
+
+  // Entity state broadcasts: maestra.entity.state.<type>.<slug>
+  const broadcastMatch = subject.match(/maestra\.entity\.state\.([^.]+)\.(.+)/)
+  if (broadcastMatch) {
+    const slug = broadcastMatch[2]
+    for (const [id, node] of nodeMap) {
+      if (node.label === slug || id === slug) {
+        return { source: id, target: null }
+      }
+    }
+  }
+
+  // Protocol-prefixed messages
+  if (subject.startsWith('maestra.osc.')) return { source: 'gateway-osc', target: null }
+  if (subject.startsWith('maestra.mqtt.')) return { source: 'gateway-mqtt', target: null }
+
+  return { source: null, target: null }
+}
+
+// --- Stats Calculation (bucket counters) ---
+
+class StatsTracker {
+  private buckets: number[] = [0, 0, 0, 0, 0] // 5 one-second buckets
+  private currentBucket = 0
+  private lastTick = Date.now()
+  total = 0
+
+  add() {
+    this.tick()
+    this.buckets[this.currentBucket]++
+    this.total++
+  }
+
+  private tick() {
+    const now = Date.now()
+    const elapsed = Math.floor((now - this.lastTick) / 1000)
+    if (elapsed > 0) {
+      for (let i = 0; i < Math.min(elapsed, 5); i++) {
+        this.currentBucket = (this.currentBucket + 1) % 5
+        this.buckets[this.currentBucket] = 0
+      }
+      this.lastTick = now
+    }
+  }
+
+  getRate(): number {
+    this.tick()
+    const sum = this.buckets.reduce((a, b) => a + b, 0)
+    return Math.round(sum / 5)
+  }
+}
+
+// --- Max payload size (50KB) ---
+const MAX_PAYLOAD_SIZE = 50 * 1024
+const MAX_BUFFER_SIZE = 1000
+const BUFFER_GROW_LIMIT = 2000
+
+// --- Context ---
+
+interface ConsoleContextValue {
+  // State
+  messages: React.MutableRefObject<ConsoleMessage[]>
+  mode: ConsoleMode
+  setMode: (mode: ConsoleMode) => void
+  filters: ConsoleFilters
+  setFilters: React.Dispatch<React.SetStateAction<ConsoleFilters>>
+  paused: boolean
+  setPaused: (paused: boolean) => void
+  stats: ConsoleStats
+  isConnected: boolean
+  nodes: GraphNode[]
+  // Actions
+  clear: () => void
+  subscribe: (cb: () => void) => () => void
+}
+
+const ConsoleContext = createContext<ConsoleContextValue | null>(null)
+
+export function useConsole() {
+  const ctx = useContext(ConsoleContext)
+  if (!ctx) throw new Error('useConsole must be used within ConsoleProvider')
+  return ctx
+}
+
+// --- Provider ---
+
+export function ConsoleProvider({ children }: { children: React.ReactNode }) {
+  const { isConnected, lastMessage } = useWebSocket(true)
+  const messagesRef = useRef<ConsoleMessage[]>([])
+  const listenersRef = useRef<Set<() => void>>(new Set())
+  const statsRef = useRef(new StatsTracker())
+  const pausedRef = useRef(false)
+  const pauseCountRef = useRef(0)
+  const lastMsgRef = useRef<WebSocketMessage | null>(null)
+  const wasConnectedRef = useRef(true)
+
+  const [mode, setMode] = useState<ConsoleMode>('debug')
+  const [paused, setPausedState] = useState(false)
+  const [filters, setFilters] = useState<ConsoleFilters>({
+    subjectPattern: '',
+    protocols: new Set(['osc', 'mqtt', 'ws', 'internal'] as Protocol[]),
+    textSearch: '',
+    hideHeartbeats: true,
+  })
+  const [stats, setStats] = useState<ConsoleStats>({
+    messagesPerSecond: 0,
+    totalCount: 0,
+    bufferDepth: 0,
+    atCapacity: false,
+  })
+  const [nodes, setNodes] = useState<GraphNode[]>([])
+
+  // Subscription pattern for buffer changes
+  const subscribe = useCallback((cb: () => void) => {
+    listenersRef.current.add(cb)
+    return () => { listenersRef.current.delete(cb) }
+  }, [])
+
+  const notify = useCallback(() => {
+    listenersRef.current.forEach(cb => cb())
+  }, [])
+
+  // Add message to buffer
+  const addMessage = useCallback((msg: ConsoleMessage) => {
+    messagesRef.current.push(msg)
+    // Amortized slicing: grow to 2x, then slice back
+    if (messagesRef.current.length > BUFFER_GROW_LIMIT) {
+      messagesRef.current = messagesRef.current.slice(-MAX_BUFFER_SIZE)
+    }
+    statsRef.current.add()
+    notify()
+  }, [notify])
+
+  // Fetch devices and entities for graph topology
+  useEffect(() => {
+    const fetchTopology = async () => {
+      const graphNodes: GraphNode[] = [
+        { id: 'bus', label: 'NATS Bus', type: 'bus', activity: 0 },
+        { id: 'gateway-osc', label: 'OSC Gateway', type: 'gateway', activity: 0 },
+        { id: 'gateway-mqtt', label: 'MQTT Gateway', type: 'gateway', activity: 0 },
+        { id: 'gateway-ws', label: 'WebSocket', type: 'gateway', activity: 0 },
+      ]
+      try {
+        const devices = await api.listDevices()
+        devices.forEach((d: Device) => {
+          graphNodes.push({ id: d.id, label: d.name, type: 'device', activity: 0 })
+        })
+      } catch {
+        // API unavailable — degrade gracefully
+      }
+      try {
+        const entities = await api.listEntities()
+        entities.forEach((e: { id: string; name?: string; slug?: string }) => {
+          graphNodes.push({
+            id: e.id,
+            label: e.name || e.slug || e.id,
+            type: 'entity',
+            activity: 0,
+          })
+        })
+      } catch {
+        // API unavailable — degrade gracefully
+      }
+      setNodes(graphNodes)
+    }
+    fetchTopology()
+    const interval = setInterval(fetchTopology, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Build node map for resolution
+  const nodeMapRef = useRef(new Map<string, GraphNode>())
+  useEffect(() => {
+    const map = new Map<string, GraphNode>()
+    nodes.forEach(n => map.set(n.id, n))
+    nodeMapRef.current = map
+  }, [nodes])
+
+  // Process incoming WebSocket messages
+  useEffect(() => {
+    if (!lastMessage || lastMessage === lastMsgRef.current) return
+    lastMsgRef.current = lastMessage
+
+    // Filter out gateway error messages (subscribe errors etc)
+    if (lastMessage.type === 'error' || lastMessage.type === 'welcome' ||
+        lastMessage.type === 'ack' || lastMessage.type === 'pong') return
+
+    if (lastMessage.type !== 'message' || !lastMessage.subject) return
+
+    const subject = lastMessage.subject
+
+    // Heartbeat filtering
+    if (subject.includes('heartbeat')) {
+      // Still count in stats even if filtered
+      statsRef.current.add()
+      if (filters.hideHeartbeats) return
+    }
+
+    // Truncate large payloads
+    let payload = lastMessage.data
+    let truncated = false
+    if (payload) {
+      const serialized = JSON.stringify(payload)
+      if (serialized.length > MAX_PAYLOAD_SIZE) {
+        // Don't re-parse truncated JSON (it's invalid) — keep original object
+        // but flag it as truncated for the UI
+        truncated = true
+      }
+    }
+
+    const protocol = detectProtocol(subject)
+    const { source, target } = resolveSourceTarget(
+      subject,
+      payload as Record<string, unknown> | null,
+      nodeMapRef.current
+    )
+
+    const msg: ConsoleMessage = {
+      id: crypto.randomUUID(),
+      timestamp: lastMessage.timestamp || new Date().toISOString(),
+      subject,
+      protocol,
+      payload,
+      sourceNode: source,
+      targetNode: target,
+      truncated,
+    }
+
+    if (pausedRef.current) {
+      pauseCountRef.current++
+      // Still buffer when paused (counts toward capacity)
+      messagesRef.current.push(msg)
+      if (messagesRef.current.length > BUFFER_GROW_LIMIT) {
+        messagesRef.current = messagesRef.current.slice(-MAX_BUFFER_SIZE)
+      }
+      return
+    }
+
+    addMessage(msg)
+  }, [lastMessage, addMessage, filters.hideHeartbeats])
+
+  // Connection state tracking for divider rows
+  useEffect(() => {
+    if (isConnected && !wasConnectedRef.current) {
+      addMessage({
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        subject: '',
+        protocol: 'internal',
+        payload: null,
+        sourceNode: null,
+        targetNode: null,
+        isDivider: true,
+        dividerText: 'Reconnected',
+      })
+    } else if (!isConnected && wasConnectedRef.current) {
+      addMessage({
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        subject: '',
+        protocol: 'internal',
+        payload: null,
+        sourceNode: null,
+        targetNode: null,
+        isDivider: true,
+        dividerText: 'Connection lost',
+      })
+    }
+    wasConnectedRef.current = isConnected
+  }, [isConnected, addMessage])
+
+  // Pause/unpause handler
+  const setPaused = useCallback((value: boolean) => {
+    if (!value && pausedRef.current && pauseCountRef.current > 0) {
+      // Insert summary row on unpause
+      addMessage({
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        subject: '',
+        protocol: 'internal',
+        payload: null,
+        sourceNode: null,
+        targetNode: null,
+        isPauseSummary: true,
+        pauseCount: pauseCountRef.current,
+      })
+    }
+    pausedRef.current = value
+    pauseCountRef.current = 0
+    setPausedState(value)
+  }, [addMessage])
+
+  // Clear buffer
+  const clear = useCallback(() => {
+    messagesRef.current = []
+    statsRef.current = new StatsTracker()
+    notify()
+  }, [notify])
+
+  // Stats update interval
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStats({
+        messagesPerSecond: statsRef.current.getRate(),
+        totalCount: statsRef.current.total,
+        bufferDepth: messagesRef.current.length,
+        atCapacity: messagesRef.current.length >= MAX_BUFFER_SIZE,
+      })
+    }, 500)
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <ConsoleContext.Provider
+      value={{
+        messages: messagesRef,
+        mode,
+        setMode,
+        filters,
+        setFilters,
+        paused,
+        setPaused,
+        stats,
+        isConnected,
+        nodes,
+        clear,
+        subscribe,
+      }}
+    >
+      {children}
+    </ConsoleContext.Provider>
+  )
+}

@@ -9,6 +9,7 @@ import {
   Boxes,
   GitFork,
   Cast,
+  Terminal,
   Workflow,
   BarChart3,
   FileCode,
@@ -36,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/entities', label: 'Entities', icon: Boxes },
   { href: '/routing', label: 'Routing', icon: GitFork },
   { href: '/streams', label: 'Streams', icon: Cast },
+  { href: '/console', label: 'Console', icon: Terminal },
   { href: '/dmx', label: 'DMX Lighting', icon: Zap },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]

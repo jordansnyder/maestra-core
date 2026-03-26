@@ -83,7 +83,8 @@ void MaestraEntity::_handleMessage(JsonObject payload) {
 
 MaestraClient::MaestraClient(Client& networkClient)
     : _mqtt(networkClient), _port(1883), _hasCredentials(false),
-      _entityCount(0), _streamCallback(nullptr), _streamCount(0) {
+      _entityCount(0), _wildcardEntityCallback(nullptr), _wildcardTypeCount(0),
+      _streamCallback(nullptr), _streamCount(0) {
     strcpy(_broker, "localhost");
     strcpy(_clientId, "maestra-arduino");
     _globalClient = this;
@@ -92,6 +93,7 @@ MaestraClient::MaestraClient(Client& networkClient)
         _entities[i] = nullptr;
     }
     memset(_streams, 0, sizeof(_streams));
+    memset(_wildcardTypes, 0, sizeof(_wildcardTypes));
 }
 
 void MaestraClient::setBroker(const char* host, uint16_t port) {
@@ -188,6 +190,30 @@ void MaestraClient::subscribeEntity(const char* slug) {
     _mqtt.subscribe(topic);
     Serial.print("📡 Subscribed to: ");
     Serial.println(topic);
+}
+
+void MaestraClient::subscribeAllEntities(WildcardEntityCallback callback) {
+    _wildcardEntityCallback = callback;
+    _mqtt.subscribe("maestra/entity/state/#");
+    Serial.println("📡 Subscribed to all entity state changes");
+}
+
+void MaestraClient::subscribeEntityType(const char* type, WildcardEntityCallback callback) {
+    if (_wildcardTypeCount >= MAX_ENTITY_TYPES) {
+        Serial.println("❌ Max entity type subscriptions reached");
+        return;
+    }
+
+    strncpy(_wildcardTypes[_wildcardTypeCount], type, 31);
+    _wildcardTypes[_wildcardTypeCount][31] = '\0';
+    _wildcardTypeCallbacks[_wildcardTypeCount] = callback;
+    _wildcardTypeCount++;
+
+    char topic[MAESTRA_TOPIC_BUFFER_SIZE];
+    snprintf(topic, sizeof(topic), "maestra/entity/state/%s/+", type);
+    _mqtt.subscribe(topic);
+    Serial.print("📡 Subscribed to entity type: ");
+    Serial.println(type);
 }
 
 void MaestraClient::updateEntityState(const char* slug, JsonObject state, const char* source) {
@@ -311,12 +337,31 @@ void MaestraClient::_handleMessage(char* topic, byte* payload, unsigned int leng
 
     // Route entity messages: maestra/entity/state/<type>/<slug>
     if (partCount >= 5 && strcmp(parts[1], "entity") == 0) {
+        const char* entityType = parts[3];
         const char* entitySlug = parts[4];
+        JsonObject jsonPayload = doc.as<JsonObject>();
 
+        // Dispatch to specific MaestraEntity if registered
         for (int i = 0; i < _entityCount; i++) {
             if (_entities[i] && strcmp(_entities[i]->slug(), entitySlug) == 0) {
-                _entities[i]->_handleMessage(doc.as<JsonObject>());
+                _entities[i]->_handleMessage(jsonPayload);
                 break;
+            }
+        }
+
+        // Extract state and changed_keys for wildcard callbacks
+        JsonObject currentState = jsonPayload["current_state"];
+        JsonArray changedKeys = jsonPayload["changed_keys"];
+
+        // Fire wildcard all-entities callback
+        if (_wildcardEntityCallback) {
+            _wildcardEntityCallback(entityType, entitySlug, currentState, changedKeys);
+        }
+
+        // Fire matching per-type wildcard callbacks
+        for (int i = 0; i < _wildcardTypeCount; i++) {
+            if (strcmp(_wildcardTypes[i], entityType) == 0) {
+                _wildcardTypeCallbacks[i](entityType, entitySlug, currentState, changedKeys);
             }
         }
     }

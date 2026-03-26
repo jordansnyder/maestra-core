@@ -185,9 +185,9 @@ def osc_safe_value(value):
 # Inbound: OSC → NATS
 # ---------------------------------------------------------------------------
 
-async def osc_handler(address: str, *args):
+async def _osc_handler_async(address: str, *args):
     """
-    Handle incoming OSC messages.
+    Async implementation of the OSC handler.
 
     1. Check for reserved entity state addresses (/entity/update/... or /entity/set/...)
     2. Check for configured address mappings
@@ -237,6 +237,19 @@ async def osc_handler(address: str, *args):
         print(f"✅ Published to NATS: {nats_subject}")
     except Exception as e:
         print(f"❌ Error publishing to NATS: {e}")
+
+
+def osc_handler(address: str, *args):
+    """
+    Sync wrapper for the OSC dispatcher callback.
+    pythonosc calls handlers synchronously, so we schedule the async work
+    on the running event loop.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_osc_handler_async(address, *args))
+    except Exception as e:
+        print(f"❌ Error scheduling OSC handler: {e}")
 
 
 # ---------------------------------------------------------------------------

@@ -14,4 +14,4 @@ EXPOSE 57120/udp
 EXPOSE 57121/udp
 
 # Run the gateway
-CMD ["python", "gateway.py"]
+CMD ["python", "-u", "gateway.py"]

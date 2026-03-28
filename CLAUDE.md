@@ -447,13 +447,15 @@ Maestra Streams enable devices to advertise high-bandwidth data streams and othe
 
 ### SDK Stream Support
 
-All 6 SDKs support streams:
+All 8 SDKs support streams:
 - **Python**: Full async support with `StreamPublisher`/`StreamConsumer` automatic heartbeat helpers
 - **JavaScript/TypeScript**: Promise-based API matching all 13 endpoints
 - **Unity**: Coroutine/callback pattern with `UnityWebRequest`
 - **Unreal Engine**: Async HTTP with `FHttpModule`, Blueprint-exposed events and delegates
 - **TouchDesigner**: Synchronous `urllib.request` methods (manual heartbeat via Timer CHOP)
 - **Arduino**: MQTT-only stream events (advertise, subscribe, heartbeat via pub/sub topics)
+- **Processing**: MQTT-based with `processing-mqtt` (Eclipse Paho), thread-safe queue for main-thread dispatch
+- **OpenFrameworks**: MQTT-based `ofxMaestra` addon with `ofxMQTT` (libmosquitto), main-thread callbacks via `ofEvent`
 
 ## Configuration
 

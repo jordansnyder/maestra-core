@@ -10,6 +10,8 @@ Maestra provides SDKs for multiple platforms to integrate with the entity state 
 | [JavaScript/TypeScript](javascript.md) | HTTP, WebSocket, MQTT | `sdks/js/` |
 | [Arduino/ESP32](arduino.md) | MQTT | `sdks/arduino/` |
 | [TouchDesigner](touchdesigner.md) | HTTP, OSC | `sdks/touchdesigner/` |
+| [Processing](processing.md) | MQTT | `sdks/processing/` |
+| [OpenFrameworks](openframeworks.md) | MQTT | `sdks/openframeworks/` |
 | [Max/MSP](max-msp.md) | OSC | `sdks/maxmsp/` |
 | [Unreal Engine](unreal.md) | HTTP | `sdks/unreal/` |
 | [Unity](unity.md) | HTTP | `sdks/unity/` |
@@ -37,12 +39,12 @@ Entity
 
 SDKs with HTTP support provide stream discovery and advertisement:
 
-| Method | Python | JS/TS | Unity | Unreal | TouchDesigner | Arduino |
-|--------|--------|-------|-------|--------|---------------|---------|
-| List streams | `get_streams()` | `getStreams()` | `GetStreams()` | `GetStreams()` | `ListStreams()` | MQTT subscribe |
-| Advertise | `advertise_stream()` | `advertiseStream()` | `AdvertiseStream()` | `AdvertiseStream()` | `AdvertiseStream()` | `advertiseStream()` |
-| Request | `request_stream()` | `requestStream()` | `RequestStream()` | `RequestStream()` | `RequestStream()` | N/A |
-| Heartbeat | `stream_heartbeat()` | `streamHeartbeat()` | `StreamHeartbeat()` | `StreamHeartbeat()` | `StreamHeartbeat()` | `streamHeartbeat()` |
-| Withdraw | `withdraw_stream()` | `withdrawStream()` | `WithdrawStream()` | `WithdrawStream()` | `WithdrawStream()` | `withdrawStream()` |
+| Method | Python | JS/TS | Unity | Unreal | TouchDesigner | Arduino | Processing | OpenFrameworks |
+|--------|--------|-------|-------|--------|---------------|---------|------------|----------------|
+| List streams | `get_streams()` | `getStreams()` | `GetStreams()` | `GetStreams()` | `ListStreams()` | MQTT subscribe | MQTT subscribe | MQTT subscribe |
+| Advertise | `advertise_stream()` | `advertiseStream()` | `AdvertiseStream()` | `AdvertiseStream()` | `AdvertiseStream()` | `advertiseStream()` | `advertiseStream()` | `advertiseStream()` |
+| Request | `request_stream()` | `requestStream()` | `RequestStream()` | `RequestStream()` | `RequestStream()` | N/A | N/A | N/A |
+| Heartbeat | `stream_heartbeat()` | `streamHeartbeat()` | `StreamHeartbeat()` | `StreamHeartbeat()` | `StreamHeartbeat()` | `streamHeartbeat()` | `streamHeartbeat()` | `streamHeartbeat()` |
+| Withdraw | `withdraw_stream()` | `withdrawStream()` | `WithdrawStream()` | `WithdrawStream()` | `WithdrawStream()` | `withdrawStream()` | `withdrawStream()` | `withdrawStream()` |
 
 Python also provides `StreamPublisher` and `StreamConsumer` helper classes with automatic heartbeat management.

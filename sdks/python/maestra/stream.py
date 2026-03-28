@@ -6,7 +6,7 @@ Provides StreamPublisher and StreamConsumer with automatic heartbeat management.
 import asyncio
 from typing import Optional, TYPE_CHECKING
 
-from .types import StreamAdvertiseParams, StreamRequestParams, StreamData, StreamOffer
+from .types import StreamAdvertiseParams, StreamRequestParams, StreamJoinParams, StreamData, StreamOffer, StreamJoinResult
 
 if TYPE_CHECKING:
     from .client import MaestraClient
@@ -173,3 +173,98 @@ class StreamConsumer:
                 await self._client.session_heartbeat(self._offer.session_id)
             except Exception as e:
                 print(f"Session heartbeat failed: {e}")
+
+
+class MulticastConsumer:
+    """
+    Helper for consuming a multicast stream with automatic heartbeat.
+    Unlike StreamConsumer, no NATS negotiation occurs — the consumer
+    receives the multicast group address immediately and joins via IGMP.
+
+    Usage:
+        consumer = MulticastConsumer(client, stream_id, StreamJoinParams(
+            consumer_id="renderer-01",
+            consumer_address="192.168.1.60",
+        ))
+        result = await consumer.join()
+        print(f"Join multicast group {result.multicast_group}:{result.multicast_port}")
+        # ... receive data via IGMP multicast ...
+        await consumer.leave()
+    """
+
+    def __init__(
+        self,
+        client: "MaestraClient",
+        stream_id: str,
+        params: StreamJoinParams,
+        heartbeat_interval: float = 10.0,
+    ):
+        self._client = client
+        self._stream_id = stream_id
+        self._params = params
+        self._heartbeat_interval = heartbeat_interval
+        self._result: Optional[StreamJoinResult] = None
+        self._heartbeat_task: Optional[asyncio.Task] = None
+        self._running = False
+
+    @property
+    def result(self) -> Optional[StreamJoinResult]:
+        """The join result with multicast group info, or None if not joined"""
+        return self._result
+
+    @property
+    def subscriber_id(self) -> Optional[str]:
+        """The subscriber ID, or None if not joined"""
+        return self._result.subscriber_id if self._result else None
+
+    @property
+    def multicast_group(self) -> Optional[str]:
+        """The multicast group address, or None if not joined"""
+        return self._result.multicast_group if self._result else None
+
+    @property
+    def multicast_port(self) -> Optional[int]:
+        """The multicast port, or None if not joined"""
+        return self._result.multicast_port if self._result else None
+
+    @property
+    def is_joined(self) -> bool:
+        """Whether this consumer has joined the multicast group"""
+        return self._running and self._result is not None
+
+    async def join(self) -> StreamJoinResult:
+        """Join the multicast stream and start the automatic heartbeat"""
+        self._result = await self._client.join_stream(self._stream_id, self._params)
+        self._running = True
+        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+        return self._result
+
+    async def leave(self) -> None:
+        """Leave the multicast stream and stop the heartbeat loop"""
+        self._running = False
+        if self._heartbeat_task:
+            self._heartbeat_task.cancel()
+            try:
+                await self._heartbeat_task
+            except asyncio.CancelledError:
+                pass
+            self._heartbeat_task = None
+        if self._result:
+            try:
+                await self._client.leave_stream(
+                    self._stream_id, self._result.subscriber_id
+                )
+            except Exception:
+                pass  # Subscriber may have already expired
+            self._result = None
+
+    async def _heartbeat_loop(self) -> None:
+        """Internal heartbeat loop that refreshes the subscriber TTL"""
+        while self._running and self._result:
+            await asyncio.sleep(self._heartbeat_interval)
+            if not self._running:
+                break
+            try:
+                await self._client.subscriber_heartbeat(self._result.subscriber_id)
+            except Exception as e:
+                print(f"Subscriber heartbeat failed: {e}")

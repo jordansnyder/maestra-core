@@ -22,6 +22,9 @@
 // State change callback type
 typedef std::function<void(const char* entitySlug, JsonObject state, JsonArray changedKeys)> StateChangeCallback;
 
+// Wildcard entity callback — receives entity type and slug
+typedef std::function<void(const char* entityType, const char* entitySlug, JsonObject state, JsonArray changedKeys)> WildcardEntityCallback;
+
 /**
  * Entity State container
  */
@@ -131,6 +134,10 @@ public:
     MaestraEntity* getEntity(const char* slug);
     void subscribeEntity(const char* slug);
 
+    // Wildcard entity subscriptions
+    void subscribeAllEntities(WildcardEntityCallback callback);
+    void subscribeEntityType(const char* type, WildcardEntityCallback callback);
+
     // State updates
     void updateEntityState(const char* slug, JsonObject state, const char* source = nullptr);
     void setEntityState(const char* slug, JsonObject state, const char* source = nullptr);
@@ -161,6 +168,13 @@ private:
     static const int MAX_ENTITIES = 10;
     MaestraEntity* _entities[MAX_ENTITIES];
     int _entityCount;
+
+    // Wildcard entity subscriptions
+    WildcardEntityCallback _wildcardEntityCallback;
+    static const int MAX_ENTITY_TYPES = 4;
+    WildcardEntityCallback _wildcardTypeCallbacks[MAX_ENTITY_TYPES];
+    char _wildcardTypes[MAX_ENTITY_TYPES][32];
+    int _wildcardTypeCount;
 
     // Stream registry
     StreamAdvertisedCallback _streamCallback;

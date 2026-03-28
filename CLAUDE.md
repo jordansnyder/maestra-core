@@ -59,6 +59,9 @@ Maestra is an immersive experience infrastructure platform for creatives. It's a
 
 **Message transformations:**
 - OSC `"/device/temp"` → NATS `"maestra.osc.device.temp"`
+- OSC `"/entity/update/<slug>/<key>"` → NATS `"maestra.entity.state.update.<slug>"` (entity state)
+- OSC `"/entity/set/<slug>/<key>"` → NATS `"maestra.entity.state.set.<slug>"` (entity state)
+- NATS `"maestra.entity.state.>"` → OSC `/entity/state/<type>/<slug>/<key>` (to OSC_TARGETS)
 - MQTT `"maestra/device/temp"` → NATS `"maestra.mqtt.maestra.device.temp"`
 - WebSocket publishes directly to NATS subjects
 - NATS `"maestra.to_osc.*"` → OSC output
@@ -75,6 +78,7 @@ Maestra is an immersive experience infrastructure platform for creatives. It's a
 **Entity state updates (device → Maestra):**
 - MQTT: `maestra/entity/state/update/<slug>` (merge) or `maestra/entity/state/set/<slug>` (replace)
 - NATS: `maestra.entity.state.update.<slug>` (merge) or `maestra.entity.state.set.<slug>` (replace)
+- OSC: `/entity/update/<slug>/<key> <value>` (merge) or `/entity/set/<slug>/<key> <value>` (replace)
 - HTTP: `PATCH /entities/{id}/state` (merge) or `PUT /entities/{id}/state` (replace)
 - Payload: `{"state": {...}, "source": "optional-source-id"}`
 

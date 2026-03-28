@@ -6,6 +6,7 @@ export {
   Boxes,
   Monitor,
   GitFork,
+  Terminal,
 } from 'lucide-react'
 
 // Device types

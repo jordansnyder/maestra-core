@@ -99,6 +99,23 @@ void setup() {
     myEntity->onStateChange(onStateChange);
     maestra.subscribeEntity(ENTITY_SLUG);
 
+    // --- Wildcard subscriptions (uncomment to use) ---
+    //
+    // Subscribe to ALL entity state changes:
+    // maestra.subscribeAllEntities([](const char* type, const char* slug, JsonObject state, JsonArray changedKeys) {
+    //   Serial.printf("[%s/%s] changed: ", type, slug);
+    //   for (JsonVariant key : changedKeys) {
+    //     Serial.printf("%s ", key.as<const char*>());
+    //   }
+    //   Serial.println();
+    // });
+    //
+    // Or subscribe to a specific entity type (e.g. all lights):
+    // maestra.subscribeEntityType("light", [](const char* type, const char* slug, JsonObject state, JsonArray changedKeys) {
+    //   int brightness = state["brightness"] | 0;
+    //   Serial.printf("Light %s brightness: %d\n", slug, brightness);
+    // });
+
     Serial.println("Ready! Waiting for state changes...");
   }
 }

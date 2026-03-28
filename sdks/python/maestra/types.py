@@ -104,6 +104,10 @@ class StreamData:
     advertised_at: Optional[datetime] = None
     last_heartbeat: Optional[datetime] = None
     active_sessions: int = 0
+    multicast_group: Optional[str] = None
+    multicast_port: Optional[int] = None
+    delivery_mode: str = "unicast"
+    active_subscribers: int = 0
 
 
 @dataclass
@@ -119,6 +123,8 @@ class StreamAdvertiseParams:
     device_id: Optional[str] = None
     config: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    multicast_group: Optional[str] = None
+    multicast_port: Optional[int] = None
 
 
 @dataclass
@@ -178,11 +184,46 @@ class StreamSessionHistoryData:
 
 
 @dataclass
+class StreamJoinParams:
+    """Parameters for joining a multicast stream"""
+    consumer_id: str
+    consumer_address: str
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class StreamJoinResult:
+    """Result of joining a multicast stream"""
+    subscriber_id: str
+    stream_id: str
+    stream_name: str
+    stream_type: str
+    protocol: str
+    multicast_group: str
+    multicast_port: int
+    config: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class StreamSubscriberData:
+    """Active multicast subscriber"""
+    subscriber_id: str
+    stream_id: str
+    stream_name: str
+    stream_type: str
+    consumer_id: str
+    consumer_address: str
+    joined_at: Optional[datetime] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class StreamRegistryStateData:
     """Full registry state"""
     streams: List[StreamData] = field(default_factory=list)
     sessions: List[StreamSessionData] = field(default_factory=list)
     stream_types: List[StreamTypeData] = field(default_factory=list)
+    subscribers: List[StreamSubscriberData] = field(default_factory=list)
 
 
 StreamEventCallback = Callable[[StreamData], None]

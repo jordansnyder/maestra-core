@@ -23,6 +23,7 @@ NATS_TO_MQTT_SUBJECT = "maestra.to_mqtt.>"  # NATS "maestra.to_mqtt.device.cmd" 
 # Global clients
 nc: NATS = None
 mqtt_client: mqtt.Client = None
+_loop: asyncio.AbstractEventLoop = None  # main asyncio loop, for cross-thread scheduling
 
 
 async def connect_nats():
@@ -55,15 +56,15 @@ def nats_subject_to_mqtt_topic(subject: str) -> str:
     return subject
 
 
-def on_mqtt_connect(client, userdata, flags, rc):
-    """Callback when MQTT connects"""
-    if rc == 0:
+def on_mqtt_connect(client, userdata, flags, reason_code, properties):
+    """Callback when MQTT connects (paho v2 API)"""
+    if reason_code == 0:
         print("✅ Connected to MQTT broker")
         # Subscribe to all maestra topics
         client.subscribe("maestra/#")
         print("📡 Subscribed to MQTT topic: maestra/#")
     else:
-        print(f"❌ MQTT connection failed with code: {rc}")
+        print(f"❌ MQTT connection failed: {reason_code}")
 
 
 def on_mqtt_message(client, userdata, msg):
@@ -95,9 +96,9 @@ def on_mqtt_message(client, userdata, msg):
     except (json.JSONDecodeError, ValueError):
         message["data"] = payload
 
-    # Publish to NATS
-    if nc:
-        asyncio.create_task(publish_to_nats(nats_subject, message))
+    # Publish to NATS (schedule on the main asyncio loop from paho's thread)
+    if nc and _loop:
+        asyncio.run_coroutine_threadsafe(publish_to_nats(nats_subject, message), _loop)
 
 
 async def publish_to_nats(subject: str, message: dict):
@@ -152,7 +153,7 @@ def setup_mqtt():
     """Setup MQTT client"""
     global mqtt_client
 
-    mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, "maestra-mqtt-nats-bridge")
+    mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, "maestra-mqtt-nats-bridge")
     mqtt_client.on_connect = on_mqtt_connect
     mqtt_client.on_message = on_mqtt_message
 
@@ -164,8 +165,13 @@ def setup_mqtt():
 async def main():
     """Main bridge loop"""
 
+    global _loop
+
     print("🚀 Starting Maestra MQTT-NATS Bridge...")
     print("=" * 60)
+
+    # Store the running loop so MQTT callbacks can schedule async work
+    _loop = asyncio.get_running_loop()
 
     # Connect to NATS
     await connect_nats()

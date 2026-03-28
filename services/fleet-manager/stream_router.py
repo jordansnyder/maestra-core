@@ -14,7 +14,7 @@ from database import get_db, StreamTypeDB, async_session_maker
 from models import (
     StreamAdvertise, StreamInfo, StreamRequest, StreamOffer,
     StreamSession, StreamSessionHistory, StreamTypeInfo, StreamTypeCreate,
-    StreamRegistryState,
+    StreamRegistryState, StreamJoinRequest, StreamJoinResponse, StreamSubscriber,
 )
 from stream_manager import stream_manager
 
@@ -61,10 +61,15 @@ async def get_stream_state(db: AsyncSession = Depends(get_db)):
     sessions_data = await stream_manager.list_sessions()
     sessions = [StreamSession(**s) for s in sessions_data]
 
+    # Active subscribers from Redis (multicast)
+    subscribers_data = await stream_manager.list_subscribers()
+    subscribers = [StreamSubscriber(**s) for s in subscribers_data]
+
     return StreamRegistryState(
         streams=streams,
         sessions=sessions,
         stream_types=stream_types,
+        subscribers=subscribers,
     )
 
 
@@ -235,6 +240,39 @@ async def session_heartbeat(session_id: UUID):
 
 
 # =============================================================================
+# Multicast: Subscriber Management
+# =============================================================================
+# NOTE: Like sessions, subscriber routes MUST be defined before the
+# catch-all /{stream_id} route.
+
+@router.get("/subscribers", response_model=List[StreamSubscriber])
+async def list_all_subscribers(
+    stream_id: Optional[UUID] = Query(None, description="Filter by stream"),
+):
+    """List active multicast subscribers"""
+    if not stream_manager.is_connected:
+        raise HTTPException(status_code=503, detail="Stream manager not connected")
+
+    subscribers_data = await stream_manager.list_subscribers(
+        stream_id=str(stream_id) if stream_id else None
+    )
+    return [StreamSubscriber(**s) for s in subscribers_data]
+
+
+@router.post("/subscribers/{subscriber_id}/heartbeat")
+async def subscriber_heartbeat(subscriber_id: UUID):
+    """Refresh a subscriber's TTL"""
+    if not stream_manager.is_connected:
+        raise HTTPException(status_code=503, detail="Stream manager not connected")
+
+    refreshed = await stream_manager.refresh_subscriber_ttl(str(subscriber_id))
+    if not refreshed:
+        raise HTTPException(status_code=404, detail="Subscriber not found or expired")
+
+    return {"status": "ok", "subscriber_id": str(subscriber_id)}
+
+
+# =============================================================================
 # Single Stream by ID (catch-all — MUST be after all static /streams/* routes)
 # =============================================================================
 
@@ -281,14 +319,75 @@ async def stream_heartbeat(stream_id: UUID):
 # Stream Negotiation
 # =============================================================================
 
-@router.post("/{stream_id}/request", response_model=StreamOffer)
-async def request_stream(stream_id: UUID, req: StreamRequest):
+@router.post("/{stream_id}/join", response_model=StreamJoinResponse, status_code=201)
+async def join_stream(stream_id: UUID, req: StreamJoinRequest):
     """
-    Request to consume a stream. Triggers NATS request-reply to the publisher.
-    Returns connection details on success.
+    Join a multicast stream. No negotiation needed — returns the multicast
+    group address for the consumer to IGMP join.
     """
     if not stream_manager.is_connected:
         raise HTTPException(status_code=503, detail="Stream manager not connected")
+
+    db_session = async_session_maker()
+
+    try:
+        result = await stream_manager.join_stream(
+            stream_id=str(stream_id),
+            consumer_id=req.consumer_id,
+            consumer_address=req.consumer_address,
+            metadata=req.metadata,
+            db_session=db_session,
+        )
+        return StreamJoinResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/{stream_id}/leave/{subscriber_id}")
+async def leave_stream(stream_id: UUID, subscriber_id: UUID):
+    """Leave a multicast stream"""
+    if not stream_manager.is_connected:
+        raise HTTPException(status_code=503, detail="Stream manager not connected")
+
+    db_session = async_session_maker()
+
+    removed = await stream_manager.leave_stream(
+        str(stream_id), str(subscriber_id), db_session=db_session
+    )
+    if not removed:
+        raise HTTPException(status_code=404, detail="Subscriber not found or expired")
+
+    return {"status": "left", "subscriber_id": str(subscriber_id)}
+
+
+@router.get("/{stream_id}/subscribers", response_model=List[StreamSubscriber])
+async def list_stream_subscribers(stream_id: UUID):
+    """List active subscribers for a multicast stream"""
+    if not stream_manager.is_connected:
+        raise HTTPException(status_code=503, detail="Stream manager not connected")
+
+    subscribers_data = await stream_manager.list_subscribers(
+        stream_id=str(stream_id)
+    )
+    return [StreamSubscriber(**s) for s in subscribers_data]
+
+
+@router.post("/{stream_id}/request", response_model=StreamOffer)
+async def request_stream(stream_id: UUID, req: StreamRequest):
+    """
+    Request to consume a unicast stream. Triggers NATS request-reply to the publisher.
+    Returns connection details on success. For multicast streams, use /join instead.
+    """
+    if not stream_manager.is_connected:
+        raise HTTPException(status_code=503, detail="Stream manager not connected")
+
+    # Check if stream is multicast — if so, direct to /join
+    stream_data = await stream_manager.get_stream(str(stream_id))
+    if stream_data and stream_data.get("delivery_mode") == "multicast":
+        raise HTTPException(
+            status_code=400,
+            detail="This is a multicast stream. Use POST /streams/{stream_id}/join instead.",
+        )
 
     # Get a fresh DB session for logging (fire-and-forget)
     db_session = async_session_maker()

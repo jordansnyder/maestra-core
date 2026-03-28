@@ -28,6 +28,9 @@ import type {
   StreamSession,
   StreamSessionHistory,
   StreamRegistryState,
+  StreamJoinRequest,
+  StreamJoinResponse,
+  StreamSubscriber,
 } from './types'
 
 import { discoverMaestra } from './discovery'
@@ -360,6 +363,24 @@ class HttpTransport {
   sessionHeartbeat(sessionId: string): Promise<void> {
     return this.request('POST', `/streams/sessions/${sessionId}/heartbeat`)
   }
+
+  // Multicast streams
+  joinStream(streamId: string, data: StreamJoinRequest): Promise<StreamJoinResponse> {
+    return this.request('POST', `/streams/${streamId}/join`, data)
+  }
+
+  leaveStream(streamId: string, subscriberId: string): Promise<void> {
+    return this.request('DELETE', `/streams/${streamId}/leave/${subscriberId}`)
+  }
+
+  subscriberHeartbeat(subscriberId: string): Promise<void> {
+    return this.request('POST', `/streams/subscribers/${subscriberId}/heartbeat`)
+  }
+
+  listSubscribers(streamId?: string): Promise<StreamSubscriber[]> {
+    const params = streamId ? `?stream_id=${streamId}` : ''
+    return this.request('GET', `/streams/subscribers${params}`)
+  }
 }
 
 /**
@@ -581,6 +602,26 @@ export class MaestraClient {
   /** Refresh a session's TTL */
   async sessionHeartbeat(sessionId: string): Promise<void> {
     return this._http.sessionHeartbeat(sessionId)
+  }
+
+  /** Join a multicast stream. Returns multicast group info for IGMP join. */
+  async joinStream(streamId: string, data: StreamJoinRequest): Promise<StreamJoinResponse> {
+    return this._http.joinStream(streamId, data)
+  }
+
+  /** Leave a multicast stream */
+  async leaveStream(streamId: string, subscriberId: string): Promise<void> {
+    return this._http.leaveStream(streamId, subscriberId)
+  }
+
+  /** Refresh a subscriber's TTL */
+  async subscriberHeartbeat(subscriberId: string): Promise<void> {
+    return this._http.subscriberHeartbeat(subscriberId)
+  }
+
+  /** List active multicast subscribers */
+  async getSubscribers(streamId?: string): Promise<StreamSubscriber[]> {
+    return this._http.listSubscribers(streamId)
   }
 
   // Subscriptions

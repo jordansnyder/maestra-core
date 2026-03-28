@@ -188,6 +188,13 @@ test-mqtt-state: ## Test MQTT entity state update (requires SLUG=entity-slug)
 		-m '{"state": {"test_value": 42, "source_test": true}, "source": "make-test"}'
 	@echo "✅ State update published for entity: $(SLUG)"
 
+test-osc: ## Send a test OSC message to the gateway
+	@python3 -c "from pythonosc import udp_client; c = udp_client.SimpleUDPClient('localhost', ${OSC_IN_PORT:-57120}); c.send_message('/test/hello', [42, 'world']); print('✅ Sent OSC /test/hello [42, world] to port ${OSC_IN_PORT:-57120}')"
+
+test-osc-state: ## Test OSC entity state update (requires SLUG=entity-slug)
+	@if [ -z "$(SLUG)" ]; then echo "Usage: make test-osc-state SLUG=my-entity"; exit 1; fi
+	@python3 -c "from pythonosc import udp_client; c = udp_client.SimpleUDPClient('localhost', ${OSC_IN_PORT:-57120}); c.send_message('/entity/update/$(SLUG)/brightness', [128]); print('✅ Sent OSC entity state update for $(SLUG): brightness=128')"
+
 # =============================================================================
 # DMX / ART-NET GATEWAY
 # =============================================================================
@@ -357,7 +364,7 @@ release-all: ## Release all SDKs (VERSION=x.y.z)
 # Development shortcuts
 .PHONY: dev-bus dev-db dev-core shell-postgres shell-redis shell-fleet
 .PHONY: migrate migrate-status migrate-dry-run
-.PHONY: backup-db restore-db test-mqtt test-mqtt-state watch stats update
+.PHONY: backup-db restore-db test-mqtt test-mqtt-state test-osc test-osc-state watch stats update
 .PHONY: deploy-test deploy-prod stop-test stop-prod logs-test logs-prod
 .PHONY: up-dmx dev-dmx logs-dmx build-dmx test-dmx sync-ofl ofl-status update-ip
 .PHONY: release-python release-js release-arduino release-unity release-unreal release-td release-all

@@ -10,4 +10,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Run the bridge
-CMD ["python", "bridge.py"]
+CMD ["python", "-u", "bridge.py"]

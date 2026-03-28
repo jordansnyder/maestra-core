@@ -35,29 +35,29 @@ async def nats_message_handler(msg):
     Subscribes to maestra.ws.* and broadcasts to all connected clients
     """
     subject = msg.subject
-    data = msg.data.decode()
 
     print(f"📨 NATS -> WS: {subject}")
 
     # Broadcast to all connected WebSocket clients
     if connected_clients:
-        message = {
+        # Parse JSON safely — binary or malformed NATS payloads should not crash the gateway
+        try:
+            data = msg.data.decode()
+            parsed_data = json.loads(data) if data else None
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            raw = msg.data[:500].decode(errors='replace') if msg.data else None
+            parsed_data = {"_raw": raw, "_error": "non-JSON payload"}
+
+        message = json.dumps({
             "type": "message",
             "subject": subject,
-            "data": json.loads(data) if data else None,
+            "data": parsed_data,
             "timestamp": datetime.utcnow().isoformat()
-        }
+        })
 
-        # Send to all connected clients
-        disconnected = set()
-        for client in connected_clients:
-            try:
-                await client.send(json.dumps(message))
-            except websockets.exceptions.ConnectionClosed:
-                disconnected.add(client)
-
-        # Remove disconnected clients
-        connected_clients.difference_update(disconnected)
+        # Concurrent broadcast — fire-and-forget to all clients.
+        # Stale clients are cleaned up in handle_websocket_client's finally block.
+        websockets.broadcast(connected_clients, message)
 
 
 async def subscribe_nats():

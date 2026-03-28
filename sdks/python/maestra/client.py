@@ -12,6 +12,7 @@ from .types import (
     ConnectionConfig, EntityData, EntityType, StateChangeEvent,
     StreamTypeData, StreamData, StreamAdvertiseParams, StreamRequestParams,
     StreamOffer, StreamSessionData, StreamSessionHistoryData, StreamRegistryStateData,
+    StreamJoinParams, StreamJoinResult, StreamSubscriberData,
 )
 from .entity import Entity
 
@@ -244,6 +245,22 @@ class HttpTransport:
     async def session_heartbeat(self, session_id: str) -> Dict[str, Any]:
         return await self._request("POST", f"/streams/sessions/{session_id}/heartbeat")
 
+    # Multicast streams
+    async def join_stream(self, stream_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        return await self._request("POST", f"/streams/{stream_id}/join", json=data)
+
+    async def leave_stream(self, stream_id: str, subscriber_id: str) -> Dict[str, Any]:
+        return await self._request("DELETE", f"/streams/{stream_id}/leave/{subscriber_id}")
+
+    async def subscriber_heartbeat(self, subscriber_id: str) -> Dict[str, Any]:
+        return await self._request("POST", f"/streams/subscribers/{subscriber_id}/heartbeat")
+
+    async def list_subscribers(self, stream_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        params = {}
+        if stream_id:
+            params["stream_id"] = stream_id
+        return await self._request("GET", "/streams/subscribers", params=params)
+
 
 class MaestraClient:
     """
@@ -427,12 +444,13 @@ class MaestraClient:
     # ===== Streams =====
 
     async def get_stream_registry_state(self) -> StreamRegistryStateData:
-        """Get complete stream state: streams, sessions, and types"""
+        """Get complete stream state: streams, sessions, types, and subscribers"""
         data = await self._http.get_stream_state()
         return StreamRegistryStateData(
             streams=[self._parse_stream_data(s) for s in data.get("streams", [])],
             sessions=[self._parse_session_data(s) for s in data.get("sessions", [])],
             stream_types=[self._parse_stream_type(t) for t in data.get("stream_types", [])],
+            subscribers=[self._parse_subscriber_data(s) for s in data.get("subscribers", [])],
         )
 
     async def get_stream_types(self) -> List[StreamTypeData]:
@@ -490,6 +508,10 @@ class MaestraClient:
             body["config"] = params.config
         if params.metadata:
             body["metadata"] = params.metadata
+        if params.multicast_group:
+            body["multicast_group"] = params.multicast_group
+        if params.multicast_port is not None:
+            body["multicast_port"] = params.multicast_port
         data = await self._http.advertise_stream(body)
         return self._parse_stream_data(data)
 
@@ -551,6 +573,43 @@ class MaestraClient:
     async def session_heartbeat(self, session_id: str) -> None:
         """Refresh a session's TTL"""
         await self._http.session_heartbeat(session_id)
+
+    # Multicast Streams
+
+    async def join_stream(self, stream_id: str, params: StreamJoinParams) -> StreamJoinResult:
+        """Join a multicast stream. Returns multicast group info for IGMP join."""
+        body: Dict[str, Any] = {
+            "consumer_id": params.consumer_id,
+            "consumer_address": params.consumer_address,
+        }
+        if params.metadata:
+            body["metadata"] = params.metadata
+        data = await self._http.join_stream(stream_id, body)
+        return StreamJoinResult(
+            subscriber_id=data["subscriber_id"],
+            stream_id=data["stream_id"],
+            stream_name=data["stream_name"],
+            stream_type=data["stream_type"],
+            protocol=data["protocol"],
+            multicast_group=data["multicast_group"],
+            multicast_port=data["multicast_port"],
+            config=data.get("config", {}),
+        )
+
+    async def leave_stream(self, stream_id: str, subscriber_id: str) -> None:
+        """Leave a multicast stream"""
+        await self._http.leave_stream(stream_id, subscriber_id)
+
+    async def subscriber_heartbeat(self, subscriber_id: str) -> None:
+        """Refresh a subscriber's TTL"""
+        await self._http.subscriber_heartbeat(subscriber_id)
+
+    async def get_subscribers(
+        self, stream_id: Optional[str] = None
+    ) -> List[StreamSubscriberData]:
+        """List active multicast subscribers"""
+        data = await self._http.list_subscribers(stream_id)
+        return [self._parse_subscriber_data(s) for s in data]
 
     # Subscriptions
     async def _subscribe_entity(self, entity: Entity) -> None:
@@ -674,6 +733,10 @@ class MaestraClient:
             advertised_at=datetime.fromisoformat(data["advertised_at"].rstrip("Z")) if data.get("advertised_at") else None,
             last_heartbeat=datetime.fromisoformat(data["last_heartbeat"].rstrip("Z")) if data.get("last_heartbeat") else None,
             active_sessions=data.get("active_sessions", 0),
+            multicast_group=data.get("multicast_group"),
+            multicast_port=data.get("multicast_port"),
+            delivery_mode=data.get("delivery_mode", "unicast"),
+            active_subscribers=data.get("active_subscribers", 0),
         )
 
     def _parse_session_data(self, data: Dict[str, Any]) -> StreamSessionData:
@@ -706,6 +769,18 @@ class MaestraClient:
             duration_seconds=data.get("duration_seconds"),
             bytes_transferred=data.get("bytes_transferred", 0),
             error_message=data.get("error_message"),
+        )
+
+    def _parse_subscriber_data(self, data: Dict[str, Any]) -> StreamSubscriberData:
+        return StreamSubscriberData(
+            subscriber_id=data["subscriber_id"],
+            stream_id=data["stream_id"],
+            stream_name=data.get("stream_name", ""),
+            stream_type=data.get("stream_type", ""),
+            consumer_id=data["consumer_id"],
+            consumer_address=data.get("consumer_address", ""),
+            joined_at=datetime.fromisoformat(data["joined_at"].rstrip("Z")) if data.get("joined_at") else None,
+            metadata=data.get("metadata", {}),
         )
 
 

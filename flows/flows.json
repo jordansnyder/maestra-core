@@ -31,7 +31,7 @@
         "type": "tab",
         "label": "Device Monitor",
         "disabled": false,
-        "info": "Monitors device heartbeats and displays activity in the debug panel.",
+        "info": "Monitors device heartbeats arriving via MQTT and displays activity in the debug panel.",
         "env": []
     },
     {
@@ -107,7 +107,7 @@
         "type": "comment",
         "z": "tab_device_monitor",
         "name": "How to use this flow",
-        "info": "This flow monitors device heartbeat messages. Deploy this flow and register a device to see heartbeats appear in the debug panel (sidebar \u2192 bug icon).\n\nHeartbeats arrive on `maestra/devices/+/heartbeat` where `+` is the device slug. The function node extracts the device name from the topic and formats a clean summary.",
+        "info": "This flow monitors device heartbeat messages arriving via MQTT. Deploy this flow and register a device to see heartbeats appear in the debug panel (sidebar > bug icon).\n\nHeartbeats arrive on `maestra/devices/+/heartbeat` where `+` is the device slug. MQTT-native devices (Arduino, ESP32) publish heartbeats directly to this topic. The function node extracts the device name from the topic and formats a clean summary.",
         "x": 160,
         "y": 100,
         "wires": []
@@ -118,7 +118,7 @@
         "type": "tab",
         "label": "Entity Controller",
         "disabled": false,
-        "info": "Demonstrates controlling an entity's state via the Fleet Manager API and monitoring real-time state changes.",
+        "info": "Demonstrates controlling entity state via MQTT and monitoring real-time state change broadcasts.",
         "env": []
     },
     {
@@ -194,56 +194,35 @@
         "id": "ec_prepare_fn",
         "type": "function",
         "z": "tab_entity_controller",
-        "name": "Prepare Request",
-        "func": "// Wrap in the state update format\nmsg.payload = { state: msg.payload };\nmsg.headers = { \"Content-Type\": \"application/json\" };\nreturn msg;",
+        "name": "Prepare MQTT Update",
+        "func": "// Target entity slug - change this to match your entity\nvar slug = 'gallery-light-1';\n\n// Set MQTT topic for state merge update\nmsg.topic = 'maestra/entity/state/update/' + slug;\n\n// Wrap payload in the expected envelope\nmsg.payload = JSON.stringify({\n    state: msg.payload,\n    source: 'nodered'\n});\n\nreturn msg;",
         "outputs": 1,
         "timeout": "",
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 420,
+        "x": 430,
         "y": 200,
         "wires": [
-            ["ec_http_req"]
+            ["ec_mqtt_out"]
         ]
     },
     {
-        "id": "ec_http_req",
-        "type": "http request",
+        "id": "ec_mqtt_out",
+        "type": "mqtt out",
         "z": "tab_entity_controller",
-        "name": "Update Entity State",
-        "method": "POST",
-        "ret": "obj",
-        "paytoqs": "ignore",
-        "url": "http://fleet-manager:8080/entities/by-slug/gallery-light-1/state/update",
-        "tls": "",
-        "persist": false,
-        "proxy": "",
-        "insecureHTTPParser": false,
-        "authType": "",
-        "senderr": false,
-        "headers": [],
-        "x": 640,
-        "y": 200,
-        "wires": [
-            ["ec_debug_resp"]
-        ]
-    },
-    {
-        "id": "ec_debug_resp",
-        "type": "debug",
-        "z": "tab_entity_controller",
-        "name": "API Response",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": true,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "statusCode",
-        "statusType": "auto",
-        "x": 850,
+        "name": "Publish State Update",
+        "topic": "",
+        "qos": "1",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "application/json",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "mqtt_broker_config",
+        "x": 660,
         "y": 200,
         "wires": []
     },
@@ -251,8 +230,8 @@
         "id": "ec_mqtt_state",
         "type": "mqtt in",
         "z": "tab_entity_controller",
-        "name": "State Changes",
-        "topic": "maestra/entity/state/changed/gallery-light-1",
+        "name": "All Entity State Broadcasts",
+        "topic": "maestra/entity/state/+/+",
         "qos": "0",
         "datatype": "auto",
         "broker": "mqtt_broker_config",
@@ -260,7 +239,7 @@
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 160,
+        "x": 190,
         "y": 400,
         "wires": [
             ["ec_json_parse"]
@@ -274,7 +253,25 @@
         "property": "payload",
         "action": "",
         "pretty": false,
-        "x": 400,
+        "x": 430,
+        "y": 400,
+        "wires": [
+            ["ec_format_state"]
+        ]
+    },
+    {
+        "id": "ec_format_state",
+        "type": "function",
+        "z": "tab_entity_controller",
+        "name": "Format State Change",
+        "func": "var data = msg.payload;\nvar parts = msg.topic.split('/');\nvar entityType = parts[3] || 'unknown';\nvar slug = parts[4] || 'unknown';\n\nmsg.payload = {\n    entity: slug,\n    type: entityType,\n    state: data.current_state,\n    changed: data.changed_keys,\n    source: data.source || 'unknown'\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 640,
         "y": 400,
         "wires": [
             ["ec_debug_state"]
@@ -291,9 +288,9 @@
         "tostatus": true,
         "complete": "payload",
         "targetType": "msg",
-        "statusVal": "payload",
+        "statusVal": "payload.entity",
         "statusType": "auto",
-        "x": 620,
+        "x": 850,
         "y": 400,
         "wires": []
     },
@@ -302,7 +299,7 @@
         "type": "comment",
         "z": "tab_entity_controller",
         "name": "How to use this flow",
-        "info": "Control an entity's state via the Fleet Manager API. Click an inject button to change the 'Gallery Light 1' entity's brightness. The MQTT listener below shows real-time state change events.\n\nPrerequisite: Create an entity with slug 'gallery-light-1' via the Fleet Manager API or Dashboard first.\n\nThe top row sends HTTP POST requests to update entity state.\nThe bottom row listens for MQTT state change notifications that are broadcast when the state updates.",
+        "info": "Control an entity's state via MQTT. Click an inject button to update the entity's state. The state manager subscribes to these MQTT topics and processes the update.\n\nPrerequisite: Create an entity with slug 'gallery-light-1' via the Fleet Manager API or Dashboard first.\n\n**Top row - State Updates (device -> Maestra):**\nPublishes to `maestra/entity/state/update/<slug>` with payload `{\"state\": {...}, \"source\": \"nodered\"}`.\nThe state manager merges this into the entity's current state (PATCH semantics).\nTo replace state entirely, change the topic to `maestra/entity/state/set/<slug>`.\n\n**Bottom row - State Broadcasts (Maestra -> devices):**\nListens on `maestra/entity/state/+/+` which matches `maestra/entity/state/<entity_type>/<slug>`.\nThese broadcasts fire whenever any entity's state changes, from any source (MQTT, HTTP API, NATS, OSC).\nThe payload includes: current_state, previous_state, changed_keys, source, and timestamp.\n\nTo target a specific entity, change the listener topic to `maestra/entity/state/+/gallery-light-1`.",
         "x": 160,
         "y": 60,
         "wires": []
@@ -375,7 +372,7 @@
         "type": "comment",
         "z": "tab_event_logger",
         "name": "How to use this flow",
-        "info": "This flow captures ALL messages on the Maestra bus. Use this for debugging and understanding how messages flow through the system. Check the debug panel (sidebar \u2192 bug icon) to see events in real-time.\n\nThe wildcard subscription `maestra/#` matches every topic under the `maestra/` namespace, including device heartbeats, entity state changes, stream events, and more.\n\nEach log line shows: timestamp | topic | payload (truncated to 200 chars).",
+        "info": "This flow captures ALL messages on the Maestra MQTT bus. Use this for debugging and understanding how messages flow through the system. Check the debug panel (sidebar > bug icon) to see events in real-time.\n\nThe wildcard subscription `maestra/#` matches every topic under the `maestra/` namespace, including:\n- Device heartbeats: `maestra/devices/+/heartbeat`\n- Entity state updates (inbound): `maestra/entity/state/update/<slug>`\n- Entity state broadcasts (outbound): `maestra/entity/state/<type>/<slug>`\n- Entity lifecycle: `maestra/entity/created/<type>/<slug>`, `maestra/entity/updated/...`, `maestra/entity/deleted/...`\n- Stream events: `maestra/stream/...`\n\nEach log line shows: timestamp | topic | payload (truncated to 200 chars).",
         "x": 160,
         "y": 100,
         "wires": []

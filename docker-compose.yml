@@ -104,7 +104,7 @@ services:
       - "1880:1880"
     volumes:
       - nodered-data:/data
-      - ./flows:/data/flows
+      - ./flows/flows.json:/data/flows.json
       - ./config/nodered/settings.js:/data/settings.js
     networks:
       - maestra-network

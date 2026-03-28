@@ -7,6 +7,9 @@ python-osc==1.8.3
 nats-py==2.6.0
 redis==5.0.1
 
+# HTTP Client (Fleet Manager API)
+aiohttp==3.9.5
+
 # Utilities
 python-dotenv==1.0.0
 asyncio==3.4.3

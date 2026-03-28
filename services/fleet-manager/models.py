@@ -884,6 +884,77 @@ class CloudTestResult(BaseModel):
     checks: Dict[str, bool] = Field(default_factory=dict)
 
 
+# =============================================================================
+# OSC Mapping Models
+# =============================================================================
+
+class OscMappingBase(BaseModel):
+    """Base fields for OSC mappings"""
+    osc_address: str = Field(..., min_length=1, description="OSC address pattern (e.g., /sensor/1/value)")
+    entity_slug: str = Field(..., min_length=1, description="Target entity slug")
+    state_key: Optional[str] = Field(None, description="Single state key for positional arg mapping")
+    state_keys: Optional[List[str]] = Field(None, description="Multiple state keys for positional args")
+    operation: Literal['update', 'set'] = Field('update', description="State operation: update (merge) or set (replace)")
+    enabled: bool = Field(True, description="Whether this mapping is active")
+    description: Optional[str] = Field(None, description="Human-readable description of this mapping")
+
+    @model_validator(mode='after')
+    def validate_state_keys_exclusive(self):
+        """state_key and state_keys are mutually exclusive; at least one must be set"""
+        if self.state_key is not None and self.state_keys is not None:
+            raise ValueError("Cannot set both state_key and state_keys — use one or the other")
+        if self.state_key is None and self.state_keys is None:
+            raise ValueError("Either state_key or state_keys must be provided")
+        if self.state_keys is not None and len(self.state_keys) == 0:
+            raise ValueError("state_keys must not be empty")
+        return self
+
+    @model_validator(mode='after')
+    def validate_osc_address_not_reserved(self):
+        """Reject addresses that conflict with reserved gateway prefixes"""
+        addr = self.osc_address
+        if addr.startswith('/entity/update/') or addr.startswith('/entity/set/'):
+            raise ValueError(
+                "OSC addresses starting with /entity/update/ or /entity/set/ are reserved "
+                "and handled automatically by the gateway — no mapping needed"
+            )
+        return self
+
+
+class OscMappingCreate(OscMappingBase):
+    """Model for creating an OSC mapping"""
+    pass
+
+
+class OscMappingUpdate(BaseModel):
+    """Model for updating an OSC mapping (all fields optional)"""
+    osc_address: Optional[str] = Field(None, min_length=1)
+    entity_slug: Optional[str] = Field(None, min_length=1)
+    state_key: Optional[str] = None
+    state_keys: Optional[List[str]] = None
+    operation: Optional[Literal['update', 'set']] = None
+    enabled: Optional[bool] = None
+    description: Optional[str] = None
+
+
+class OscMappingResponse(OscMappingBase):
+    """Response model for an OSC mapping"""
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class OscMappingImportResult(BaseModel):
+    """Result of a bulk import operation"""
+    created: int = 0
+    updated: int = 0
+    failed: int = 0
+    errors: List[str] = Field(default_factory=list)
+
+
 # Enable forward references
 Entity.model_rebuild()
 EntityTreeNode.model_rebuild()

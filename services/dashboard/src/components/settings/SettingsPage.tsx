@@ -1,15 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { Cloud, Settings, Zap } from '@/components/icons'
+import { Cloud, Settings, Zap, Radio } from '@/components/icons'
 import { getServiceLinks } from '@/lib/hosts'
 import { useCloudGateway } from '@/hooks/useCloudGateway'
 import { CloudStatusCard } from './CloudStatusCard'
 import { CloudSetupWizard } from './CloudSetupWizard'
 import { PolicyEditor } from './PolicyEditor'
 import { DMXGatewaySettings } from './DMXGatewaySettings'
+import { OscMappingsSettings } from './OscMappingsSettings'
 
-type Tab = 'general' | 'cloud' | 'dmx'
+type Tab = 'general' | 'cloud' | 'dmx' | 'osc'
 
 export function SettingsPage() {
   const [tab, setTab] = useState<Tab>('cloud')
@@ -41,12 +42,19 @@ export function SettingsPage() {
           icon={<Zap className="w-4 h-4" />}
           label="DMX / Art-Net"
         />
+        <TabButton
+          active={tab === 'osc'}
+          onClick={() => setTab('osc')}
+          icon={<Radio className="w-4 h-4" />}
+          label="OSC Mappings"
+        />
       </div>
 
       {/* Tab content */}
       {tab === 'general' && <GeneralTab />}
       {tab === 'cloud' && <CloudTab cloud={cloud} isConnected={isConnected} />}
       {tab === 'dmx' && <DMXGatewaySettings />}
+      {tab === 'osc' && <OscMappingsSettings />}
     </div>
   )
 }

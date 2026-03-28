@@ -13,6 +13,7 @@ from pythonosc import dispatcher, osc_server, udp_client
 from pythonosc.osc_server import AsyncIOOSCUDPServer
 import nats
 from nats.aio.client import Client as NATS
+import aiohttp
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -22,6 +23,7 @@ OSC_OUT_PORT = int(os.getenv('OSC_OUT_PORT', 57121))
 NATS_URL = os.getenv('NATS_URL', 'nats://nats:4222')
 OSC_TARGETS = os.getenv('OSC_TARGETS', '')  # comma-separated ip:port
 MAPPINGS_PATH = os.getenv('OSC_MAPPINGS_PATH', '/app/mappings.json')
+FLEET_MANAGER_URL = os.getenv('FLEET_MANAGER_URL', 'http://fleet-manager:8080')
 
 # Globals
 nc: NATS = None
@@ -37,10 +39,39 @@ _SLUG_RE = re.compile(r'^[a-zA-Z0-9_-]+$')
 # OSC address mappings (for fixed-address installations)
 # ---------------------------------------------------------------------------
 
-def load_osc_mappings():
-    """Load OSC-to-entity address mappings from JSON config file."""
+async def fetch_mappings_from_api():
+    """Fetch OSC address mappings from the Fleet Manager API.
+
+    On success, replaces the global ``osc_mappings`` dict and returns True.
+    On failure, logs a warning and returns False without clearing existing
+    mappings so the gateway can continue operating with stale data.
+    """
     global osc_mappings
-    osc_mappings = {}
+    url = f"{FLEET_MANAGER_URL}/osc-mappings/?enabled=true"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status != 200:
+                    print(f"⚠️  Fleet Manager returned {resp.status} for OSC mappings")
+                    return False
+                entries = await resp.json()
+                osc_mappings = {e['osc_address']: e for e in entries}
+                print(f"📋 Loaded {len(osc_mappings)} OSC mapping(s) from Fleet Manager API")
+                return True
+    except Exception as e:
+        print(f"⚠️  Failed to fetch OSC mappings from API: {e}")
+        return False
+
+
+async def reload_handler(msg):
+    """Handle a hot-reload signal on maestra.config.osc.reload."""
+    print("🔄 Received OSC mappings reload signal")
+    await fetch_mappings_from_api()
+
+
+def _load_mappings_from_file():
+    """Load OSC-to-entity address mappings from the local JSON config file."""
+    global osc_mappings
 
     if not os.path.exists(MAPPINGS_PATH):
         print(f"📋 No OSC mappings file at {MAPPINGS_PATH} (optional)")
@@ -49,13 +80,35 @@ def load_osc_mappings():
     try:
         with open(MAPPINGS_PATH) as f:
             entries = json.load(f)
+        osc_mappings = {}
         for entry in entries:
             addr = entry.get('osc_address')
             if addr:
                 osc_mappings[addr] = entry
-        print(f"📋 Loaded {len(osc_mappings)} OSC address mapping(s)")
+        print(f"📋 Loaded {len(osc_mappings)} OSC address mapping(s) from file")
     except Exception as e:
-        print(f"⚠️  Error loading OSC mappings: {e}")
+        print(f"⚠️  Error loading OSC mappings from file: {e}")
+
+
+async def load_osc_mappings():
+    """Load OSC address mappings, preferring the Fleet Manager API.
+
+    Attempts to fetch from the API with exponential back-off (3 attempts,
+    2s / 4s / 8s delays). Falls back to the local JSON file only if every
+    API attempt fails.
+    """
+    delays = [2, 4, 8]
+    for attempt, delay in enumerate(delays, start=1):
+        print(f"📋 Fetching OSC mappings from API (attempt {attempt}/{len(delays)})…")
+        success = await fetch_mappings_from_api()
+        if success:
+            return
+        if attempt < len(delays):
+            print(f"   Retrying in {delay}s…")
+            await asyncio.sleep(delay)
+
+    print("📋 All API attempts failed — falling back to local mappings file")
+    _load_mappings_from_file()
 
 
 # ---------------------------------------------------------------------------
@@ -404,14 +457,18 @@ async def main():
 
     print("🚀 Starting Maestra OSC Gateway...")
 
-    # Load optional address mappings
-    load_osc_mappings()
+    # Load optional address mappings (tries Fleet Manager API first, then file)
+    await load_osc_mappings()
 
     # Parse outbound OSC targets
     init_osc_targets()
 
     # Connect to NATS
     await connect_nats()
+
+    # Subscribe to hot-reload signal for OSC mappings
+    await nc.subscribe("maestra.config.osc.reload", cb=reload_handler)
+    print("📡 Subscribed to NATS: maestra.config.osc.reload (hot-reload)")
 
     # Initialize OSC client for maestra.to_osc.* outbound
     await init_osc_client()

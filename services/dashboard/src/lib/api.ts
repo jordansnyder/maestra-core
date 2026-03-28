@@ -14,6 +14,7 @@ import {
   DMXCue, DMXCueRecallResult,
   DMXSequence, DMXCuePlacement, DMXCueFixtureSnapshot,
   OFLManufacturer, OFLFixture, OFLSyncStatus,
+  OscMapping, OscMappingImportResult,
 } from './types'
 
 import { getApiUrl } from './hosts'
@@ -666,6 +667,45 @@ export const oflApi = {
     fetchApi<OFLFixture>(`/ofl/fixtures/by-id/${id}`),
 
   getSyncStatus: () => fetchApi<OFLSyncStatus>(`/ofl/sync/status`),
+}
+
+// OSC Mappings API
+export const oscMappingsApi = {
+  getAll: () => fetchApi<OscMapping[]>('/osc-mappings/'),
+
+  create: (data: Partial<OscMapping>) =>
+    fetchApi<OscMapping>('/osc-mappings/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: Partial<OscMapping>) =>
+    fetchApi<OscMapping>(`/osc-mappings/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  patch: (id: string, data: Partial<OscMapping>) =>
+    fetchApi<OscMapping>(`/osc-mappings/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  remove: (id: string) =>
+    fetchApi<{ status: string }>(`/osc-mappings/${id}`, {
+      method: 'DELETE',
+    }),
+
+  importMappings: (data: Partial<OscMapping>[]) =>
+    fetchApi<OscMappingImportResult>('/osc-mappings/import', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  exportMappings: () =>
+    fetch(`${API_URL}/osc-mappings/export`, {
+      headers: { 'Content-Type': 'application/json' },
+    }),
 }
 
 export { ApiError }

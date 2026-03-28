@@ -582,6 +582,30 @@ export interface DataPreviewData {
 export type PreviewData = SensorPreviewData | AudioPreviewData | DataPreviewData
 
 // =============================================================================
+// OSC Mapping Types
+// =============================================================================
+
+export interface OscMapping {
+  id: string
+  osc_address: string
+  entity_slug: string
+  state_key: string | null
+  state_keys: string[] | null
+  operation: 'update' | 'set'
+  enabled: boolean
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface OscMappingImportResult {
+  created: number
+  updated: number
+  failed: number
+  errors: string[]
+}
+
+// =============================================================================
 // OFL Fixture Library Types
 // =============================================================================
 

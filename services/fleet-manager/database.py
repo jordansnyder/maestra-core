@@ -206,6 +206,26 @@ class StreamTypeDB(Base):
 
 
 # =============================================================================
+# OSC Mapping Model
+# =============================================================================
+
+class OscMappingDB(Base):
+    """OSC address → entity state mapping, managed via web UI"""
+    __tablename__ = 'osc_mappings'
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    osc_address = Column(Text, nullable=False, unique=True)
+    entity_slug = Column(Text, nullable=False)
+    state_key = Column(Text, nullable=True)
+    state_keys = Column(ARRAY(Text), nullable=True)
+    operation = Column(Text, nullable=False, server_default='update')
+    enabled = Column(Boolean, nullable=False, server_default=text('true'))
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=text("NOW()"))
+    updated_at = Column(DateTime, server_default=text("NOW()"))
+
+
+# =============================================================================
 # Database Dependency
 # =============================================================================
 

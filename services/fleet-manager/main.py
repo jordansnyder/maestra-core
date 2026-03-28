@@ -32,6 +32,7 @@ from cloud_manager import cloud_manager
 from discovery_router import router as discovery_router
 from dmx_router import router as dmx_router
 from fixtures_router import router as fixtures_router
+from osc_mapping_router import router as osc_mapping_router
 from dmx_playback_engine import playback_engine
 
 # Initialize FastAPI app
@@ -60,6 +61,7 @@ app.include_router(cloud_router)
 app.include_router(discovery_router)
 app.include_router(dmx_router)
 app.include_router(fixtures_router)
+app.include_router(osc_mapping_router)
 
 
 # =============================================================================

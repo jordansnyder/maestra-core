@@ -20,13 +20,13 @@
 
 // ---- Configuration ----
 
-const char* WIFI_SSID     = "your-wifi-ssid";
-const char* WIFI_PASSWORD = "your-wifi-password";
+const char* WIFI_SSID     = "maestra";
+const char* WIFI_PASSWORD = "bath-chapel-locusts";
 
-const char* MQTT_HOST = "192.168.1.100";  // Your Maestra host IP
+const char* MQTT_HOST = "192.168.128.115";  // Your Maestra host IP
 const int   MQTT_PORT = 1883;
 
-const char* ENTITY_SLUG = "artist-slug";  // Entity slug to subscribe to
+const char* ENTITY_SLUG = "jts-artist-info";  // Entity slug to subscribe to
 
 // ---- Display constants ----
 

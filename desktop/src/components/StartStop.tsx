@@ -8,6 +8,7 @@ interface Props {
   onStop: () => void;
   error: string | null;
   services: ServiceInfo[];
+  canLaunch?: boolean;
 }
 
 export function StartStop({
@@ -17,6 +18,7 @@ export function StartStop({
   onStop,
   error,
   services,
+  canLaunch = true,
 }: Props) {
   const isRunning = appState === "running";
   const isStarting = appState === "starting";
@@ -31,7 +33,7 @@ export function StartStop({
       {/* Action button */}
       <button
         onClick={() => (isRunning ? onStop() : onStart(profile))}
-        disabled={isTransitioning}
+        disabled={isTransitioning || (!isRunning && !canLaunch)}
         className={`
           group relative w-full h-11 rounded-xl text-sm font-semibold
           flex items-center justify-center gap-2.5
@@ -43,7 +45,9 @@ export function StartStop({
                 ? "bg-surface-2 text-gray-400 cursor-wait border border-accent-rose/20"
                 : isRunning
                   ? "bg-surface-2 text-gray-400 border border-surface-4 hover:border-accent-rose/30 hover:text-accent-rose"
-                  : "bg-gradient-to-r from-maestra-600 via-maestra-500 to-accent-violet text-white shadow-glow hover:shadow-glow-lg hover:brightness-110 active:brightness-95"
+                  : canLaunch
+                    ? "bg-gradient-to-r from-maestra-600 via-maestra-500 to-accent-violet text-white shadow-glow hover:shadow-glow-lg hover:brightness-110 active:brightness-95"
+                    : "bg-surface-2 text-gray-500 border border-surface-4 cursor-not-allowed opacity-60"
           }
         `}
       >

@@ -8,12 +8,25 @@ import {
   streamLogs,
   pullImages,
   runMigrations,
+  startupReadinessCheck,
+  getSavedProfile,
+  saveProfile as saveProfileCmd,
+  exportDiagnostics as exportDiagnosticsCmd,
   DockerInfo,
   ServiceInfo,
   LogLine,
+  ReadinessReport,
+  PullResult,
 } from "../lib/invoke";
+import { toFriendlyError } from "../lib/errors";
 
 export type AppState = "idle" | "starting" | "running" | "stopping" | "error";
+export type ReadinessState =
+  | "unchecked"
+  | "checking"
+  | "auto_healing"
+  | "ready"
+  | "needs_human";
 
 export function useDocker() {
   const [dockerInfo, setDockerInfo] = useState<DockerInfo | null>(null);
@@ -24,9 +37,38 @@ export function useDocker() {
   const [pullProgress, setPullProgress] = useState<string[]>([]);
   const [isPulling, setIsPulling] = useState(false);
 
+  // Readiness state
+  const [readiness, setReadiness] = useState<ReadinessReport | null>(null);
+  const [readinessState, setReadinessState] = useState<ReadinessState>("unchecked");
+  const [profile, setProfileState] = useState("starter");
+  const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
+
   const statusInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const logUnlisten = useRef<UnlistenFn | null>(null);
   const maxLogs = 2000;
+
+  // ─── Profile Persistence ────────────────────────────────────────────────
+
+  const loadProfile = useCallback(async () => {
+    try {
+      const saved = await getSavedProfile();
+      setProfileState(saved);
+      return saved;
+    } catch {
+      return "starter";
+    }
+  }, []);
+
+  const saveProfile = useCallback(async (p: string) => {
+    setProfileState(p);
+    try {
+      await saveProfileCmd(p);
+    } catch {
+      // Non-critical: profile will default to starter next launch
+    }
+  }, []);
+
+  // ─── Status Polling ─────────────────────────────────────────────────────
 
   const refreshDocker = useCallback(async () => {
     try {
@@ -45,16 +87,13 @@ export function useDocker() {
       setServices(status);
       return status;
     } catch {
-      // Silently fail — services probably not running
       return [];
     }
   }, []);
 
   const startPolling = useCallback(
     (intervalMs = 5000) => {
-      if (statusInterval.current) {
-        clearInterval(statusInterval.current);
-      }
+      if (statusInterval.current) clearInterval(statusInterval.current);
       statusInterval.current = setInterval(refreshStatus, intervalMs);
     },
     [refreshStatus]
@@ -67,26 +106,65 @@ export function useDocker() {
     }
   }, []);
 
+  // ─── Readiness Check ───────────────────────────────────────────────────
+
+  const readinessCheck = useCallback(
+    async (profileOverride?: string) => {
+      const p = profileOverride ?? profile;
+      setReadinessState("checking");
+      setError(null);
+
+      try {
+        const report = await startupReadinessCheck(p);
+        setReadiness(report);
+
+        if (report.ready_to_launch) {
+          // Check if there are auto-fixable issues (like missing images)
+          const hasAutoFix = report.issues.some((i) => i.auto_fixable);
+          if (hasAutoFix) {
+            setReadinessState("auto_healing");
+          } else {
+            setReadinessState("ready");
+          }
+        } else {
+          setReadinessState("needs_human");
+        }
+
+        return report;
+      } catch (e) {
+        setError(toFriendlyError(e));
+        setReadinessState("needs_human");
+        return null;
+      }
+    },
+    [profile]
+  );
+
+  // ─── Service Lifecycle ──────────────────────────────────────────────────
+
   const start = useCallback(
-    async (profile: string) => {
+    async (p: string) => {
       setError(null);
       setAppState("starting");
-
-      // Poll fast (every 2s) so we see containers as they come online
       startPolling(2000);
 
       try {
-        await startServices(profile);
+        await startServices(p);
         setAppState("running");
-        // Switch back to normal polling rate
         startPolling(5000);
         await refreshStatus();
-        // Run database migrations in the background after services are up
-        runMigrations().catch((e) => {
+
+        // Run migrations with status tracking (not fire-and-forget)
+        setMigrationStatus("running");
+        try {
+          const result = await runMigrations();
+          setMigrationStatus(result);
+        } catch (e) {
+          setMigrationStatus(`Warning: ${toFriendlyError(e)}`);
           console.warn("Migration warning:", e);
-        });
+        }
       } catch (e) {
-        setError(String(e));
+        setError(toFriendlyError(e));
         setAppState("error");
         stopPolling();
       }
@@ -97,8 +175,6 @@ export function useDocker() {
   const stop = useCallback(async () => {
     setError(null);
     setAppState("stopping");
-
-    // Poll fast during shutdown too
     startPolling(2000);
 
     try {
@@ -106,21 +182,22 @@ export function useDocker() {
       stopPolling();
       setServices([]);
       setAppState("idle");
+      setMigrationStatus(null);
     } catch (e) {
-      setError(String(e));
+      setError(toFriendlyError(e));
       setAppState("error");
       stopPolling();
     }
   }, [startPolling, stopPolling]);
 
+  // ─── Log Streaming ──────────────────────────────────────────────────────
+
   const startLogStream = useCallback(
     async (serviceFilter: string[]) => {
-      // Clean up previous listener
       if (logUnlisten.current) {
         logUnlisten.current();
         logUnlisten.current = null;
       }
-
       setLogs([]);
 
       logUnlisten.current = await listen<LogLine>("log-line", (event) => {
@@ -135,19 +212,24 @@ export function useDocker() {
     []
   );
 
+  // ─── Image Pull with Retry ─────────────────────────────────────────────
+
   const pull = useCallback(
-    async (profile: string) => {
+    async (p: string): Promise<PullResult | null> => {
       setIsPulling(true);
       setPullProgress([]);
+      setError(null);
 
       const unlisten = await listen<string>("pull-progress", (event) => {
         setPullProgress((prev) => [...prev, event.payload]);
       });
 
       try {
-        await pullImages(profile);
+        const result = await pullImages(p);
+        return result;
       } catch (e) {
-        setError(String(e));
+        setError(toFriendlyError(e));
+        return null;
       } finally {
         unlisten();
         setIsPulling(false);
@@ -156,11 +238,24 @@ export function useDocker() {
     []
   );
 
-  // On mount, check Docker and current service status
+  // ─── Diagnostic Export ──────────────────────────────────────────────────
+
+  const exportDiagnostics = useCallback(async (): Promise<string | null> => {
+    try {
+      const path = await exportDiagnosticsCmd();
+      return path;
+    } catch (e) {
+      setError(toFriendlyError(e));
+      return null;
+    }
+  }, []);
+
+  // ─── Mount ──────────────────────────────────────────────────────────────
+
   useEffect(() => {
     refreshDocker();
+    loadProfile();
     refreshStatus().then((status) => {
-      // Detect if services are already running
       const running = status.some((s) => s.state === "running");
       if (running) {
         setAppState("running");
@@ -171,7 +266,7 @@ export function useDocker() {
       stopPolling();
       if (logUnlisten.current) logUnlisten.current();
     };
-  }, [refreshDocker, refreshStatus, startPolling, stopPolling]);
+  }, [refreshDocker, refreshStatus, startPolling, stopPolling, loadProfile]);
 
   return {
     dockerInfo,
@@ -181,12 +276,19 @@ export function useDocker() {
     error,
     pullProgress,
     isPulling,
+    readiness,
+    readinessState,
+    profile,
+    migrationStatus,
     refreshDocker,
     refreshStatus,
+    readinessCheck,
     start,
     stop,
     startLogStream,
     pull,
+    saveProfile,
+    exportDiagnostics,
     setError,
   };
 }

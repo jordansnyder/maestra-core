@@ -1,18 +1,25 @@
 const fs = require('fs')
 const path = require('path')
 
-// Read version from root VERSION file (canonical source of truth)
-const versionFile = path.resolve(__dirname, '../../VERSION')
-const version = fs.existsSync(versionFile)
-  ? fs.readFileSync(versionFile, 'utf-8').trim()
-  : '0.0.0'
+// Version priority: env var > local VERSION (Docker mount) > root VERSION (local dev)
+function resolveVersion() {
+  if (process.env.NEXT_PUBLIC_MAESTRA_VERSION) return process.env.NEXT_PUBLIC_MAESTRA_VERSION
+  const candidates = [
+    path.resolve(__dirname, 'VERSION'),       // Docker: mounted at /app/VERSION
+    path.resolve(__dirname, '../../VERSION'),  // Local dev: repo root
+  ]
+  for (const f of candidates) {
+    if (fs.existsSync(f)) return fs.readFileSync(f, 'utf-8').trim()
+  }
+  return '0.0.0'
+}
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   env: {
-    NEXT_PUBLIC_MAESTRA_VERSION: version,
+    NEXT_PUBLIC_MAESTRA_VERSION: resolveVersion(),
   },
 }
 

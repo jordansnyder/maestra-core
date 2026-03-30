@@ -178,6 +178,7 @@ services:
       - ./services/dashboard:/app
       - /app/node_modules
       - /app/.next
+      - ./VERSION:/app/VERSION:ro
     networks:
       - maestra-network
     depends_on:

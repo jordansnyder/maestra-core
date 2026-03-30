@@ -34,6 +34,8 @@ from dmx_router import router as dmx_router
 from fixtures_router import router as fixtures_router
 from osc_mapping_router import router as osc_mapping_router
 from dmx_playback_engine import playback_engine
+from show_control_router import router as show_control_router, handle_show_command
+from show_scheduler import show_scheduler
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -62,6 +64,7 @@ app.include_router(discovery_router)
 app.include_router(dmx_router)
 app.include_router(fixtures_router)
 app.include_router(osc_mapping_router)
+app.include_router(show_control_router)
 
 
 # =============================================================================
@@ -445,6 +448,17 @@ async def startup_event():
         )
         print("✅ DMX node heartbeat subscriber active")
 
+    # Subscribe NATS for inbound show control commands (OSC/MQTT bridged)
+    if state_manager.nc:
+        await state_manager.subscribe_nats('maestra.show.command.*', handle_show_command)
+        await state_manager.subscribe_nats('maestra.osc.show.*', handle_show_command)
+        print("✅ Show control NATS subscribers active")
+
+    # Start show scheduler
+    if db_ok:
+        await show_scheduler.start()
+        print("✅ Show scheduler started")
+
     # Start demo simulator if DEMO_MODE is enabled
     if os.getenv("DEMO_MODE", "").lower() == "true" and state_manager.nc:
         await demo_simulator.start(state_manager.nc)
@@ -457,6 +471,7 @@ async def startup_event():
 async def shutdown_event():
     """Cleanup on shutdown"""
     print("👋 Maestra Fleet Manager shutting down...")
+    await show_scheduler.stop()
     await playback_engine.shutdown()
     await demo_simulator.stop()
     await cloud_manager.disconnect()

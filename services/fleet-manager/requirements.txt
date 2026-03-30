@@ -29,3 +29,11 @@ python-json-logger==2.0.7
 
 # WebSockets
 websockets==12.0
+
+# Show Control Scheduling
+croniter==2.0.1
+
+# Testing
+pytest==8.1.1
+pytest-asyncio==0.23.5
+httpx==0.26.0

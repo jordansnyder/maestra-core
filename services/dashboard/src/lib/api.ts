@@ -708,4 +708,48 @@ export const oscMappingsApi = {
     }),
 }
 
+// Show Control API
+import type {
+  ShowState, ShowTransitionResponse, ShowValidTransitions,
+  ShowHistoryEntry, ShowSchedule, ShowScheduleCreate,
+  ShowSideEffect,
+} from './types'
+
+export const showControlApi = {
+  getState: () => fetchApi<ShowState>('/show/state'),
+  getValidTransitions: () => fetchApi<ShowValidTransitions>('/show/transitions'),
+  transition: (to: string, source?: string) =>
+    fetchApi<ShowTransitionResponse>('/show/transition', {
+      method: 'POST',
+      body: JSON.stringify({ to, source: source || 'dashboard' }),
+    }),
+  warmup: () => fetchApi<ShowTransitionResponse>('/show/warmup', { method: 'POST' }),
+  go: () => fetchApi<ShowTransitionResponse>('/show/go', { method: 'POST' }),
+  pause: () => fetchApi<ShowTransitionResponse>('/show/pause', { method: 'POST' }),
+  resume: () => fetchApi<ShowTransitionResponse>('/show/resume', { method: 'POST' }),
+  stop: () => fetchApi<ShowTransitionResponse>('/show/stop', { method: 'POST' }),
+  shutdown: () => fetchApi<ShowTransitionResponse>('/show/shutdown', { method: 'POST' }),
+  reset: () => fetchApi<ShowTransitionResponse>('/show/reset', { method: 'POST' }),
+  getHistory: (limit = 20, offset = 0) =>
+    fetchApi<ShowHistoryEntry[]>(`/show/history?limit=${limit}&offset=${offset}`),
+
+  // Schedules
+  listSchedules: () => fetchApi<ShowSchedule[]>('/show/schedules'),
+  createSchedule: (data: ShowScheduleCreate) =>
+    fetchApi<ShowSchedule>('/show/schedules', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateSchedule: (id: string, data: Partial<ShowScheduleCreate>) =>
+    fetchApi<ShowSchedule>(`/show/schedules/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteSchedule: (id: string) =>
+    fetchApi<{ status: string }>(`/show/schedules/${id}`, { method: 'DELETE' }),
+
+  // Side Effects
+  listSideEffects: () => fetchApi<ShowSideEffect[]>('/show/side-effects'),
+}
+
 export { ApiError }

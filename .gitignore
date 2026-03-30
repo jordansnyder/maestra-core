@@ -174,3 +174,4 @@ temp/
 /docs/site
 /desktop/src-tauri/target/debug
 /desktop/src-tauri/target/release
+.gstack/

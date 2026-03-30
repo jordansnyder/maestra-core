@@ -49,6 +49,10 @@ public class MaestraClient {
     // Stream subscriptions
     private StreamAdvertisedCallback streamCallback;
 
+    // Show control
+    private String showPhase = "idle";
+    private ShowPhaseChangeCallback showPhaseCallback;
+
     // Thread-safe message queue (MQTT callbacks arrive on Paho thread)
     private ConcurrentLinkedQueue<QueuedMessage> messageQueue = new ConcurrentLinkedQueue<QueuedMessage>();
 
@@ -104,6 +108,10 @@ public class MaestraClient {
             }
             connected = true;
             PApplet.println("[Maestra] Connected to MQTT broker at " + broker + ":" + port);
+
+            // Auto-subscribe to show control state
+            mqtt.subscribe("maestra/entity/state/show_control/show");
+
             return true;
         } catch (Exception e) {
             PApplet.println("[Maestra] Connection failed: " + e.getMessage());
@@ -215,6 +223,30 @@ public class MaestraClient {
     }
 
     // ========================================================================
+    // Show Control
+    // ========================================================================
+
+    /** Get the current show phase (idle, pre_show, active, paused, post_show, shutdown). */
+    public String getShowPhase() {
+        return showPhase;
+    }
+
+    /** Check if the show is in the 'active' phase. */
+    public boolean isShowActive() {
+        return "active".equals(showPhase);
+    }
+
+    /** Check if the show is in the 'paused' phase. */
+    public boolean isShowPaused() {
+        return "paused".equals(showPhase);
+    }
+
+    /** Register a callback for show phase changes. */
+    public void onShowPhaseChange(ShowPhaseChangeCallback callback) {
+        this.showPhaseCallback = callback;
+    }
+
+    // ========================================================================
     // Stream Support
     // ========================================================================
 
@@ -321,6 +353,11 @@ public class MaestraClient {
             String entityType = parts[3];
             String entitySlug = parts[4];
 
+            // Intercept show control messages
+            if (entityType.equals("show_control") && entitySlug.equals("show")) {
+                _handleShowMessage(payload);
+            }
+
             // Dispatch to specific MaestraEntity if registered
             for (MaestraEntity entity : entities) {
                 if (entity.slug().equals(entitySlug)) {
@@ -359,5 +396,24 @@ public class MaestraClient {
         int port = payload.getInt("port", 0);
 
         streamCallback.streamAdvertised(streamId, name, streamType, address, port);
+    }
+
+    private void _handleShowMessage(JSONObject payload) {
+        if (!payload.hasKey("current_state")) return;
+
+        JSONObject currentState = payload.getJSONObject("current_state");
+        if (!currentState.hasKey("phase")) return;
+
+        String newPhase = currentState.getString("phase", "idle");
+        String previousPhase = currentState.getString("previous_phase", showPhase);
+
+        // Only fire callback if phase actually changed
+        if (!newPhase.equals(showPhase)) {
+            showPhase = newPhase;
+
+            if (showPhaseCallback != null) {
+                showPhaseCallback.showPhaseChanged(showPhase, previousPhase);
+            }
+        }
     }
 }

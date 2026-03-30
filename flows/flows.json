@@ -376,5 +376,196 @@
         "x": 160,
         "y": 100,
         "wires": []
+    },
+
+    {
+        "id": "tab_show_control",
+        "type": "tab",
+        "label": "Show Control",
+        "disabled": false,
+        "info": "Listens for show state changes and logs them. Use this as a starting point for custom show control logic (e.g., trigger lighting cues, start audio, control projections based on show phase).",
+        "env": []
+    },
+    {
+        "id": "sc_mqtt_in",
+        "type": "mqtt in",
+        "z": "tab_show_control",
+        "name": "Show State Changes",
+        "topic": "maestra/entity/state/show_control/show",
+        "qos": "0",
+        "datatype": "auto",
+        "broker": "mqtt_broker_config",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 160,
+        "y": 200,
+        "wires": [
+            ["sc_json_parse"]
+        ]
+    },
+    {
+        "id": "sc_json_parse",
+        "type": "json",
+        "z": "tab_show_control",
+        "name": "Parse JSON",
+        "property": "payload",
+        "action": "",
+        "pretty": false,
+        "x": 380,
+        "y": 200,
+        "wires": [
+            ["sc_extract_phase", "sc_debug"]
+        ]
+    },
+    {
+        "id": "sc_extract_phase",
+        "type": "function",
+        "z": "tab_show_control",
+        "name": "Extract Phase",
+        "func": "var data = msg.payload;\nvar phase = data.current_state ? data.current_state.phase : 'unknown';\nvar previousPhase = data.current_state ? data.current_state.previous_phase : null;\nmsg.phase = phase;\nmsg.previousPhase = previousPhase;\nmsg.payload = {\n    phase: phase,\n    previous_phase: previousPhase,\n    source: data.source || 'unknown',\n    timestamp: data.current_state ? data.current_state.transition_time : new Date().toISOString()\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 580,
+        "y": 200,
+        "wires": [
+            ["sc_switch"]
+        ]
+    },
+    {
+        "id": "sc_switch",
+        "type": "switch",
+        "z": "tab_show_control",
+        "name": "Route by Phase",
+        "property": "phase",
+        "propertyType": "msg",
+        "rules": [
+            {"t": "eq", "v": "pre_show", "vt": "str"},
+            {"t": "eq", "v": "active", "vt": "str"},
+            {"t": "eq", "v": "paused", "vt": "str"},
+            {"t": "eq", "v": "shutdown", "vt": "str"},
+            {"t": "else"}
+        ],
+        "checkall": "false",
+        "repair": false,
+        "outputs": 5,
+        "x": 780,
+        "y": 200,
+        "wires": [
+            ["sc_preshow_debug"],
+            ["sc_active_debug"],
+            ["sc_paused_debug"],
+            ["sc_shutdown_debug"],
+            ["sc_other_debug"]
+        ]
+    },
+    {
+        "id": "sc_preshow_debug",
+        "type": "debug",
+        "z": "tab_show_control",
+        "name": "PRE-SHOW",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "statusVal": "pre_show",
+        "statusType": "auto",
+        "x": 980,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "sc_active_debug",
+        "type": "debug",
+        "z": "tab_show_control",
+        "name": "ACTIVE",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "statusVal": "active",
+        "statusType": "auto",
+        "x": 970,
+        "y": 170,
+        "wires": []
+    },
+    {
+        "id": "sc_paused_debug",
+        "type": "debug",
+        "z": "tab_show_control",
+        "name": "PAUSED",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "statusVal": "paused",
+        "statusType": "auto",
+        "x": 975,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "sc_shutdown_debug",
+        "type": "debug",
+        "z": "tab_show_control",
+        "name": "SHUTDOWN",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "statusVal": "shutdown",
+        "statusType": "auto",
+        "x": 980,
+        "y": 270,
+        "wires": []
+    },
+    {
+        "id": "sc_other_debug",
+        "type": "debug",
+        "z": "tab_show_control",
+        "name": "Other Phase",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "statusVal": "other",
+        "statusType": "auto",
+        "x": 990,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "sc_debug",
+        "type": "debug",
+        "z": "tab_show_control",
+        "name": "Raw Show Event",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "x": 590,
+        "y": 280,
+        "wires": []
+    },
+    {
+        "id": "sc_comment",
+        "type": "comment",
+        "z": "tab_show_control",
+        "name": "Show Control Flow",
+        "info": "This flow listens for show state changes via MQTT and routes them by phase.\n\nConnect your custom logic to the phase outputs:\n- PRE-SHOW: warm up lights, start ambient audio, calibrate sensors\n- ACTIVE: start main content, enable interactions\n- PAUSED: freeze current state, mute audio\n- SHUTDOWN: blackout lights, stop all outputs, prepare for power off\n\nShow phases: idle, pre_show, active, paused, post_show, shutdown\n\nTo trigger show transitions from Node-RED, use an MQTT out node:\n- Topic: maestra/show/command/go\n- Topic: maestra/show/command/pause\n- Topic: maestra/show/command/shutdown",
+        "x": 170,
+        "y": 100,
+        "wires": []
     }
 ]

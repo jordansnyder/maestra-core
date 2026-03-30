@@ -657,3 +657,68 @@ export interface OFLSyncStatus {
   status: 'success' | 'partial' | 'failed'
   errors: unknown[]
 }
+
+// =============================================================================
+// Show Control
+// =============================================================================
+
+export type ShowPhase = 'idle' | 'pre_show' | 'active' | 'paused' | 'post_show' | 'shutdown'
+
+export interface ShowState {
+  phase: ShowPhase
+  previous_phase: ShowPhase | null
+  transition_time: string | null
+  source: string | null
+  context: Record<string, unknown>
+}
+
+export interface ShowTransitionResponse {
+  status: string
+  state: ShowState
+}
+
+export interface ShowValidTransitions {
+  current_phase: ShowPhase
+  valid_transitions: ShowPhase[]
+}
+
+export interface ShowHistoryEntry {
+  time: string
+  state: ShowState
+  source: string | null
+}
+
+export interface ShowScheduleEntry {
+  cron: string
+  transition: string
+}
+
+export interface ShowSchedule {
+  id: string
+  name: string
+  enabled: boolean
+  timezone: string
+  entries: ShowScheduleEntry[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ShowScheduleCreate {
+  name: string
+  enabled?: boolean
+  timezone?: string
+  entries: ShowScheduleEntry[]
+}
+
+export interface ShowSideEffect {
+  id: string
+  from_phase: string
+  to_phase: string
+  action_type: 'entity_state_update' | 'nats_publish' | 'internal_call'
+  action_config: Record<string, unknown>
+  enabled: boolean
+  description: string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+}

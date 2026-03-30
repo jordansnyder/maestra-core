@@ -5,6 +5,8 @@
 
 export * from './types'
 export { discoverMaestra, advertiseDevice, waitForProvisioning } from './discovery'
+export { ShowControl } from './show'
+export type { ShowPhase, ShowState, ShowTransitionResponse, ShowHistoryEntry, ShowStateCallback } from './show'
 
 import type {
   ConnectionConfig,

@@ -2,6 +2,22 @@
 
 All notable changes to Maestra will be documented in this file.
 
+## [0.20.1.0] - 2026-03-29
+
+### Added
+- **Show Control System**: System-wide show lifecycle management for installations
+  - State machine with 6 phases: idle, pre_show, active, paused, post_show, shutdown
+  - 9 REST endpoints with state machine validation and optional API key auth
+  - Configurable side effects per transition (entity state updates, NATS publishes, internal calls)
+  - Default DMX side effects: shutdown triggers blackout, pause/resume controls DMX output
+  - Show scheduling engine with cron-based entries, timezone support, and missed-fire catch-up
+  - Dashboard page with phase hero indicator, lifecycle buttons, device health panel, transition timeline, and schedule panel
+  - Inbound show commands via NATS/MQTT for external control (QLab, Isadora, custom controllers)
+  - Node-RED Show Control tab with MQTT listener and phase routing
+  - All 9 SDKs: Python, JS/TS, Unity, Unreal, TouchDesigner, Arduino, Processing, OpenFrameworks, Max/MSP
+  - API reference and user guide documentation
+  - pytest test infrastructure for Fleet Manager
+
 ## [0.20.0.0] - 2026-03-25
 
 ### Added

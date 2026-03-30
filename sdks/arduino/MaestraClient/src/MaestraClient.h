@@ -25,6 +25,9 @@ typedef std::function<void(const char* entitySlug, JsonObject state, JsonArray c
 // Wildcard entity callback — receives entity type and slug
 typedef std::function<void(const char* entityType, const char* entitySlug, JsonObject state, JsonArray changedKeys)> WildcardEntityCallback;
 
+// Show phase change callback type
+typedef std::function<void(const char* phase, const char* previousPhase)> ShowPhaseChangeCallback;
+
 /**
  * Entity State container
  */
@@ -142,6 +145,12 @@ public:
     void updateEntityState(const char* slug, JsonObject state, const char* source = nullptr);
     void setEntityState(const char* slug, JsonObject state, const char* source = nullptr);
 
+    // Show control
+    String getShowPhase();
+    bool isShowActive();
+    bool isShowPaused();
+    void onShowPhaseChange(ShowPhaseChangeCallback callback);
+
     // Stream discovery
     void subscribeStreamEvents(StreamAdvertisedCallback callback);
     void subscribeStreamType(const char* streamType, StreamAdvertisedCallback callback);
@@ -181,6 +190,11 @@ private:
     static const int MAX_STREAMS = 5;
     MaestraStreamInfo _streams[MAX_STREAMS];
     int _streamCount;
+
+    // Show control
+    char _showPhase[32];
+    ShowPhaseChangeCallback _showPhaseCallback;
+    void _handleShowMessage(JsonObject payload);
 
     void _publishState(const char* slug, JsonObject state, const char* source, bool replace);
     void _handleStreamMessage(const char* topic, JsonObject payload);

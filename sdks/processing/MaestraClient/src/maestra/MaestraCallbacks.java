@@ -22,6 +22,11 @@ interface StreamAdvertisedCallback {
     void streamAdvertised(String streamId, String name, String streamType, String address, int port);
 }
 
+/** Called when the show phase changes. */
+interface ShowPhaseChangeCallback {
+    void showPhaseChanged(String phase, String previousPhase);
+}
+
 /** Internal: queued MQTT message for thread-safe processing. */
 class QueuedMessage {
     final String topic;

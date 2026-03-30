@@ -5,7 +5,7 @@ const path = require('path')
 function resolveVersion() {
   if (process.env.NEXT_PUBLIC_MAESTRA_VERSION) return process.env.NEXT_PUBLIC_MAESTRA_VERSION
   const candidates = [
-    path.resolve(__dirname, 'VERSION'),       // Docker: mounted at /app/VERSION
+    '/etc/maestra-version',                   // Docker: mounted from root VERSION
     path.resolve(__dirname, '../../VERSION'),  // Local dev: repo root
   ]
   for (const f of candidates) {

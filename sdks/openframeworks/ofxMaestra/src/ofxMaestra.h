@@ -39,6 +39,12 @@ using MaestraStreamCallback = std::function<void(
     const std::string& address,
     int port)>;
 
+/** Show phase change event data. */
+struct MaestraShowPhaseEvent {
+    std::string phase;
+    std::string previousPhase;
+};
+
 // ============================================================================
 // MaestraEntityState
 // ============================================================================
@@ -158,6 +164,14 @@ public:
     void updateEntityState(const std::string& slug, const ofJson& state, const std::string& source = "");
     void setEntityState(const std::string& slug, const ofJson& state, const std::string& source = "");
 
+    // Show control
+    std::string getShowPhase() const;
+    bool isShowActive() const;
+    bool isShowPaused() const;
+
+    /** ofEvent fired when the show phase changes. */
+    ofEvent<MaestraShowPhaseEvent> onShowPhaseChange;
+
     // Stream discovery
     void subscribeStreamEvents(MaestraStreamCallback callback);
     void subscribeStreamType(const std::string& streamType, MaestraStreamCallback callback);
@@ -189,6 +203,10 @@ private:
 
     // Stream subscriptions
     MaestraStreamCallback _streamCallback;
+
+    // Show control
+    std::string _showPhase;
+    void _handleShowMessage(const ofJson& payload);
 
     // Internal
     void _onMessage(ofxMQTTMessage& msg);

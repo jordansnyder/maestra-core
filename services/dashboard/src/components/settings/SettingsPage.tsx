@@ -13,7 +13,7 @@ import { OscMappingsSettings } from './OscMappingsSettings'
 type Tab = 'general' | 'cloud' | 'dmx' | 'osc'
 
 export function SettingsPage() {
-  const [tab, setTab] = useState<Tab>('cloud')
+  const [tab, setTab] = useState<Tab>('general')
   const cloud = useCloudGateway(true, 15000)
 
   const isConnected = cloud.config?.gateway_url && cloud.config.status !== 'disconnected'
@@ -94,7 +94,7 @@ function GeneralTab() {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-slate-500">Version</span>
-            <p className="text-slate-200 mt-1">0.2.0</p>
+            <p className="text-slate-200 mt-1">{process.env.NEXT_PUBLIC_MAESTRA_VERSION || '0.0.0'}</p>
           </div>
           <div>
             <span className="text-slate-500">Fleet Manager</span>

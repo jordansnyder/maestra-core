@@ -67,6 +67,9 @@ Maestra is an immersive experience infrastructure platform for creatives. It's a
 - NATS `"maestra.to_osc.*"` → OSC output
 - NATS `"maestra.to_mqtt.*"` → MQTT output
 - NATS `"maestra.entity.state.>"` → DMX channel values via Art-Net UDP (DMX gateway)
+- OSC `"/show/<action>"` → NATS `"maestra.osc.show.<action>"` → Show control state machine
+- MQTT `"maestra/show/command/<action>"` → NATS `"maestra.show.command.<action>"` → Show control state machine
+- Show state broadcasts: NATS `"maestra.entity.state.show_control.show"` → all protocols
 - NATS `"maestra.to_artnet.universe.*"` → raw 512-channel universe bypass (DMX gateway)
 
 ### Message Flow Patterns
@@ -167,6 +170,14 @@ Located at `services/fleet-manager/main.py`:
   - Stream types: ndi, audio, video, texture, sensor, osc, midi, data, srt, spout, syphon
   - Control plane only — data plane flows P2P between devices
   - Redis ephemeral state (30s TTL), NATS request-reply negotiation, Postgres session history
+- **Show Control**: System-wide show lifecycle management
+  - State machine: idle → pre_show → active → paused → post_show → shutdown
+  - 9 endpoints: GET/POST `/show/*` for state, transitions, shortcuts
+  - Schedule CRUD: `/show/schedules/*` (cron-based, timezone-aware)
+  - Configurable side effects: `/show/side-effects/*` (entity updates, NATS publishes, internal calls)
+  - Optional API key auth via `SHOW_CONTROL_TOKEN` env var
+  - Inbound commands via NATS: `maestra.show.command.*` and `maestra.osc.show.*`
+  - Background scheduler evaluates cron entries every 60 seconds
 - API docs at http://localhost:8080/docs
 
 ### Dashboard (Next.js)

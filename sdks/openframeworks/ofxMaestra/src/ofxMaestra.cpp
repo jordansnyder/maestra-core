@@ -85,7 +85,8 @@ void MaestraEntity::_handleMessage(const ofJson& payload) {
 ofxMaestra::ofxMaestra()
     : _broker("localhost"), _port(1883), _clientId("maestra-openframeworks"),
       _hasCredentials(false), _connected(false),
-      _wildcardAllCallback(nullptr), _streamCallback(nullptr) {}
+      _wildcardAllCallback(nullptr), _streamCallback(nullptr),
+      _showPhase("idle") {}
 
 ofxMaestra::~ofxMaestra() {
     disconnect();
@@ -142,6 +143,9 @@ void ofxMaestra::update() {
 void ofxMaestra::_onConnected() {
     _connected = true;
     ofLogNotice("ofxMaestra") << "Connected to MQTT broker";
+
+    // Auto-subscribe to show control state
+    _mqtt.subscribe("maestra/entity/state/show_control/show");
 }
 
 // ============================================================================
@@ -205,6 +209,42 @@ void ofxMaestra::_publishState(const std::string& slug, const ofJson& state,
     payload["source"] = source.empty() ? _clientId : source;
 
     _mqtt.publish(topic, payload.dump());
+}
+
+// ============================================================================
+// Show Control
+// ============================================================================
+
+std::string ofxMaestra::getShowPhase() const {
+    return _showPhase;
+}
+
+bool ofxMaestra::isShowActive() const {
+    return _showPhase == "active";
+}
+
+bool ofxMaestra::isShowPaused() const {
+    return _showPhase == "paused";
+}
+
+void ofxMaestra::_handleShowMessage(const ofJson& payload) {
+    if (!payload.contains("current_state")) return;
+
+    const ofJson& currentState = payload["current_state"];
+    if (!currentState.contains("phase")) return;
+
+    std::string newPhase = currentState.value("phase", "idle");
+    std::string previousPhase = currentState.value("previous_phase", _showPhase);
+
+    // Only fire event if phase actually changed
+    if (newPhase != _showPhase) {
+        _showPhase = newPhase;
+
+        MaestraShowPhaseEvent event;
+        event.phase = _showPhase;
+        event.previousPhase = previousPhase;
+        ofNotifyEvent(onShowPhaseChange, event);
+    }
 }
 
 // ============================================================================
@@ -294,6 +334,11 @@ void ofxMaestra::_onMessage(ofxMQTTMessage& msg) {
     if (parts.size() >= 5 && parts[1] == "entity" && parts[2] == "state") {
         const std::string& entityType = parts[3];
         const std::string& entitySlug = parts[4];
+
+        // Intercept show control messages
+        if (entityType == "show_control" && entitySlug == "show") {
+            _handleShowMessage(payload);
+        }
 
         // Dispatch to specific MaestraEntity if registered
         for (auto& entity : _entities) {

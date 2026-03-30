@@ -6,6 +6,7 @@ Connect to the Maestra immersive experience platform
 from .client import MaestraClient
 from .entity import Entity, EntityState
 from .stream import StreamPublisher, StreamConsumer, MulticastConsumer
+from .show import ShowControl
 from .types import (
     EntityType,
     EntityData,
@@ -33,6 +34,8 @@ __all__ = [
     "EntityData",
     "StateChangeEvent",
     "ConnectionConfig",
+    # Show Control
+    "ShowControl",
     # Streams
     "StreamPublisher",
     "StreamConsumer",

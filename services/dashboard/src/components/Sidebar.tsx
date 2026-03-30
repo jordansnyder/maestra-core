@@ -18,7 +18,8 @@ import {
   BookOpen,
   Settings,
   Cloud,
-  Zap
+  Zap,
+  Play
 } from '@/components/icons'
 import { getServiceLinks } from '@/lib/hosts'
 import { useSystemHealth } from '@/hooks/useSystemHealth'
@@ -33,6 +34,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/show-control', label: 'Show Control', icon: Play },
   { href: '/devices', label: 'Devices', icon: Monitor },
   { href: '/entities', label: 'Entities', icon: Boxes },
   { href: '/routing', label: 'Routing', icon: GitFork },

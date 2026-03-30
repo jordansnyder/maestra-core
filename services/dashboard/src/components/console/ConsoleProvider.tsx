@@ -6,6 +6,20 @@ import type { WebSocketMessage } from '@/types'
 import type { Device } from '@/types'
 import { api } from '@/lib/api'
 
+// crypto.randomUUID() requires a secure context (HTTPS or localhost).
+// Fall back to a manual implementation for plain HTTP access.
+const generateId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  bytes[6] = (bytes[6] & 0x0f) | 0x40 // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80 // variant 1
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
 // --- Types ---
 
 export type Protocol = 'osc' | 'mqtt' | 'ws' | 'internal'
@@ -309,7 +323,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     )
 
     const msg: ConsoleMessage = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       timestamp: lastMessage.timestamp || new Date().toISOString(),
       subject,
       protocol,
@@ -336,7 +350,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isConnected && !wasConnectedRef.current) {
       addMessage({
-        id: crypto.randomUUID(),
+        id: generateId(),
         timestamp: new Date().toISOString(),
         subject: '',
         protocol: 'internal',
@@ -348,7 +362,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       })
     } else if (!isConnected && wasConnectedRef.current) {
       addMessage({
-        id: crypto.randomUUID(),
+        id: generateId(),
         timestamp: new Date().toISOString(),
         subject: '',
         protocol: 'internal',
@@ -367,7 +381,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     if (!value && pausedRef.current && pauseCountRef.current > 0) {
       // Insert summary row on unpause
       addMessage({
-        id: crypto.randomUUID(),
+        id: generateId(),
         timestamp: new Date().toISOString(),
         subject: '',
         protocol: 'internal',

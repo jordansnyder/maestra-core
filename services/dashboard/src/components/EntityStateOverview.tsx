@@ -107,6 +107,7 @@ export function EntityStateOverview({ entity, onStateChange }: EntityStateOvervi
       variable,
       value,
       disabled: isUpdating,
+      compact: true,
     }
 
     switch (variable.type) {

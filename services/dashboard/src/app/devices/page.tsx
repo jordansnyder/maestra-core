@@ -3,13 +3,13 @@
 import { useState } from 'react'
 import { useDevices, useFleetStats } from '@/hooks/useDevices'
 import { usePendingDevices, useBlockedDevices } from '@/hooks/useDiscovery'
-import { useDeviceConfigs } from '@/hooks/useDeviceConfigs'
 import { useToast } from '@/components/Toast'
 import { Card } from '@/components/Card'
 import { StatsCard } from '@/components/StatsCard'
 import { DeviceCard } from '@/components/DeviceCard'
 import { PendingDeviceCard } from '@/components/PendingDeviceCard'
 import { ApproveDeviceModal } from '@/components/ApproveDeviceModal'
+import { DeviceDetailModal } from '@/components/DeviceDetailModal'
 import { BlockedDevicesList } from '@/components/BlockedDevicesList'
 import {
   Activity,
@@ -19,20 +19,18 @@ import {
   Plus,
   Search,
   Monitor,
-  FileCode,
 } from '@/components/icons'
 import { EmptyState } from '@/components/EmptyState'
 import { getDocsUrl } from '@/lib/hosts'
-import { devicesApi, discoveryApi, deviceConfigsApi } from '@/lib/api'
-import type { Device, DeviceApproval, DeviceHardwareConfig } from '@/lib/types'
+import { devicesApi, discoveryApi } from '@/lib/api'
+import type { Device, DeviceApproval, DeviceUpdate } from '@/lib/types'
 
-type Tab = 'active' | 'pending' | 'blocked' | 'configs'
+type Tab = 'active' | 'pending' | 'blocked'
 
 export default function DevicesPage() {
   const { devices, loading, error, refresh } = useDevices(true, 10000)
   const { devices: pendingDevices, refresh: refreshPending } = usePendingDevices(true, 5000)
   const { devices: blockedDevices, refresh: refreshBlocked } = useBlockedDevices()
-  const { configs, refresh: refreshConfigs } = useDeviceConfigs()
   const stats = useFleetStats(devices)
   const { toast, confirm } = useToast()
 
@@ -42,18 +40,13 @@ export default function DevicesPage() {
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [approveDevice, setApproveDevice] = useState<Device | null>(null)
+  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null)
   const [registerForm, setRegisterForm] = useState({
     name: '',
     device_type: 'arduino',
     hardware_id: '',
     ip_address: '',
   })
-
-  // Device config state
-  const [showConfigModal, setShowConfigModal] = useState(false)
-  const [editingConfig, setEditingConfig] = useState<DeviceHardwareConfig | null>(null)
-  const [configForm, setConfigForm] = useState({ hardware_id: '', name: '', configJson: '{}' })
-  const [configJsonError, setConfigJsonError] = useState<string | null>(null)
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -66,6 +59,13 @@ export default function DevicesPage() {
     } catch (err) {
       toast({ message: `Failed to register device: ${err instanceof Error ? err.message : 'Unknown error'}`, type: 'error' })
     }
+  }
+
+  const handleDeviceUpdate = async (device: Device, update: DeviceUpdate) => {
+    await devicesApi.update(device.id, update)
+    setSelectedDevice(null)
+    refresh()
+    toast({ message: `Device "${device.name}" updated`, type: 'success' })
   }
 
   const handleDelete = async (device: Device) => {
@@ -148,73 +148,6 @@ export default function DevicesPage() {
     }
   }
 
-  // Device config handlers
-  const openCreateConfig = () => {
-    setEditingConfig(null)
-    setConfigForm({ hardware_id: '', name: '', configJson: '{}' })
-    setConfigJsonError(null)
-    setShowConfigModal(true)
-  }
-
-  const openEditConfig = (config: DeviceHardwareConfig) => {
-    setEditingConfig(config)
-    setConfigForm({
-      hardware_id: config.hardware_id,
-      name: config.name || '',
-      configJson: JSON.stringify(config.configuration, null, 2),
-    })
-    setConfigJsonError(null)
-    setShowConfigModal(true)
-  }
-
-  const handleSaveConfig = async () => {
-    let parsedConfig: Record<string, unknown>
-    try {
-      parsedConfig = JSON.parse(configForm.configJson)
-    } catch {
-      setConfigJsonError('Invalid JSON')
-      return
-    }
-
-    try {
-      if (editingConfig) {
-        await deviceConfigsApi.update(editingConfig.hardware_id, {
-          name: configForm.name || undefined,
-          configuration: parsedConfig,
-        })
-        toast({ message: 'Config updated', type: 'success' })
-      } else {
-        await deviceConfigsApi.create({
-          hardware_id: configForm.hardware_id,
-          name: configForm.name || undefined,
-          configuration: parsedConfig,
-        })
-        toast({ message: 'Config created', type: 'success' })
-      }
-      setShowConfigModal(false)
-      refreshConfigs()
-    } catch (err) {
-      toast({ message: `Failed to save config: ${err instanceof Error ? err.message : 'Unknown error'}`, type: 'error' })
-    }
-  }
-
-  const handleDeleteConfig = async (config: DeviceHardwareConfig) => {
-    const ok = await confirm({
-      title: 'Delete Config',
-      message: `Delete configuration for "${config.hardware_id}"? This cannot be undone.`,
-      confirmLabel: 'Delete',
-      destructive: true,
-    })
-    if (!ok) return
-    try {
-      await deviceConfigsApi.delete(config.hardware_id)
-      refreshConfigs()
-      toast({ message: 'Config deleted', type: 'success' })
-    } catch (err) {
-      toast({ message: `Failed to delete config: ${err instanceof Error ? err.message : 'Unknown error'}`, type: 'error' })
-    }
-  }
-
   // Filter active (non-pending) devices
   const activeDevices = devices.filter(d => d.status !== 'pending')
   const filteredDevices = activeDevices.filter((d) => {
@@ -230,7 +163,6 @@ export default function DevicesPage() {
     { key: 'active', label: 'Active', count: activeDevices.length },
     { key: 'pending', label: 'Pending', count: pendingDevices.length },
     { key: 'blocked', label: 'Blocked', count: blockedDevices.length },
-    { key: 'configs', label: 'Configs', count: configs.length },
   ]
 
   return (
@@ -427,7 +359,7 @@ export default function DevicesPage() {
             {!loading && filteredDevices.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredDevices.map((device) => (
-                  <DeviceCard key={device.id} device={device} onDelete={handleDelete} />
+                  <DeviceCard key={device.id} device={device} onDelete={handleDelete} onClick={setSelectedDevice} />
                 ))}
               </div>
             )}
@@ -463,72 +395,6 @@ export default function DevicesPage() {
           <BlockedDevicesList devices={blockedDevices} onUnblock={handleUnblock} />
         )}
 
-        {/* Device Configs Tab */}
-        {activeTab === 'configs' && (
-          <>
-            <div className="flex items-center justify-between mb-6">
-              <p className="text-sm text-slate-400">
-                Pre-provision JSON configurations for devices by MAC address / hardware ID.
-                Configs are delivered automatically when devices connect.
-              </p>
-              <button
-                onClick={openCreateConfig}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                New Config
-              </button>
-            </div>
-
-            {configs.length === 0 ? (
-              <EmptyState
-                icon={FileCode}
-                title="No device configs"
-                description="Create a configuration for a hardware ID (MAC address). When that device connects via mDNS discovery, it will automatically receive this config."
-                action={{ label: 'Create Config', onClick: openCreateConfig }}
-              />
-            ) : (
-              <div className="space-y-3">
-                {configs.map(config => (
-                  <div
-                    key={config.id}
-                    className="bg-slate-800 border border-slate-700 rounded-lg p-4 flex items-center justify-between hover:border-slate-600 transition-colors"
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <FileCode className="w-5 h-5 text-blue-400 shrink-0" />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm text-white">{config.hardware_id}</span>
-                          {config.name && (
-                            <span className="text-sm text-slate-400">({config.name})</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
-                          <span>{Object.keys(config.configuration).length} keys</span>
-                          <span>Updated {new Date(config.updated_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => openEditConfig(config)}
-                        className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-medium transition-colors"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteConfig(config)}
-                        className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded-lg text-xs font-medium transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
       </div>
 
       {/* Approve Device Modal */}
@@ -540,71 +406,15 @@ export default function DevicesPage() {
         />
       )}
 
-      {/* Device Config Modal */}
-      {showConfigModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-lg shadow-2xl">
-            <h3 className="text-lg font-semibold mb-4">
-              {editingConfig ? 'Edit Device Config' : 'New Device Config'}
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Hardware ID (MAC Address)</label>
-                <input
-                  type="text"
-                  required
-                  value={configForm.hardware_id}
-                  onChange={(e) => setConfigForm({ ...configForm, hardware_id: e.target.value })}
-                  disabled={!!editingConfig}
-                  className={`w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm font-mono focus:outline-none focus:border-blue-500 ${editingConfig ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  placeholder="AA:BB:CC:DD:EE:FF"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Name (optional)</label>
-                <input
-                  type="text"
-                  value={configForm.name}
-                  onChange={(e) => setConfigForm({ ...configForm, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                  placeholder="Lobby Sensor Pod #3"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Configuration (JSON)</label>
-                <textarea
-                  value={configForm.configJson}
-                  onChange={(e) => {
-                    setConfigForm({ ...configForm, configJson: e.target.value })
-                    setConfigJsonError(null)
-                  }}
-                  rows={10}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg font-mono text-sm focus:outline-none focus:border-blue-500"
-                  spellCheck={false}
-                />
-                {configJsonError && (
-                  <p className="text-red-400 text-xs mt-1">{configJsonError}</p>
-                )}
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowConfigModal(false)}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveConfig}
-                disabled={!configForm.hardware_id}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {editingConfig ? 'Save Changes' : 'Create Config'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Device Detail/Edit Modal */}
+      {selectedDevice && (
+        <DeviceDetailModal
+          device={selectedDevice}
+          onSave={handleDeviceUpdate}
+          onClose={() => setSelectedDevice(null)}
+        />
       )}
+
     </div>
   )
 }

@@ -202,10 +202,24 @@ async def _do_transition(from_phase: str, to_phase: str, source: str,
     """), {"state": json.dumps(new_state)})
 
     # Record in entity_states history
+    changed_keys = list(set(new_state.keys()) | set(previous_state.keys()))
     await db.execute(text("""
-        INSERT INTO entity_states (entity_id, state, source)
-        VALUES (:entity_id, CAST(:state AS jsonb), :source)
-    """), {"entity_id": entity.id, "state": json.dumps(new_state), "source": source})
+        INSERT INTO entity_states
+            (time, entity_id, entity_slug, entity_type, entity_path,
+             state, previous_state, changed_keys, source)
+        VALUES
+            (NOW(), :entity_id, :entity_slug, :entity_type, :entity_path,
+             CAST(:state AS jsonb), CAST(:previous_state AS jsonb), :changed_keys, :source)
+    """), {
+        "entity_id": entity.id,
+        "entity_slug": entity.slug,
+        "entity_type": entity.entity_type,
+        "entity_path": entity.path,
+        "state": json.dumps(new_state),
+        "previous_state": json.dumps(previous_state),
+        "changed_keys": changed_keys,
+        "source": source
+    })
 
     await db.commit()
 

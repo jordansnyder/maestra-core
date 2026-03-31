@@ -12,7 +12,7 @@ from datetime import datetime
 import json
 import os
 
-from database import get_db, DeviceDB, BlockedDeviceDB, DeviceProvisionDB, DeviceHardwareConfigDB
+from database import get_db, DeviceDB, BlockedDeviceDB, DeviceProvisionDB
 from models import (
     Device, DeviceStatus,
     DeviceDiscover, DeviceApproval, DeviceProvisionResponse,
@@ -38,6 +38,7 @@ def device_db_to_response(db_device: DeviceDB) -> Device:
         ip_address=db_device.ip_address,
         location=db_device.location,
         metadata=db_device.device_metadata,
+        configuration=db_device.configuration or {},
         status=db_device.status,
         last_seen=db_device.last_seen,
         created_at=db_device.created_at or datetime.utcnow(),
@@ -319,6 +320,26 @@ async def unblock_device(
 
 
 # =============================================================================
+# Device Configuration (resolve by hardware_id)
+# =============================================================================
+
+@router.get("/devices/config/{hardware_id}")
+async def get_device_config(
+    hardware_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    SDK-facing endpoint: returns the device's configuration JSON by hardware_id.
+    Returns {} if no device exists with that hardware_id (never 404).
+    """
+    result = await db.execute(
+        select(DeviceDB).where(DeviceDB.hardware_id == hardware_id)
+    )
+    device = result.scalar_one_or_none()
+    return device.configuration if device and device.configuration else {}
+
+
+# =============================================================================
 # Provisioning
 # =============================================================================
 
@@ -352,21 +373,14 @@ async def get_device_provision(
             "device_id": str(device_id),
         })
 
-    # Look up pre-provisioned device config by hardware_id
+    # Get device configuration directly from the device record
     device_config = {}
     device_result = await db.execute(
         select(DeviceDB).where(DeviceDB.id == device_id)
     )
     device = device_result.scalar_one_or_none()
     if device:
-        config_result = await db.execute(
-            select(DeviceHardwareConfigDB).where(
-                DeviceHardwareConfigDB.hardware_id == device.hardware_id
-            )
-        )
-        hw_config = config_result.scalar_one_or_none()
-        if hw_config:
-            device_config = hw_config.configuration or {}
+        device_config = device.configuration or {}
 
     conn = provision.connection_config or {}
     return DeviceProvisionResponse(

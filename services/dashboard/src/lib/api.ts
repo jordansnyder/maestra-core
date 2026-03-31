@@ -8,8 +8,7 @@ import {
   RouteData, RouteCreate, RoutePreset, RoutePresetCreate, RoutePresetUpdate,
   RoutePresetDetail, RoutingState,
   StreamInfo, StreamSession, StreamSubscriber, StreamTypeInfo, StreamRegistryState,
-  BlockedDevice, DeviceProvision, DeviceApproval,
-  DeviceHardwareConfig, DeviceHardwareConfigCreate, DeviceHardwareConfigUpdate,
+  BlockedDevice, DeviceProvision, DeviceApproval, DeviceUpdate,
   DMXNode, DMXNodeCreate, DMXNodeUpdate,
   DMXFixture, DMXFixtureCreate, DMXFixtureUpdate, FixturePositionUpdate,
   DMXCue, DMXCueRecallResult,
@@ -249,6 +248,18 @@ export const devicesApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  update: (id: string, data: DeviceUpdate) =>
+    fetchApi<Device>(`/devices/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  updateConfiguration: (id: string, configuration: Record<string, unknown>) =>
+    fetchApi<Device>(`/devices/${id}/configuration`, {
+      method: 'PUT',
+      body: JSON.stringify(configuration),
+    }),
 }
 
 // Discovery API
@@ -285,34 +296,6 @@ export const discoveryApi = {
     fetchApi<DeviceProvision>(`/devices/${id}/provision`, {
       method: 'PUT',
       body: JSON.stringify(data),
-    }),
-}
-
-// Device Hardware Configs API
-export const deviceConfigsApi = {
-  list: (search?: string) => {
-    const params = search ? `?search=${encodeURIComponent(search)}` : ''
-    return fetchApi<DeviceHardwareConfig[]>(`/configs${params}`)
-  },
-
-  get: (hardwareId: string) =>
-    fetchApi<DeviceHardwareConfig>(`/configs/${encodeURIComponent(hardwareId)}`),
-
-  create: (data: DeviceHardwareConfigCreate) =>
-    fetchApi<DeviceHardwareConfig>('/configs', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  update: (hardwareId: string, data: DeviceHardwareConfigUpdate) =>
-    fetchApi<DeviceHardwareConfig>(`/configs/${encodeURIComponent(hardwareId)}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-
-  delete: (hardwareId: string) =>
-    fetchApi<void>(`/configs/${encodeURIComponent(hardwareId)}`, {
-      method: 'DELETE',
     }),
 }
 

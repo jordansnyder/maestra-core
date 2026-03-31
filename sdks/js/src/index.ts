@@ -386,7 +386,7 @@ class HttpTransport {
 
   // Device Config
   getDeviceConfig(hardwareId: string): Promise<Record<string, unknown>> {
-    return this.request('GET', `/configs/${encodeURIComponent(hardwareId)}/resolve`)
+    return this.request('GET', `/devices/config/${encodeURIComponent(hardwareId)}`)
   }
 }
 

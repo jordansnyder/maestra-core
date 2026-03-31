@@ -263,8 +263,8 @@ class HttpTransport:
 
     # Device Config
     async def get_device_config(self, hardware_id: str) -> Dict[str, Any]:
-        """Fetch pre-provisioned device configuration by hardware_id"""
-        return await self._request("GET", f"/configs/{hardware_id}/resolve")
+        """Fetch device configuration by hardware_id"""
+        return await self._request("GET", f"/devices/config/{hardware_id}")
 
 
 class MaestraClient:

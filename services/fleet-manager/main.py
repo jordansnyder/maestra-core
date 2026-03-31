@@ -15,7 +15,7 @@ import json
 
 from database import get_db, init_db, close_db, DeviceDB
 from models import (
-    Device, DeviceRegistration, DeviceHeartbeat,
+    Device, DeviceRegistration, DeviceUpdate, DeviceHeartbeat,
     DeviceMetric, DeviceEvent, DeviceStatus
 )
 from state_manager import state_manager
@@ -33,7 +33,6 @@ from discovery_router import router as discovery_router
 from dmx_router import router as dmx_router
 from fixtures_router import router as fixtures_router
 from osc_mapping_router import router as osc_mapping_router
-from config_router import router as config_router
 from dmx_playback_engine import playback_engine
 from show_control_router import router as show_control_router, handle_show_command
 from show_scheduler import show_scheduler
@@ -65,7 +64,6 @@ app.include_router(discovery_router)
 app.include_router(dmx_router)
 app.include_router(fixtures_router)
 app.include_router(osc_mapping_router)
-app.include_router(config_router)
 app.include_router(show_control_router)
 
 
@@ -134,6 +132,7 @@ def device_db_to_response(db_device: DeviceDB) -> Device:
         ip_address=db_device.ip_address,
         location=db_device.location,
         metadata=db_device.device_metadata,
+        configuration=db_device.configuration or {},
         status=db_device.status or 'offline',
         last_seen=db_device.last_seen,
         created_at=db_device.created_at or datetime.utcnow(),
@@ -168,6 +167,7 @@ async def register_device(
         ip_address=registration.ip_address,
         location=registration.location,
         device_metadata=registration.metadata,
+        configuration=registration.configuration or {},
         status='online',
         last_seen=datetime.utcnow()
     )
@@ -257,6 +257,54 @@ async def delete_device(device_id: UUID, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     return {"status": "deleted", "device_id": str(device_id)}
+
+
+@app.put("/devices/{device_id}/configuration", response_model=Device)
+async def update_device_configuration(
+    device_id: UUID,
+    body: Dict[str, Any],
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a device's configuration JSON"""
+    result = await db.execute(select(DeviceDB).where(DeviceDB.id == device_id))
+    db_device = result.scalar_one_or_none()
+
+    if not db_device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    db_device.configuration = body
+    await db.commit()
+    await db.refresh(db_device)
+
+    return device_db_to_response(db_device)
+
+
+@app.patch("/devices/{device_id}", response_model=Device)
+async def update_device(
+    device_id: UUID,
+    data: DeviceUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Partial update of a device (hardware_id is immutable)"""
+    result = await db.execute(select(DeviceDB).where(DeviceDB.id == device_id))
+    db_device = result.scalar_one_or_none()
+
+    if not db_device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    update_data = data.model_dump(exclude_unset=True)
+
+    # Map 'metadata' to the DB column name 'device_metadata'
+    if 'metadata' in update_data:
+        db_device.device_metadata = update_data.pop('metadata')
+
+    for key, value in update_data.items():
+        setattr(db_device, key, value)
+
+    await db.commit()
+    await db.refresh(db_device)
+
+    return device_db_to_response(db_device)
 
 
 # =============================================================================

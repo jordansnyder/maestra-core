@@ -269,6 +269,7 @@ class Device(BaseModel):
     ip_address: Optional[str] = None
     location: Optional[Dict[str, Any]] = None
     metadata: Optional[Dict[str, Any]] = None
+    configuration: Dict[str, Any] = Field(default_factory=dict)
     status: str = DeviceStatus.OFFLINE
     last_seen: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -287,6 +288,18 @@ class DeviceRegistration(BaseModel):
     ip_address: Optional[str] = None
     location: Optional[Dict[str, Any]] = None
     metadata: Optional[Dict[str, Any]] = None
+    configuration: Optional[Dict[str, Any]] = None
+
+
+class DeviceUpdate(BaseModel):
+    """Partial device update (hardware_id is immutable)"""
+    name: Optional[str] = None
+    device_type: Optional[str] = None
+    firmware_version: Optional[str] = None
+    ip_address: Optional[str] = None
+    location: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
+    configuration: Optional[Dict[str, Any]] = None
 
 
 class DeviceHeartbeat(BaseModel):
@@ -364,38 +377,6 @@ class BlockedDeviceResponse(BaseModel):
 class BlockDeviceRequest(BaseModel):
     """Request to block a device"""
     reason: Optional[str] = None
-
-
-# =============================================================================
-# Device Hardware Config Models
-# =============================================================================
-
-class DeviceHardwareConfigBase(BaseModel):
-    """Base fields for hardware-keyed device config"""
-    hardware_id: str = Field(..., min_length=1, max_length=255, description="MAC address or unique hardware identifier")
-    name: Optional[str] = Field(None, max_length=255, description="Friendly label for this config")
-    configuration: Dict[str, Any] = Field(default_factory=dict, description="Arbitrary JSON configuration")
-
-
-class DeviceHardwareConfigCreate(DeviceHardwareConfigBase):
-    """Create a new hardware config"""
-    pass
-
-
-class DeviceHardwareConfigUpdate(BaseModel):
-    """Update an existing hardware config (all fields optional)"""
-    name: Optional[str] = Field(None, max_length=255)
-    configuration: Optional[Dict[str, Any]] = None
-
-
-class DeviceHardwareConfigResponse(DeviceHardwareConfigBase):
-    """Full response model"""
-    id: UUID
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # =============================================================================

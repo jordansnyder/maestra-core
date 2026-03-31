@@ -91,7 +91,7 @@ class MaestraExt:
         try:
             import urllib.request
             import urllib.parse
-            url = f"{self._api_url}/configs/{urllib.parse.quote(hardware_id, safe='')}/resolve"
+            url = f"{self._api_url}/devices/config/{urllib.parse.quote(hardware_id, safe='')}"
             with urllib.request.urlopen(url, timeout=5) as response:
                 self._device_config = json.loads(response.read().decode())
                 return self._device_config.copy()

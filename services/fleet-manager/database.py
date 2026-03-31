@@ -100,6 +100,7 @@ class DeviceDB(Base):
     ip_address = Column(String(50))  # Store as string for simplicity
     location = Column(JSONB)
     device_metadata = Column('metadata', JSONB)
+    configuration = Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
     status = Column(String(50), default='offline')
     last_seen = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -118,18 +119,6 @@ class BlockedDeviceDB(Base):
     hardware_id = Column(String(255), unique=True, nullable=False)
     reason = Column(Text)
     blocked_at = Column(DateTime, default=datetime.utcnow)
-
-
-class DeviceHardwareConfigDB(Base):
-    """Pre-provisionable device configuration keyed on hardware_id (MAC address)"""
-    __tablename__ = "device_hardware_configs"
-
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    hardware_id = Column(String(255), unique=True, nullable=False)
-    name = Column(String(255))
-    configuration = Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class DeviceProvisionDB(Base):

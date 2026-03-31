@@ -158,6 +158,7 @@ export interface Device {
   ip_address?: string
   location?: Record<string, unknown>
   metadata?: Record<string, unknown>
+  configuration: Record<string, unknown>
   status: 'online' | 'offline' | 'error' | 'maintenance' | 'pending'
   last_seen?: string
   created_at: string
@@ -187,35 +188,21 @@ export interface DeviceProvision {
   env_vars: Record<string, string>
 }
 
+export interface DeviceUpdate {
+  name?: string
+  device_type?: string
+  firmware_version?: string
+  ip_address?: string
+  location?: Record<string, unknown>
+  metadata?: Record<string, unknown>
+  configuration?: Record<string, unknown>
+}
+
 export interface DeviceApproval {
   name?: string
   entity_id?: string
   env_vars?: Record<string, string>
   device_type?: string
-}
-
-// =============================================================================
-// Device Hardware Config Types
-// =============================================================================
-
-export interface DeviceHardwareConfig {
-  id: string
-  hardware_id: string
-  name: string | null
-  configuration: Record<string, unknown>
-  created_at: string
-  updated_at: string
-}
-
-export interface DeviceHardwareConfigCreate {
-  hardware_id: string
-  name?: string
-  configuration?: Record<string, unknown>
-}
-
-export interface DeviceHardwareConfigUpdate {
-  name?: string
-  configuration?: Record<string, unknown>
 }
 
 // =============================================================================

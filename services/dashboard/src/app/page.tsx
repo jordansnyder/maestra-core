@@ -1,154 +1,76 @@
 'use client'
 
 import Link from 'next/link'
-import { useDevices, useFleetStats } from '@/hooks/useDevices'
 import { useActivityFeed, type ActivityItem, type ActivityCategory } from '@/hooks/useActivityFeed'
-import { StatsCard } from '@/components/StatsCard'
-import { StatusBadge } from '@/components/StatusBadge'
-import { Card } from '@/components/Card'
-import {
-  Activity,
-  CheckCircle2,
-  PauseCircle,
-  AlertTriangle,
-  ChevronRight,
-  DEVICE_TYPE_ICONS,
-  DEFAULT_DEVICE_ICON,
-  Boxes,
-  GitFork,
-  Monitor,
-  Zap,
-} from '@/components/icons'
-import type { Device } from '@/lib/types'
+import { SystemHealthBar } from '@/components/dashboard/SystemHealthBar'
+import { ShowControlWidget } from '@/components/dashboard/ShowControlWidget'
+import { DeviceOverviewWidget } from '@/components/dashboard/DeviceOverviewWidget'
+import { EntitiesOverviewWidget } from '@/components/dashboard/EntitiesOverviewWidget'
+import { StreamsOverviewWidget } from '@/components/dashboard/StreamsOverviewWidget'
+import { Boxes, GitFork, Monitor, Zap, Radio } from '@/components/icons'
 
 export default function Home() {
-  const { devices, loading } = useDevices(true, 10000)
-  const stats = useFleetStats(devices)
   const { items: activityItems, isConnected } = useActivityFeed(50)
 
   return (
     <div className="flex h-full">
       {/* Main content */}
-      <div className="flex-1 overflow-auto p-6 space-y-6">
+      <div className="flex-1 overflow-auto p-6 space-y-4">
         {/* Compact header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Dashboard</h1>
-            <p className="text-sm text-slate-400 mt-0.5">Fleet overview and activity</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'
-              }`}
-            />
-            <span className="text-xs text-slate-500">
-              {isConnected ? 'Connected' : 'Disconnected'}
-            </span>
+            <p className="text-sm text-slate-400 mt-0.5">Mission control</p>
           </div>
         </div>
 
-        {/* Fleet stats bar */}
-        <div className="grid grid-cols-4 gap-3">
-          <StatsCard title="Total Devices" value={stats.total} icon={Activity} />
-          <StatsCard title="Online" value={stats.online} icon={CheckCircle2} />
-          <StatsCard title="Offline" value={stats.offline} icon={PauseCircle} />
-          <StatsCard title="Errors" value={stats.error} icon={AlertTriangle} />
+        {/* System Health Bar */}
+        <SystemHealthBar />
+
+        {/* Show Control Widget (full-width, prominent) */}
+        <ShowControlWidget />
+
+        {/* Widget Grid (2-column) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <DeviceOverviewWidget />
+          <EntitiesOverviewWidget />
         </div>
 
-        {/* Device summary */}
-        <Card
-          title="Devices"
-          action={
+        {/* Streams Widget */}
+        <StreamsOverviewWidget />
+
+        {/* Compact quick navigation */}
+        <div className="flex flex-wrap gap-2 pt-2">
+          {[
+            { href: '/entities', label: 'Entities', icon: Boxes },
+            { href: '/routing', label: 'Routing', icon: GitFork },
+            { href: '/devices', label: 'Devices', icon: Monitor },
+            { href: '/dmx', label: 'DMX', icon: Zap },
+            { href: '/streams', label: 'Streams', icon: Radio },
+          ].map(({ href, label, icon: Icon }) => (
             <Link
-              href="/devices"
-              className="flex items-center gap-1 text-sm text-slate-400 hover:text-blue-400 transition-colors"
+              key={href}
+              href={href}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-400 hover:text-blue-400 hover:border-blue-500/30 transition-colors"
             >
-              View All
-              <ChevronRight className="w-4 h-4" />
+              <Icon className="w-3 h-3" />
+              {label}
             </Link>
-          }
-        >
-          {loading && <p className="text-sm text-slate-500">Loading devices...</p>}
-          {!loading && devices.length === 0 && (
-            <div className="text-center py-8">
-              <p className="text-slate-400 mb-3">No devices registered yet.</p>
-              <Link
-                href="/devices"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
-              >
-                <Monitor className="w-4 h-4" />
-                Register a Device
-              </Link>
-            </div>
-          )}
-          {!loading && devices.length > 0 && (
-            <div className="space-y-1">
-              {devices.slice(0, 6).map((device) => (
-                <CompactDeviceRow key={device.id} device={device} />
-              ))}
-              {devices.length > 6 && (
-                <Link
-                  href="/devices"
-                  className="block text-center text-sm text-slate-500 hover:text-blue-400 py-2 transition-colors"
-                >
-                  +{devices.length - 6} more devices
-                </Link>
-              )}
-            </div>
-          )}
-        </Card>
-
-        {/* Quick navigation */}
-        <div className="grid grid-cols-4 gap-3">
-          <Link
-            href="/entities"
-            className="flex items-center gap-3 p-4 bg-slate-800 border border-slate-700 rounded-lg hover:border-blue-500/50 transition-colors group"
-          >
-            <Boxes className="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors" />
-            <div>
-              <p className="text-sm font-medium group-hover:text-blue-400 transition-colors">Entities</p>
-              <p className="text-xs text-slate-500">Spaces, rooms, state</p>
-            </div>
-          </Link>
-          <Link
-            href="/routing"
-            className="flex items-center gap-3 p-4 bg-slate-800 border border-slate-700 rounded-lg hover:border-blue-500/50 transition-colors group"
-          >
-            <GitFork className="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors" />
-            <div>
-              <p className="text-sm font-medium group-hover:text-blue-400 transition-colors">Routing</p>
-              <p className="text-xs text-slate-500">Signal patching</p>
-            </div>
-          </Link>
-          <Link
-            href="/devices"
-            className="flex items-center gap-3 p-4 bg-slate-800 border border-slate-700 rounded-lg hover:border-blue-500/50 transition-colors group"
-          >
-            <Monitor className="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors" />
-            <div>
-              <p className="text-sm font-medium group-hover:text-blue-400 transition-colors">Devices</p>
-              <p className="text-xs text-slate-500">Fleet management</p>
-            </div>
-          </Link>
-          <Link
-            href="/dmx"
-            className="flex items-center gap-3 p-4 bg-slate-800 border border-slate-700 rounded-lg hover:border-amber-500/50 transition-colors group"
-          >
-            <Zap className="w-5 h-5 text-slate-400 group-hover:text-amber-400 transition-colors" />
-            <div>
-              <p className="text-sm font-medium group-hover:text-amber-400 transition-colors">DMX Lighting</p>
-              <p className="text-xs text-slate-500">Fixtures &amp; cues</p>
-            </div>
-          </Link>
+          ))}
         </div>
       </div>
 
       {/* Activity feed sidebar */}
       <div className="w-80 border-l border-slate-800 bg-slate-900/50 overflow-auto p-4 shrink-0">
-        <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-          Live Activity
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            Live Activity
+          </h2>
+          <div className="flex items-center gap-1.5">
+            <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
+            <span className="text-[10px] text-slate-600">{isConnected ? 'Live' : 'Offline'}</span>
+          </div>
+        </div>
         {activityItems.length === 0 && (
           <p className="text-xs text-slate-600 text-center py-8">
             {isConnected ? 'Waiting for events...' : 'Connecting to message bus...'}
@@ -160,31 +82,6 @@ export default function Home() {
           ))}
         </div>
       </div>
-    </div>
-  )
-}
-
-function CompactDeviceRow({ device }: { device: Device }) {
-  const Icon = DEVICE_TYPE_ICONS[device.device_type] || DEFAULT_DEVICE_ICON
-
-  return (
-    <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-800/50 transition-colors">
-      <div className="w-7 h-7 rounded bg-slate-700/50 flex items-center justify-center shrink-0">
-        <Icon className="w-3.5 h-3.5 text-slate-400" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium truncate">{device.name}</p>
-          {device.device_type === 'artnet_node' && (
-            <span className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25">
-              <Zap className="w-2.5 h-2.5" />
-              DMX
-            </span>
-          )}
-        </div>
-        <p className="text-xs text-slate-500">{device.device_type.replace(/_/g, ' ')}</p>
-      </div>
-      <StatusBadge status={device.status} />
     </div>
   )
 }

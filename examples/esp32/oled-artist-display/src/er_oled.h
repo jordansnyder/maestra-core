@@ -15,7 +15,7 @@ EastRising Technology Co.,LTD
 #define HEIGHT 64
 
 #define OLED_DC  16
-#define OLED_RST -1  // Tie RES pin to 3.3V — SSD1322 internal power-on reset is sufficient
+#define OLED_RST 33
 #define OLED_CS  5
 
 

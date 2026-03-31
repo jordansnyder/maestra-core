@@ -7,14 +7,33 @@ interface BooleanControlProps {
   value: unknown
   onChange: (value: boolean) => void
   disabled?: boolean
+  compact?: boolean
 }
 
-export function BooleanControl({ variable, value, onChange, disabled }: BooleanControlProps) {
+export function BooleanControl({ variable, value, onChange, disabled, compact }: BooleanControlProps) {
   const config = variable.config || {}
   const trueLabel = (config.true_label as string) || 'On'
   const falseLabel = (config.false_label as string) || 'Off'
 
   const boolValue = typeof value === 'boolean' ? value : (variable.defaultValue as boolean) ?? false
+
+  if (compact) {
+    return (
+      <button
+        onClick={() => onChange(!boolValue)}
+        disabled={disabled}
+        className={`
+          px-3 py-1 rounded-md text-xs font-medium transition-all
+          ${boolValue
+            ? 'bg-green-600/80 text-white'
+            : 'bg-slate-700 text-slate-400'}
+          disabled:opacity-50 disabled:cursor-not-allowed
+        `}
+      >
+        {boolValue ? trueLabel : falseLabel}
+      </button>
+    )
+  }
 
   return (
     <button

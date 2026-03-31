@@ -8,9 +8,10 @@ interface StringControlProps {
   value: unknown
   onChange: (value: string) => void
   disabled?: boolean
+  compact?: boolean
 }
 
-export function StringControl({ variable, value, onChange, disabled }: StringControlProps) {
+export function StringControl({ variable, value, onChange, disabled, compact }: StringControlProps) {
   const config = variable.config || {}
   const maxLength = config.max_length as number | undefined
 
@@ -18,15 +19,27 @@ export function StringControl({ variable, value, onChange, disabled }: StringCon
   const [localValue, setLocalValue] = useState(strValue)
 
   const handleBlur = () => {
-    if (localValue !== strValue) {
-      onChange(localValue)
-    }
+    if (localValue !== strValue) onChange(localValue)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      onChange(localValue)
-    }
+    if (e.key === 'Enter') onChange(localValue)
+  }
+
+  if (compact) {
+    return (
+      <input
+        type="text"
+        value={localValue}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        maxLength={maxLength}
+        disabled={disabled}
+        placeholder={variable.description || '...'}
+        className="w-32 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs focus:outline-none focus:border-blue-500 disabled:opacity-50"
+      />
+    )
   }
 
   return (
@@ -44,10 +57,7 @@ export function StringControl({ variable, value, onChange, disabled }: StringCon
       />
       {localValue && (
         <button
-          onClick={() => {
-            setLocalValue('')
-            onChange('')
-          }}
+          onClick={() => { setLocalValue(''); onChange('') }}
           disabled={disabled}
           className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 disabled:opacity-50"
         >

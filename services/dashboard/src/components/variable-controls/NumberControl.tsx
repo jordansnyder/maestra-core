@@ -7,9 +7,10 @@ interface NumberControlProps {
   value: unknown
   onChange: (value: number) => void
   disabled?: boolean
+  compact?: boolean
 }
 
-export function NumberControl({ variable, value, onChange, disabled }: NumberControlProps) {
+export function NumberControl({ variable, value, onChange, disabled, compact }: NumberControlProps) {
   const config = variable.config || {}
   const min = config.min as number | undefined
   const max = config.max as number | undefined
@@ -18,18 +19,29 @@ export function NumberControl({ variable, value, onChange, disabled }: NumberCon
 
   const numValue = typeof value === 'number' ? value : (variable.defaultValue as number) ?? 0
 
+  if (compact) {
+    return (
+      <input
+        type="number"
+        value={numValue}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        disabled={disabled}
+        className="w-20 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs font-mono text-center focus:outline-none focus:border-blue-500 disabled:opacity-50"
+      />
+    )
+  }
+
   const increment = () => {
     const newValue = numValue + step
-    if (max === undefined || newValue <= max) {
-      onChange(newValue)
-    }
+    if (max === undefined || newValue <= max) onChange(newValue)
   }
 
   const decrement = () => {
     const newValue = numValue - step
-    if (min === undefined || newValue >= min) {
-      onChange(newValue)
-    }
+    if (min === undefined || newValue >= min) onChange(newValue)
   }
 
   return (

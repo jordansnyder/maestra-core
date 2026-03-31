@@ -3,11 +3,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Entity, EntityType, EntityUpdate, DMXFixture } from '@/lib/types'
+import { Entity, EntityType, EntityUpdate, EntityVariables, DMXFixture } from '@/lib/types'
 import { entitiesApi, entityTypesApi, dmxApi } from '@/lib/api'
 import { useWebSocket } from '@/hooks/useWebSocket'
-import { EntityVariablesPanel } from '@/components/EntityVariablesPanel'
-import { StateTestPanel } from '@/components/StateTestPanel'
+import { UnifiedVariablesPanel } from '@/components/UnifiedVariablesPanel'
 import { EntityStateOverview } from '@/components/EntityStateOverview'
 import { DMXChannelPanel } from '@/components/dmx/DMXChannelPanel'
 import { useToast } from '@/components/Toast'
@@ -32,6 +31,7 @@ export default function EntityDetailPage() {
   const [entityTypes, setEntityTypes] = useState<EntityType[]>([])
   const [allEntities, setAllEntities] = useState<Entity[]>([])
   const [ancestors, setAncestors] = useState<Entity[]>([])
+  const [entityVariables, setEntityVariables] = useState<EntityVariables>({ inputs: [], outputs: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -55,8 +55,7 @@ export default function EntityDetailPage() {
   const [stateError, setStateError] = useState<string | null>(null)
   const [savingState, setSavingState] = useState(false)
 
-  const [activeTab, setActiveTab] = useState<'variables' | 'advanced'>('variables')
-  const [variablesMode, setVariablesMode] = useState<'define' | 'test'>('test')
+  const [rawStateExpanded, setRawStateExpanded] = useState(false)
 
   const loadData = useCallback(async () => {
     try {
@@ -83,6 +82,10 @@ export default function EntityDetailPage() {
       // Find which fixture (if any) links to this entity
       const linked = allFixturesData.find((f) => f.entity_id === entityId) ?? null
       setLinkedFixture(linked)
+
+      // Load variables (stored in entity metadata)
+      const vars = entityData.metadata?.variables as EntityVariables | undefined
+      setEntityVariables(vars || { inputs: [], outputs: [] })
 
       try {
         const ancestorsData = await entitiesApi.getAncestors(entityId)
@@ -331,9 +334,9 @@ export default function EntityDetailPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Column */}
-          <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+          {/* Left Column (40%) */}
+          <div className="lg:col-span-2 space-y-6">
             {/* DMX Fixture Card — hidden for the singleton DMX controller entity */}
             {!isDmxController && <div className={`rounded-lg border p-5 ${isDmxLinked ? 'bg-amber-950/20 border-amber-800/40' : 'bg-slate-800 border-slate-700'}`}>
               <div className="flex items-center justify-between mb-4">
@@ -593,8 +596,8 @@ export default function EntityDetailPage() {
             )}
           </div>
 
-          {/* Right Column - Variables & Advanced */}
-          <div>
+          {/* Right Column - Unified Variables Panel (60%) */}
+          <div className="lg:col-span-3">
             {/* DMX Channel Panel — shown when fixture has a channel_map */}
             {isDmxLinked && linkedFixture && Object.keys(linkedFixture.channel_map).length > 0 && (
               <div className="mb-6">
@@ -621,113 +624,78 @@ export default function EntityDetailPage() {
               </div>
             )}
 
-            {/* Tab Navigation */}
-            <div className="flex gap-2 mb-4">
-              <button
-                onClick={() => setActiveTab('variables')}
-                className={`px-4 py-2 rounded-lg text-sm transition-colors ${activeTab === 'variables' ? 'bg-blue-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-300'}`}
-              >
-                Variables
-              </button>
-              <button
-                onClick={() => setActiveTab('advanced')}
-                className={`px-4 py-2 rounded-lg text-sm transition-colors ${activeTab === 'advanced' ? 'bg-blue-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-300'}`}
-              >
-                Advanced
-              </button>
-            </div>
+            {/* Unified Variables Panel */}
+            <UnifiedVariablesPanel
+              entityId={entityId}
+              entitySlug={entity.slug}
+              variables={entityVariables}
+              state={entity.state || {}}
+              onStateChange={async (key, value) => {
+                await entitiesApi.updateState(entityId, { state: { [key]: value }, source: 'dashboard' })
+              }}
+              onVariablesChange={async (vars) => {
+                await entitiesApi.setVariables(entityId, vars)
+                setEntityVariables(vars)
+              }}
+            />
 
-            {activeTab === 'variables' ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 p-1 bg-slate-800 rounded-lg w-fit">
-                  <button
-                    onClick={() => setVariablesMode('test')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${variablesMode === 'test' ? 'bg-green-600 text-white' : 'text-slate-400 hover:text-white'}`}
-                  >
-                    Test
-                  </button>
-                  <button
-                    onClick={() => setVariablesMode('define')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${variablesMode === 'define' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
-                  >
-                    Define
-                  </button>
-                </div>
+            {/* Collapsible Raw State Section */}
+            <div className="mt-6">
+              <button
+                onClick={() => setRawStateExpanded(!rawStateExpanded)}
+                className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-300 transition-colors mb-3"
+              >
+                <ChevronDown className={`w-4 h-4 transition-transform ${rawStateExpanded ? '' : '-rotate-90'}`} />
+                <span>Raw State & Topics</span>
+                <span className="text-xs text-slate-500">
+                  Updated: {new Date(entity.state_updated_at).toLocaleString()}
+                </span>
+              </button>
 
-                {/* DMX channel map hints in define mode */}
-                {isDmxLinked && variablesMode === 'define' && channelMapEntries.length > 0 && (
-                  <div className="bg-slate-800/60 border border-slate-700 rounded-lg px-4 py-3">
-                    <div className="text-xs text-slate-500 mb-2">
-                      Expected variables from fixture channel map:
+              {rawStateExpanded && (
+                <div className="space-y-4">
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                    {stateError && (
+                      <div className="mb-3 p-2 bg-red-900/50 border border-red-700 rounded text-sm">{stateError}</div>
+                    )}
+                    <textarea
+                      value={stateJson}
+                      onChange={(e) => setStateJson(e.target.value)}
+                      rows={10}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg font-mono text-sm focus:outline-none focus:border-blue-500"
+                      spellCheck={false}
+                    />
+                    <div className="flex justify-end mt-3">
+                      <button
+                        onClick={handleSaveState}
+                        disabled={savingState}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                      >
+                        {savingState ? 'Saving...' : 'Save State'}
+                      </button>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {channelMapEntries.map(([varName]) => (
-                        <span key={varName} className="px-2 py-0.5 rounded bg-amber-900/30 border border-amber-800/40 text-amber-400 text-[10px] font-mono">
-                          {varName}
+                  </div>
+
+                  <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+                    <h3 className="text-xs font-semibold text-slate-500 mb-2">Message Bus Topics</h3>
+                    <div className="space-y-1.5 text-xs font-mono">
+                      <div>
+                        <span className="text-slate-500">NATS: </span>
+                        <span className="text-blue-400">
+                          maestra.entity.state.{entity.entity_type?.name || 'unknown'}.{entity.slug}
                         </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {variablesMode === 'test' ? (
-                  <StateTestPanel entity={entity} onStateChange={loadData} />
-                ) : (
-                  <EntityVariablesPanel entity={entity} onVariablesChange={loadData} />
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold">Raw State</h2>
-                    <span className="text-xs text-slate-500">
-                      Updated: {new Date(entity.state_updated_at).toLocaleString()}
-                    </span>
-                  </div>
-                  {stateError && (
-                    <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-sm">{stateError}</div>
-                  )}
-                  <textarea
-                    value={stateJson}
-                    onChange={(e) => setStateJson(e.target.value)}
-                    rows={15}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg font-mono text-sm focus:outline-none focus:border-blue-500"
-                    spellCheck={false}
-                  />
-                  <div className="flex justify-between items-center mt-4">
-                    <p className="text-xs text-slate-500">
-                      Edit JSON and save to update state. Changes broadcast via NATS/MQTT.
-                    </p>
-                    <button
-                      onClick={handleSaveState}
-                      disabled={savingState}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                    >
-                      {savingState ? 'Saving...' : 'Save State'}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-6 bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold mb-2">Message Bus Topics</h3>
-                  <div className="space-y-2 text-xs font-mono">
-                    <div>
-                      <span className="text-slate-500">NATS: </span>
-                      <span className="text-blue-400">
-                        maestra.entity.state.{entity.entity_type?.name || 'unknown'}.{entity.slug}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">MQTT: </span>
-                      <span className="text-green-400">
-                        maestra/entity/state/{entity.entity_type?.name || 'unknown'}/{entity.slug}
-                      </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">MQTT: </span>
+                        <span className="text-green-400">
+                          maestra/entity/state/{entity.entity_type?.name || 'unknown'}/{entity.slug}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>

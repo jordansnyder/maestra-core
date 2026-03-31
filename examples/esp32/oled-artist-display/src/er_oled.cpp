@@ -25,20 +25,26 @@ void data(uint8_t dat)
 
 void er_oled_begin()
 {
-  pinMode(OLED_RST, OUTPUT);
+  if (OLED_RST >= 0) {
+    pinMode(OLED_RST, OUTPUT);
+  }
   pinMode(OLED_DC, OUTPUT);
   pinMode(OLED_CS, OUTPUT);
-  SPI.begin();
+  SPI.begin(14, -1, 13, OLED_CS);  // SCK=GPIO14, MISO=unused, MOSI=GPIO13, SS=GPIO5 (ESP32-POE UEXT SPI)
 
     SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));
     //SPI.setClockDivider(SPI_CLOCK_DIV2);
 
   digitalWrite(OLED_CS, LOW);
-  digitalWrite(OLED_RST, HIGH);
-  delay(10);
-  digitalWrite(OLED_RST, LOW);
-  delay(10);
-  digitalWrite(OLED_RST, HIGH);
+  if (OLED_RST >= 0) {
+    digitalWrite(OLED_RST, HIGH);
+    delay(10);
+    digitalWrite(OLED_RST, LOW);
+    delay(10);
+    digitalWrite(OLED_RST, HIGH);
+  } else {
+    delay(20);  // Allow SSD1322 internal power-on reset to complete
+  }
 
 
   command(0xFD); /*SET COMMAND LOCK*/

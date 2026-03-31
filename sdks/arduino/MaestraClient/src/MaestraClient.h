@@ -161,6 +161,15 @@ public:
     void withdrawStream(const char* streamId);
     void streamHeartbeat(const char* streamId);
 
+    // Device config (pre-provisioned JSON from Fleet Manager)
+    /**
+     * Get the pre-provisioned device configuration.
+     * Populated automatically during discoverAndConnect() if a config exists
+     * for this device's hardware_id.
+     */
+    JsonObject getDeviceConfig();
+    bool hasDeviceConfig() const { return _hasDeviceConfig; }
+
     // Internal: MQTT callback
     void _handleMessage(char* topic, byte* payload, unsigned int length);
 
@@ -172,6 +181,10 @@ private:
     char _username[32];
     char _password[64];
     bool _hasCredentials;
+
+    // Device config
+    StaticJsonDocument<MAESTRA_JSON_BUFFER_SIZE> _deviceConfigDoc;
+    bool _hasDeviceConfig;
 
     // Entity registry
     static const int MAX_ENTITIES = 10;

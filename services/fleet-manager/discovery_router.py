@@ -12,7 +12,7 @@ from datetime import datetime
 import json
 import os
 
-from database import get_db, DeviceDB, BlockedDeviceDB, DeviceProvisionDB
+from database import get_db, DeviceDB, BlockedDeviceDB, DeviceProvisionDB, DeviceHardwareConfigDB
 from models import (
     Device, DeviceStatus,
     DeviceDiscover, DeviceApproval, DeviceProvisionResponse,
@@ -352,6 +352,22 @@ async def get_device_provision(
             "device_id": str(device_id),
         })
 
+    # Look up pre-provisioned device config by hardware_id
+    device_config = {}
+    device_result = await db.execute(
+        select(DeviceDB).where(DeviceDB.id == device_id)
+    )
+    device = device_result.scalar_one_or_none()
+    if device:
+        config_result = await db.execute(
+            select(DeviceHardwareConfigDB).where(
+                DeviceHardwareConfigDB.hardware_id == device.hardware_id
+            )
+        )
+        hw_config = config_result.scalar_one_or_none()
+        if hw_config:
+            device_config = hw_config.configuration or {}
+
     conn = provision.connection_config or {}
     return DeviceProvisionResponse(
         device_id=provision.device_id,
@@ -363,6 +379,7 @@ async def get_device_provision(
         ws_url=conn.get("ws_url", f"ws://{os.getenv('HOST_IP', 'localhost')}:8765"),
         entity_id=provision.entity_id,
         env_vars=provision.env_vars or {},
+        device_config=device_config,
     )
 
 

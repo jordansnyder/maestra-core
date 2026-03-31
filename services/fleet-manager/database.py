@@ -120,6 +120,18 @@ class BlockedDeviceDB(Base):
     blocked_at = Column(DateTime, default=datetime.utcnow)
 
 
+class DeviceHardwareConfigDB(Base):
+    """Pre-provisionable device configuration keyed on hardware_id (MAC address)"""
+    __tablename__ = "device_hardware_configs"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    hardware_id = Column(String(255), unique=True, nullable=False)
+    name = Column(String(255))
+    configuration = Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class DeviceProvisionDB(Base):
     """Device provisioning config - pushed to devices after approval"""
     __tablename__ = "device_provisions"

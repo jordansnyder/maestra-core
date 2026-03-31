@@ -195,6 +195,30 @@ export interface DeviceApproval {
 }
 
 // =============================================================================
+// Device Hardware Config Types
+// =============================================================================
+
+export interface DeviceHardwareConfig {
+  id: string
+  hardware_id: string
+  name: string | null
+  configuration: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface DeviceHardwareConfigCreate {
+  hardware_id: string
+  name?: string
+  configuration?: Record<string, unknown>
+}
+
+export interface DeviceHardwareConfigUpdate {
+  name?: string
+  configuration?: Record<string, unknown>
+}
+
+// =============================================================================
 // Routing Types
 // =============================================================================
 

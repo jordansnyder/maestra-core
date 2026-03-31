@@ -383,6 +383,11 @@ class HttpTransport {
     const params = streamId ? `?stream_id=${streamId}` : ''
     return this.request('GET', `/streams/subscribers${params}`)
   }
+
+  // Device Config
+  getDeviceConfig(hardwareId: string): Promise<Record<string, unknown>> {
+    return this.request('GET', `/configs/${encodeURIComponent(hardwareId)}/resolve`)
+  }
 }
 
 /**
@@ -397,6 +402,9 @@ export class MaestraClient {
   private _connected = false
   private _subscribedEntities = new Map<string, Entity>()
   private _clientId: string
+
+  /** Pre-provisioned device configuration (populated on connect if hardwareId is set) */
+  public deviceConfig: Record<string, unknown> = {}
 
   /**
    * Discover a Maestra instance on the local network via mDNS and
@@ -423,6 +431,7 @@ export class MaestraClient {
       wsUrl: config.wsUrl,
       mqttUrl: config.mqttUrl,
       clientId: config.clientId,
+      hardwareId: config.hardwareId,
     }
     this._http = new HttpTransport(this.config.apiUrl)
     this._clientId = this.config.clientId || `maestra-js-${Math.random().toString(36).slice(2, 10)}`
@@ -460,8 +469,26 @@ export class MaestraClient {
       }
     }
 
+    // Fetch pre-provisioned device config if hardwareId is set
+    if (this.config.hardwareId) {
+      try {
+        this.deviceConfig = await this._http.getDeviceConfig(this.config.hardwareId)
+      } catch (e) {
+        console.warn('⚠️ Could not fetch device config:', e)
+        this.deviceConfig = {}
+      }
+    }
+
     this._connected = true
     console.log('✅ Maestra client ready!')
+  }
+
+  /** Fetch device configuration by hardware ID */
+  async fetchDeviceConfig(hardwareId?: string): Promise<Record<string, unknown>> {
+    const hwId = hardwareId || this.config.hardwareId
+    if (!hwId) throw new Error('No hardwareId provided')
+    this.deviceConfig = await this._http.getDeviceConfig(hwId)
+    return this.deviceConfig
   }
 
   /** Disconnect from all services */

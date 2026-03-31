@@ -15,6 +15,7 @@ MaestraDiscovery::MaestraDiscovery()
     _wsUrl[0] = '\0';
     _deviceId[0] = '\0';
     _entityId[0] = '\0';
+    _deviceConfigJson[0] = '\0';
 }
 
 // ============================================================================
@@ -208,6 +209,13 @@ bool MaestraDiscovery::waitForProvisioning(const char* deviceId, unsigned long p
             if (entityId[0] != '\0') {
                 strncpy(_entityId, entityId, sizeof(_entityId) - 1);
                 _entityId[sizeof(_entityId) - 1] = '\0';
+            }
+
+            // Extract device_config if present
+            JsonObject deviceConfig = doc["device_config"];
+            if (deviceConfig.size() > 0) {
+                serializeJson(deviceConfig, _deviceConfigJson, sizeof(_deviceConfigJson));
+                Serial.println("[MaestraDiscovery] Device config received");
             }
 
             Serial.println("[MaestraDiscovery] Provisioning complete!");

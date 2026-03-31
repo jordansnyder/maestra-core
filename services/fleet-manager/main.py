@@ -33,6 +33,7 @@ from discovery_router import router as discovery_router
 from dmx_router import router as dmx_router
 from fixtures_router import router as fixtures_router
 from osc_mapping_router import router as osc_mapping_router
+from config_router import router as config_router
 from dmx_playback_engine import playback_engine
 from show_control_router import router as show_control_router, handle_show_command
 from show_scheduler import show_scheduler
@@ -64,6 +65,7 @@ app.include_router(discovery_router)
 app.include_router(dmx_router)
 app.include_router(fixtures_router)
 app.include_router(osc_mapping_router)
+app.include_router(config_router)
 app.include_router(show_control_router)
 
 

@@ -41,6 +41,7 @@ class MaestraExt:
         self._osc_port = 57120
         self._connected = False
         self._active_stream_id = None
+        self._device_config = {}
 
     # =========================================================================
     # Properties
@@ -70,6 +71,33 @@ class MaestraExt:
     def ActiveStreamId(self) -> str:
         """Get active advertised stream ID (if any)"""
         return self._active_stream_id or ""
+
+    @property
+    def DeviceConfig(self) -> dict:
+        """Get pre-provisioned device configuration"""
+        return self._device_config.copy()
+
+    def FetchDeviceConfig(self, hardware_id: str) -> dict:
+        """
+        Fetch device configuration by hardware_id from the Fleet Manager.
+        Stores the result in self.DeviceConfig.
+
+        Args:
+            hardware_id: MAC address or unique hardware identifier
+
+        Returns:
+            Configuration dict (empty dict if no config exists)
+        """
+        try:
+            import urllib.request
+            import urllib.parse
+            url = f"{self._api_url}/configs/{urllib.parse.quote(hardware_id, safe='')}/resolve"
+            with urllib.request.urlopen(url, timeout=5) as response:
+                self._device_config = json.loads(response.read().decode())
+                return self._device_config.copy()
+        except Exception as e:
+            self._set_status(f"Error fetching device config: {e}")
+            return {}
 
     # =========================================================================
     # Parameter-driven interface (used by builder COMP)
@@ -221,16 +249,19 @@ class MaestraExt:
         self._api_url = api_url
         self._fetch_initial_state()
 
-    def DiscoverAndInitialize(self, entity_slug: str, timeout: float = 5.0):
+    def DiscoverAndInitialize(self, entity_slug: str, timeout: float = 5.0,
+                              hardware_id: str = None):
         """
         Discover a Maestra server on the local network via mDNS,
         then initialize the connection using the discovered API URL.
+        If hardware_id is provided, also fetches the pre-provisioned device config.
 
         Requires the 'zeroconf' package: pip install zeroconf
 
         Args:
             entity_slug: Entity slug to bind to
             timeout: How long to wait for mDNS discovery (seconds)
+            hardware_id: Optional MAC address to fetch pre-provisioned config
 
         Returns:
             dict with discovered connection config (api_url, nats_url, etc.)
@@ -247,6 +278,11 @@ class MaestraExt:
             config = discover_maestra(timeout=timeout)
             api_url = config.get("api_url", "http://localhost:8080")
             self.Initialize(entity_slug, api_url=api_url)
+
+            # Fetch device config if hardware_id provided
+            if hardware_id:
+                self.FetchDeviceConfig(hardware_id)
+
             return config
         except TimeoutError as e:
             self._set_status(f"Discovery timed out: {e}")

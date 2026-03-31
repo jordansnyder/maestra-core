@@ -261,6 +261,11 @@ class HttpTransport:
             params["stream_id"] = stream_id
         return await self._request("GET", "/streams/subscribers", params=params)
 
+    # Device Config
+    async def get_device_config(self, hardware_id: str) -> Dict[str, Any]:
+        """Fetch pre-provisioned device configuration by hardware_id"""
+        return await self._request("GET", f"/configs/{hardware_id}/resolve")
+
 
 class MaestraClient:
     """
@@ -276,6 +281,7 @@ class MaestraClient:
         self._connected = False
         self._subscribed_entities: Dict[str, Entity] = {}
         self._client_id = self.config.client_id or f"maestra-py-{uuid.uuid4().hex[:8]}"
+        self.device_config: Dict[str, Any] = {}
 
     @classmethod
     async def discover(cls, timeout: float = 5.0) -> "MaestraClient":
@@ -331,6 +337,14 @@ class MaestraClient:
                 print(f"⚠️ MQTT connection failed: {e}")
                 self._mqtt = None
 
+        # Fetch pre-provisioned device config if hardware_id is set
+        if self.config.hardware_id:
+            try:
+                self.device_config = await self._http.get_device_config(self.config.hardware_id)
+            except Exception as e:
+                print(f"⚠️ Could not fetch device config: {e}")
+                self.device_config = {}
+
         self._connected = True
         print("✅ Maestra client ready!")
 
@@ -352,6 +366,20 @@ class MaestraClient:
     @property
     def is_connected(self) -> bool:
         return self._connected
+
+    async def fetch_device_config(self, hardware_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Fetch device configuration by hardware_id from the Fleet Manager.
+        Updates self.device_config and returns the config dict.
+
+        Args:
+            hardware_id: Hardware ID to look up. Defaults to self.config.hardware_id.
+        """
+        hw_id = hardware_id or self.config.hardware_id
+        if not hw_id:
+            raise ValueError("No hardware_id provided")
+        self.device_config = await self._http.get_device_config(hw_id)
+        return self.device_config
 
     # Entity Types
     async def get_entity_types(self) -> List[EntityType]:

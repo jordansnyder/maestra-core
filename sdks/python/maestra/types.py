@@ -15,6 +15,7 @@ class ConnectionConfig:
     mqtt_broker: Optional[str] = "localhost"
     mqtt_port: int = 1883
     client_id: Optional[str] = None
+    hardware_id: Optional[str] = None
 
 
 @dataclass

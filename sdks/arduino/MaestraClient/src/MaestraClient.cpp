@@ -84,7 +84,8 @@ void MaestraEntity::_handleMessage(JsonObject payload) {
 MaestraClient::MaestraClient(Client& networkClient)
     : _mqtt(networkClient), _port(1883), _hasCredentials(false),
       _entityCount(0), _wildcardEntityCallback(nullptr), _wildcardTypeCount(0),
-      _streamCallback(nullptr), _streamCount(0), _showPhaseCallback(nullptr) {
+      _streamCallback(nullptr), _streamCount(0), _showPhaseCallback(nullptr),
+      _hasDeviceConfig(false) {
     strcpy(_broker, "localhost");
     strcpy(_clientId, "maestra-arduino");
     strcpy(_showPhase, "idle");
@@ -160,6 +161,15 @@ bool MaestraClient::discoverAndConnect(unsigned long timeoutMs) {
 
     // Configure broker from discovery results
     setBroker(discovery.getMqttBroker(), discovery.getMqttPort());
+
+    // Copy device config if available from provisioning
+    if (discovery.hasDeviceConfig()) {
+        DeserializationError err = deserializeJson(_deviceConfigDoc, discovery.getDeviceConfigJson());
+        _hasDeviceConfig = (err == DeserializationError::Ok);
+        if (_hasDeviceConfig) {
+            Serial.println("[MaestraClient] Device config loaded from provisioning");
+        }
+    }
 
     Serial.print("[MaestraClient] Connecting to discovered broker ");
     Serial.print(discovery.getMqttBroker());
@@ -414,4 +424,17 @@ void MaestraClient::_handleMessage(char* topic, byte* payload, unsigned int leng
             }
         }
     }
+}
+
+// ============================================================================
+// Device Config
+// ============================================================================
+
+JsonObject MaestraClient::getDeviceConfig() {
+    if (_hasDeviceConfig) {
+        return _deviceConfigDoc.as<JsonObject>();
+    }
+    // Return empty object
+    static StaticJsonDocument<16> empty;
+    return empty.to<JsonObject>();
 }

@@ -7,6 +7,7 @@ export interface ConnectionConfig {
   wsUrl?: string
   mqttUrl?: string
   clientId?: string
+  hardwareId?: string
 }
 
 export interface EntityType {

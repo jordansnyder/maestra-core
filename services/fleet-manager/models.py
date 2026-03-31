@@ -347,6 +347,7 @@ class DeviceProvisionResponse(BaseModel):
     ws_url: Optional[str] = None
     entity_id: Optional[UUID] = None
     env_vars: Dict[str, Any] = Field(default_factory=dict)
+    device_config: Dict[str, Any] = Field(default_factory=dict)
 
 
 class BlockedDeviceResponse(BaseModel):
@@ -363,6 +364,38 @@ class BlockedDeviceResponse(BaseModel):
 class BlockDeviceRequest(BaseModel):
     """Request to block a device"""
     reason: Optional[str] = None
+
+
+# =============================================================================
+# Device Hardware Config Models
+# =============================================================================
+
+class DeviceHardwareConfigBase(BaseModel):
+    """Base fields for hardware-keyed device config"""
+    hardware_id: str = Field(..., min_length=1, max_length=255, description="MAC address or unique hardware identifier")
+    name: Optional[str] = Field(None, max_length=255, description="Friendly label for this config")
+    configuration: Dict[str, Any] = Field(default_factory=dict, description="Arbitrary JSON configuration")
+
+
+class DeviceHardwareConfigCreate(DeviceHardwareConfigBase):
+    """Create a new hardware config"""
+    pass
+
+
+class DeviceHardwareConfigUpdate(BaseModel):
+    """Update an existing hardware config (all fields optional)"""
+    name: Optional[str] = Field(None, max_length=255)
+    configuration: Optional[Dict[str, Any]] = None
+
+
+class DeviceHardwareConfigResponse(DeviceHardwareConfigBase):
+    """Full response model"""
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 # =============================================================================

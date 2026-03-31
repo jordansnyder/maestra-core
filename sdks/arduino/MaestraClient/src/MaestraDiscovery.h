@@ -17,6 +17,10 @@
 // Buffer sizes for discovered URLs
 #define MAESTRA_URL_BUFFER_SIZE 128
 
+#ifndef MAESTRA_JSON_BUFFER_SIZE
+#define MAESTRA_JSON_BUFFER_SIZE 1024
+#endif
+
 /**
  * MaestraDiscovery
  * Discovers Maestra services via mDNS and handles device provisioning
@@ -67,6 +71,10 @@ public:
     const char* getDeviceId()   const { return _deviceId; }
     const char* getEntityId()   const { return _entityId; }
 
+    /** Get raw device_config JSON string (populated from provisioning response) */
+    const char* getDeviceConfigJson() const { return _deviceConfigJson; }
+    bool hasDeviceConfig() const { return _deviceConfigJson[0] != '\0'; }
+
 private:
     char _apiUrl[MAESTRA_URL_BUFFER_SIZE];
     char _mqttBroker[64];
@@ -75,6 +83,7 @@ private:
     char _wsUrl[MAESTRA_URL_BUFFER_SIZE];
     char _deviceId[40];
     char _entityId[40];
+    char _deviceConfigJson[MAESTRA_JSON_BUFFER_SIZE];
 };
 
 #endif // ESP32

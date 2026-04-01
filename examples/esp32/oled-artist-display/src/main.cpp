@@ -15,6 +15,7 @@
 
 #include <WiFi.h>
 #include <SPI.h>
+#include <HTTPClient.h>
 #include <MaestraClient.h>
 #include "er_oled.h"
 
@@ -154,6 +155,57 @@ void onArtistStateChange(const char* slug, JsonObject state, JsonArray changedKe
   Serial.print("  Web:  ");    Serial.println(website);
 }
 
+// ---- HTTP fetch initial state ----
+
+void fetchInitialState() {
+  HTTPClient http;
+  String url = String("http://") + MQTT_HOST + ":8080/entities/by-slug/" + ENTITY_SLUG;
+
+  Serial.print("Fetching initial state: ");
+  Serial.println(url);
+  showStatus("Fetching state...", ENTITY_SLUG);
+
+  http.begin(url);
+  int httpCode = http.GET();
+
+  if (httpCode == 200) {
+    StaticJsonDocument<2048> doc;
+    DeserializationError err = deserializeJson(doc, http.getString());
+
+    if (!err && doc.containsKey("state")) {
+      JsonObject state = doc["state"];
+
+      if (state.containsKey("name")) {
+        strncpy(artistName, state["name"] | "", DISPLAY_COLS);
+        artistName[DISPLAY_COLS] = '\0';
+        sanitizeForDisplay(artistName);
+      }
+      if (state.containsKey("bio")) {
+        char safeBio[65];
+        strncpy(safeBio, state["bio"] | "", 64);
+        safeBio[64] = '\0';
+        sanitizeForDisplay(safeBio);
+        wordWrap(safeBio, bioLine1, bioLine2, DISPLAY_COLS);
+      }
+      if (state.containsKey("website")) {
+        strncpy(website, state["website"] | "", DISPLAY_COLS);
+        website[DISPLAY_COLS] = '\0';
+        sanitizeForDisplay(website);
+      }
+
+      displayDirty = true;
+      Serial.println("Initial state loaded");
+    } else {
+      Serial.print("JSON parse error: ");
+      Serial.println(err.c_str());
+    }
+  } else {
+    Serial.printf("HTTP error: %d\n", httpCode);
+  }
+
+  http.end();
+}
+
 // ---- WiFi ----
 
 void setupWiFi() {
@@ -210,9 +262,11 @@ void setup() {
     artistEntity->onStateChange(onArtistStateChange);
     maestra.subscribeEntity(ENTITY_SLUG);
 
-    showStatus("Waiting for data...", ENTITY_SLUG);
     Serial.print("Subscribed to entity: ");
     Serial.println(ENTITY_SLUG);
+
+    // Fetch current state immediately via HTTP
+    fetchInitialState();
   } else {
     Serial.println("MQTT connection failed");
     showStatus("MQTT failed!", "Check broker IP");

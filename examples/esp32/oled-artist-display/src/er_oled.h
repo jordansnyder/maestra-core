@@ -14,9 +14,9 @@ EastRising Technology Co.,LTD
 #define WIDTH 256/4
 #define HEIGHT 64
 
-#define OLED_DC  16
-#define OLED_RST 33
-#define OLED_CS  5
+#define OLED_DC  15   // UEXT pin 7 (HS2_CMD)
+#define OLED_RST 33   // EXT header
+#define OLED_CS  5    // UEXT pin 10 (VSPICS0)
 
 
 void er_oled_begin();

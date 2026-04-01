@@ -90,8 +90,9 @@ export function LiveOscPreview({ oscAddress }: LiveOscPreviewProps) {
                 throttleTimerRef.current = setTimeout(() => {
                   if (pendingRef.current) {
                     lastUpdateRef.current = Date.now()
-                    setMessages((prev) => [pendingRef.current!, ...prev].slice(0, MAX_MESSAGES))
+                    const queued = pendingRef.current
                     pendingRef.current = null
+                    setMessages((prev) => [queued, ...prev].slice(0, MAX_MESSAGES))
                   }
                   throttleTimerRef.current = undefined
                 }, THROTTLE_INTERVAL)

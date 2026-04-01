@@ -22,6 +22,7 @@
 
 #include <SPI.h>
 #include <HTTPClient.h>
+#include <ESPmDNS.h>
 #include <MaestraClient.h>
 #include "er_oled.h"
 
@@ -279,14 +280,64 @@ bool isNetworkConnected() {
 // ---- Discovery & provisioning ----
 
 /**
+ * Try mDNS to find Maestra automatically, fall back to MAESTRA_HOST.
+ * Returns true if API URL and MQTT broker are configured.
+ */
+bool discoverMaestraHost() {
+  showStatus("Discovering...", "Searching for Maestra");
+
+  if (MDNS.begin("esp32-oled-artist")) {
+    int found = 0;
+    // Try a few rounds of mDNS queries (5 seconds total)
+    for (int attempt = 0; attempt < 5 && found == 0; attempt++) {
+      found = MDNS.queryService("maestra", "tcp");
+      if (found == 0) delay(1000);
+    }
+
+    if (found > 0) {
+      IPAddress ip = MDNS.IP(0);
+      int port = MDNS.port(0);
+
+      snprintf(resolvedApiUrl, sizeof(resolvedApiUrl), "http://%s:%d", ip.toString().c_str(), port);
+      strncpy(resolvedMqttBroker, ip.toString().c_str(), sizeof(resolvedMqttBroker) - 1);
+      resolvedMqttPort = 1883;
+
+      // Check TXT records for explicit MQTT config
+      int numTxt = MDNS.numTxt(0);
+      for (int i = 0; i < numTxt; i++) {
+        String key = MDNS.txtKey(0, i);
+        String val = MDNS.txt(0, i);
+        if (key == "mqtt_broker") {
+          strncpy(resolvedMqttBroker, val.c_str(), sizeof(resolvedMqttBroker) - 1);
+        } else if (key == "mqtt_port") {
+          resolvedMqttPort = val.toInt();
+        } else if (key == "api_url") {
+          strncpy(resolvedApiUrl, val.c_str(), sizeof(resolvedApiUrl) - 1);
+        }
+      }
+
+      showStatus("Found via mDNS!", resolvedMqttBroker);
+      delay(1000);
+      return true;
+    }
+  }
+
+  // mDNS failed — fall back to hardcoded host
+  showStatus("mDNS: not found", "Using fallback host", MAESTRA_HOST);
+  snprintf(resolvedApiUrl, sizeof(resolvedApiUrl), "http://%s:%d", MAESTRA_HOST, API_PORT);
+  strncpy(resolvedMqttBroker, MAESTRA_HOST, sizeof(resolvedMqttBroker));
+  resolvedMqttPort = MQTT_PORT;
+  delay(1000);
+  return true;
+}
+
+/**
  * Register device with Fleet Manager and wait for admin to approve
  * and bind an entity in the Dashboard.
  */
 bool discoverAndProvision() {
-  // Build API URL from configured host
-  snprintf(resolvedApiUrl, sizeof(resolvedApiUrl), "http://%s:%d", MAESTRA_HOST, API_PORT);
-  strncpy(resolvedMqttBroker, MAESTRA_HOST, sizeof(resolvedMqttBroker));
-  resolvedMqttPort = MQTT_PORT;
+  // Resolve Maestra host (mDNS → fallback)
+  if (!discoverMaestraHost()) return false;
 
 #ifdef USE_WIFI
   // WiFi dev mode: skip provisioning, use hardcoded entity slug

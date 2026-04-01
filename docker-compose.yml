@@ -282,6 +282,7 @@ services:
     environment:
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
+      - FLEET_MANAGER_URL=http://fleet-manager:8080
       - OSC_IN_PORT=${OSC_IN_PORT:-57120}
       - OSC_OUT_PORT=${OSC_OUT_PORT:-57121}
       - OSC_TARGETS=${OSC_TARGETS:-}
@@ -296,6 +297,7 @@ services:
     depends_on:
       - nats
       - redis
+      - fleet-manager
     restart: unless-stopped
 
   # WebSocket Gateway - For browser-based SDKs

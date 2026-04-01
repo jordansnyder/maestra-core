@@ -66,7 +66,9 @@ async def fetch_mappings_from_api():
 async def reload_handler(msg):
     """Handle a hot-reload signal on maestra.config.osc.reload."""
     print("🔄 Received OSC mappings reload signal")
-    await fetch_mappings_from_api()
+    success = await fetch_mappings_from_api()
+    if not success:
+        print("⚠️  Reload failed — mappings unchanged")
 
 
 def _load_mappings_from_file():
@@ -218,6 +220,8 @@ def build_entity_state_from_mapping(address: str, args: list):
         value = args[0] if len(args) == 1 else list(args)
         return operation, slug, {"state": {state_key: value}, "source": "osc"}
 
+    print(f"⚠️  Mapping for {address} matched but no valid payload — "
+          f"state_key={state_key!r}, state_keys={state_keys!r}, args={args}")
     return None
 
 

@@ -40,6 +40,10 @@ POT_KEYS = ("pot1", "pot2", "pot3", "pot4")
 POT_LABELS = ("hue", "intensity", "height", "turbulence")
 NUM_POTS = len(POT_KEYS)
 
+# Minimum change in normalized value (0.0-1.0) required to trigger an update.
+# 0.01 ≈ 10 ADC counts out of 1023, enough to ignore analog noise/drift.
+DEADBAND = 0.01
+
 
 async def main(
     serial_port: str,
@@ -47,6 +51,7 @@ async def main(
     entity_slug: str,
     api_url: str,
     interval: float,
+    deadband: float,
 ):
     # Open serial connection to the Arduino NG
     ser = serial.Serial(serial_port, baud_rate, timeout=1)
@@ -60,7 +65,8 @@ async def main(
     entity = await client.get_entity_by_slug(entity_slug)
     print(f"Publishing to entity: {entity.name} ({entity.slug})")
 
-    last_values = [None] * NUM_POTS
+    last_values: list[float | None] = [None] * NUM_POTS
+    print(f"Deadband threshold: {deadband} (changes smaller than this are ignored)")
 
     try:
         while True:
@@ -79,11 +85,11 @@ async def main(
             except ValueError:
                 continue
 
-            # Normalize 0-1023 ADC range → 0.0-1.0 and send changed values
+            # Normalize 0-1023 ADC range → 0.0-1.0, only send if change exceeds deadband
             changed = {}
             for i, raw_value in enumerate(raw_values):
                 normalized = round(raw_value / 1023.0, 4)
-                if normalized != last_values[i]:
+                if last_values[i] is None or abs(normalized - last_values[i]) >= deadband:
                     changed[POT_KEYS[i]] = normalized
                     last_values[i] = normalized
 
@@ -115,6 +121,10 @@ if __name__ == "__main__":
     parser.add_argument("--entity-slug", required=True, help="Slug of the Maestra entity to update")
     parser.add_argument("--api-url", default="http://localhost:8080", help="Maestra API URL")
     parser.add_argument("--interval", type=float, default=0.05, help="Read interval in seconds (default: 0.05)")
+    parser.add_argument(
+        "--deadband", type=float, default=DEADBAND,
+        help=f"Minimum normalized change (0.0-1.0) to trigger an update (default: {DEADBAND})",
+    )
     args = parser.parse_args()
 
-    asyncio.run(main(args.port, args.baud, args.entity_slug, args.api_url, args.interval))
+    asyncio.run(main(args.port, args.baud, args.entity_slug, args.api_url, args.interval, args.deadband))

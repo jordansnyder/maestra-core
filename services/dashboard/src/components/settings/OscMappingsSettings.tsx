@@ -308,7 +308,7 @@ export function OscMappingsSettings() {
               )}
               <p className="text-[10px] text-slate-600 mt-1">
                 {form.keyMode === 'single'
-                  ? 'Single state key the OSC value maps to. Leave blank to pass through the entire payload.'
+                  ? 'Single state key the OSC value maps to. Leave blank to pass through (key-value pairs, JSON, or single value).'
                   : 'Comma-separated list of state keys. OSC arguments map to keys in order.'}
               </p>
             </div>

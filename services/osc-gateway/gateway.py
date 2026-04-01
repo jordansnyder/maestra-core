@@ -193,6 +193,13 @@ def build_entity_state_from_mapping(address: str, args: list):
     """
     Check if the address matches a configured mapping and build the
     NATS payload.  Returns (operation, slug, payload) or None.
+
+    Three modes:
+      - state_keys set: positional args mapped to named keys in order
+      - state_key set:  first arg (or all args) stored under that key
+      - both None:      pass-through — args forwarded using same logic as
+                        reserved /entity/update/ addresses (key-value pairs,
+                        JSON blob, or single value as "value")
     """
     mapping = osc_mappings.get(address)
     if not mapping:
@@ -219,6 +226,36 @@ def build_entity_state_from_mapping(address: str, args: list):
     if state_key and len(args) >= 1:
         value = args[0] if len(args) == 1 else list(args)
         return operation, slug, {"state": {state_key: value}, "source": "osc"}
+
+    # Pass-through mode: both state_key and state_keys are None.
+    # Forward args directly using the same formats as reserved addresses.
+    if not state_key and not state_keys and len(args) >= 1:
+        # Single JSON string arg → parse as state dict
+        if len(args) == 1 and isinstance(args[0], str):
+            try:
+                parsed = json.loads(args[0])
+                if isinstance(parsed, dict):
+                    return operation, slug, {"state": parsed, "source": "osc"}
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+        # Key-value pairs: k v k v ...
+        if len(args) >= 2 and len(args) % 2 == 0 and isinstance(args[0], str):
+            state = {}
+            for i in range(0, len(args), 2):
+                key = args[i]
+                if not isinstance(key, str):
+                    break
+                state[key] = args[i + 1]
+            if state:
+                return operation, slug, {"state": state, "source": "osc"}
+
+        # Single value fallback
+        if len(args) == 1:
+            return operation, slug, {"state": {"value": args[0]}, "source": "osc"}
+
+        # Multiple non-kv args → list
+        return operation, slug, {"state": {"values": list(args)}, "source": "osc"}
 
     print(f"⚠️  Mapping for {address} matched but no valid payload — "
           f"state_key={state_key!r}, state_keys={state_keys!r}, args={args}")

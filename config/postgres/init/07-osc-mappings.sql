@@ -13,8 +13,7 @@ CREATE TABLE IF NOT EXISTS osc_mappings (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(osc_address),
-    CHECK (NOT (state_key IS NOT NULL AND state_keys IS NOT NULL)),
-    CHECK (state_key IS NOT NULL OR state_keys IS NOT NULL)
+    CHECK (NOT (state_key IS NOT NULL AND state_keys IS NOT NULL))
 );
 
 CREATE TRIGGER update_osc_mappings_updated_at

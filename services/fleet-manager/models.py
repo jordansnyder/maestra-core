@@ -914,11 +914,9 @@ class OscMappingBase(BaseModel):
 
     @model_validator(mode='after')
     def validate_state_keys_exclusive(self):
-        """state_key and state_keys are mutually exclusive; at least one must be set"""
+        """state_key and state_keys are mutually exclusive; both None = pass-through mode"""
         if self.state_key is not None and self.state_keys is not None:
             raise ValueError("Cannot set both state_key and state_keys — use one or the other")
-        if self.state_key is None and self.state_keys is None:
-            raise ValueError("Either state_key or state_keys must be provided")
         if self.state_keys is not None and len(self.state_keys) == 0:
             raise ValueError("state_keys must not be empty")
         return self

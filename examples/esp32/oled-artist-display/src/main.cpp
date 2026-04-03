@@ -28,7 +28,7 @@
 
 // ---- Network mode ----
 // Uncomment to use WiFi with hardcoded config (skips auto-discovery)
-// #define USE_WIFI
+#define USE_WIFI
 
 #include <WiFi.h>
 #ifndef USE_WIFI
@@ -499,7 +499,15 @@ void setup() {
   // Connect MQTT
   showStatus("Connecting MQTT...", resolvedMqttBroker);
   maestra.setBroker(resolvedMqttBroker, resolvedMqttPort);
-  maestra.setClientId("esp32-oled-artist");
+
+  // Use unique client ID to avoid broker kicking duplicate connections
+  char clientId[48];
+  snprintf(clientId, sizeof(clientId), "oled-artist-%s", macAddress);
+  // Replace colons with dashes for MQTT client ID
+  for (int i = 0; clientId[i]; i++) {
+    if (clientId[i] == ':') clientId[i] = '-';
+  }
+  maestra.setClientId(clientId);
 
   if (maestra.connect()) {
     Serial.println("MQTT connected");
@@ -548,8 +556,9 @@ void loop() {
       } else {
         fetchEntityState();
       }
+      return;  // Don't delay — let loop() run keepalives immediately
     }
-    delay(5000);
+    delay(5000);  // Only delay on failed reconnect
     return;
   }
 

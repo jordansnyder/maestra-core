@@ -279,15 +279,57 @@ Maestra automatically creates a singleton entity called **DMX Lighting** (`slug:
     { "id": "uuid", "name": "Opening Show", "cue_count": 4, "fade_out_duration": 3.0, "group_id": "uuid-or-null" }
   ],
   "active_cue_id": "uuid-or-null",
-  "active_sequence_id": "uuid-or-null",
+  "active_sequence_id": "uuid-or-null-or-control-object",
   "group_playback": {
     "<group-uuid>": {
-      "active_sequence_id": "uuid-or-null",
+      "active_sequence_id": "uuid-or-null-or-control-object",
       "active_cue_id": "uuid-or-null"
     }
   }
 }
 ```
+
+### Sequence playback options
+
+`active_sequence_id` (both at the top level and inside each `group_playback` entry) accepts either a plain string UUID **or** a control object with additional playback parameters:
+
+**Plain string** — play once, hold last DMX values when the final cue completes:
+```json
+"active_sequence_id": "<sequence-uuid>"
+```
+
+**Control object** — specify loop or fade-out behavior:
+```json
+"active_sequence_id": {
+  "id": "<sequence-uuid>",
+  "loop": true
+}
+```
+
+```json
+"active_sequence_id": {
+  "id": "<sequence-uuid>",
+  "fadeout": 3.0
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `id` | string | required | UUID of the sequence to play |
+| `loop` | boolean | `false` | Repeat indefinitely once the last cue completes |
+| `fadeout` | number | omit | After the final cue, fade all dimmer/intensity channels to zero over this many seconds, then stop |
+
+**Behavior summary:**
+
+| `loop` | `fadeout` | On completion |
+|--------|-----------|---------------|
+| `false` | omitted | Last DMX values remain in place |
+| `true` | omitted | Sequence restarts from the first cue |
+| `false` | `N` seconds | Dimmer channels fade to zero over N seconds, then playback stops |
+
+> `loop` and `fadeout` are mutually exclusive — if `loop: true` is set, `fadeout` is ignored because the sequence never completes.
+
+Set `active_sequence_id` to `null` to stop playback at any time regardless of which form was used to start it.
 
 ### Ungrouped (legacy) control
 
@@ -299,10 +341,20 @@ curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
   -H "Content-Type: application/json" \
   -d '{"state": {"active_cue_id": "<cue-uuid>"}}'
 
-# Play a sequence
+# Play a sequence (plain UUID — holds last values on completion)
 curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
   -H "Content-Type: application/json" \
   -d '{"state": {"active_sequence_id": "<sequence-uuid>"}}'
+
+# Play a sequence that loops
+curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
+  -H "Content-Type: application/json" \
+  -d '{"state": {"active_sequence_id": {"id": "<sequence-uuid>", "loop": true}}}'
+
+# Play a sequence that fades out over 4 seconds when it ends
+curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
+  -H "Content-Type: application/json" \
+  -d '{"state": {"active_sequence_id": {"id": "<sequence-uuid>", "fadeout": 4.0}}}'
 
 # Stop ungrouped playback
 curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
@@ -312,17 +364,29 @@ curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
 
 ### Per-group control
 
-Use the `group_playback` field to address any group engine independently. Multiple groups can be started or stopped in a single state update:
+Use the `group_playback` field to address any group engine independently. Multiple groups can be started or stopped in a single state update. The same plain-string or control-object format applies inside each group entry:
 
 ```bash
-# Play different sequences on two groups simultaneously
+# Play different sequences on two groups simultaneously (both looping)
+curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
+  -H "Content-Type: application/json" \
+  -d '{
+    "state": {
+      "group_playback": {
+        "<group-a-uuid>": { "active_sequence_id": {"id": "<seq-uuid-A>", "loop": true} },
+        "<group-b-uuid>": { "active_sequence_id": {"id": "<seq-uuid-B>", "fadeout": 2.5} }
+      }
+    }
+  }'
+
+# Play one group with a plain UUID, another with loop
 curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
   -H "Content-Type: application/json" \
   -d '{
     "state": {
       "group_playback": {
         "<group-a-uuid>": { "active_sequence_id": "<seq-uuid-A>" },
-        "<group-b-uuid>": { "active_sequence_id": "<seq-uuid-B>" }
+        "<group-b-uuid>": { "active_sequence_id": {"id": "<seq-uuid-B>", "loop": true} }
       }
     }
   }'
@@ -494,6 +558,22 @@ All playback endpoints accept an optional `?group_id=<uuid>` query parameter to 
 ```json
 { "sequence_id": "uuid" }
 ```
+
+Optional playback parameters can be included to control loop and fade-out behavior:
+
+```json
+{ "sequence_id": "uuid", "loop": true }
+```
+
+```json
+{ "sequence_id": "uuid", "fadeout_ms": 3000.0 }
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `sequence_id` | string | required | UUID of the sequence to play |
+| `loop` | boolean | `false` | Repeat indefinitely after the final cue |
+| `fadeout_ms` | number | `null` | After the final cue, fade dimmer channels to zero over this many milliseconds, then stop |
 
 **Single-engine status response (`GET /dmx/playback/status`):**
 ```json

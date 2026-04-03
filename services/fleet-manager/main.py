@@ -457,13 +457,33 @@ async def startup_event():
                 # NATS messages may omit it — treat as "all keys changed" in that case.
                 changed_keys = event.get('changed_keys') or list(current_state.keys())
 
+                def _parse_seq_control(value):
+                    """Parse active_sequence_id which can be:
+                    - None/null  → stop
+                    - str        → play once, stop on last values
+                    - dict       → {id, loop?, fadeout?}  (fadeout in seconds)
+                    Returns (seq_id, loop, fadeout_ms).
+                    """
+                    if value is None:
+                        return None, False, None
+                    if isinstance(value, str):
+                        return value, False, None
+                    if isinstance(value, dict):
+                        seq_id = value.get('id')
+                        loop = bool(value.get('loop', False))
+                        fadeout_s = value.get('fadeout')
+                        fadeout_ms = float(fadeout_s) * 1000.0 if fadeout_s is not None else None
+                        return seq_id, loop, fadeout_ms
+                    return None, False, None
+
                 # ── Ungrouped (legacy) engine ─────────────────────────────────
                 if 'active_sequence_id' in changed_keys or 'active_cue_id' in changed_keys:
-                    active_sequence_id = current_state.get('active_sequence_id')
+                    raw_seq = current_state.get('active_sequence_id')
                     active_cue_id = current_state.get('active_cue_id')
-                    if active_sequence_id:
-                        if playback_engine.status['sequence_id'] != active_sequence_id:
-                            await playback_engine.play(active_sequence_id)
+                    seq_id, loop, fadeout_ms = _parse_seq_control(raw_seq)
+                    if seq_id:
+                        if playback_engine.status['sequence_id'] != seq_id:
+                            await playback_engine.play(seq_id, loop=loop, fadeout_ms=fadeout_ms)
                     elif active_cue_id:
                         prev_cue = playback_engine.status.get('sequence_id')
                         await playback_engine.recall_cue_fade(prev_cue, active_cue_id, 0)
@@ -479,11 +499,12 @@ async def startup_event():
                         if not isinstance(control, dict):
                             continue
                         grp_engine = engine_registry.get(group_id)
-                        seq_id = control.get('active_sequence_id')
+                        raw_seq = control.get('active_sequence_id')
                         cue_id = control.get('active_cue_id')
+                        seq_id, loop, fadeout_ms = _parse_seq_control(raw_seq)
                         if seq_id:
                             if grp_engine.status['sequence_id'] != seq_id:
-                                await grp_engine.play(seq_id)
+                                await grp_engine.play(seq_id, loop=loop, fadeout_ms=fadeout_ms)
                         elif cue_id:
                             await grp_engine.recall_cue_fade(None, cue_id, 0)
                         else:

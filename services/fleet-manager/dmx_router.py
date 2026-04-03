@@ -94,8 +94,13 @@ async def _sync_dmx_lighting_entity(db: AsyncSession) -> None:
             continue
         play_state = engine_status.get("play_state", "stopped")
         if play_state != "stopped":
+            fadeout_ms_val = engine_status.get("fadeout_ms_on_complete")
             group_playback[str(gid)] = {
-                "active_sequence_id": engine_status.get("sequence_id"),
+                "active_sequence_id": {
+                    "id": engine_status.get("sequence_id"),
+                    "loop": engine_status.get("loop", False),
+                    **({"fadeout": fadeout_ms_val / 1000.0} if fadeout_ms_val is not None else {}),
+                },
                 "active_cue_id": None,
             }
 
@@ -1716,6 +1721,8 @@ async def remove_cue_from_sequence(
 
 class PlaybackPlayRequest(BaseModel):
     sequence_id: str
+    loop: bool = False
+    fadeout_ms: Optional[float] = None
 
 
 class PlaybackFadeOutRequest(BaseModel):
@@ -1765,7 +1772,7 @@ async def update_playback_config(data: PlaybackConfigUpdate):
 async def playback_play(data: PlaybackPlayRequest, group_id: Optional[str] = None):
     """Start sequence playback. Pass group_id to target a specific group's engine."""
     from dmx_playback_engine import engine_registry
-    ok = await engine_registry.get(group_id).play(data.sequence_id)
+    ok = await engine_registry.get(group_id).play(data.sequence_id, loop=data.loop, fadeout_ms=data.fadeout_ms)
     if not ok:
         raise HTTPException(status_code=404, detail="Sequence not found or has no cue placements")
     return {"status": "playing", "group_id": group_id}

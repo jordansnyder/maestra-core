@@ -113,6 +113,7 @@ class DMXGroupEngine:
         self._paused_elapsed: float = 0.0
         self._last_dmx_send: float = 0.0
         self._loop: bool = False
+        self._fadeout_ms_on_complete: Optional[float] = None
         self._progress: float = 0.0
         self._hold_progress: float = 0.0
         self._fade_progress: Optional[float] = None
@@ -142,6 +143,7 @@ class DMXGroupEngine:
             "loop": self._loop,
             "fade_progress": self._fade_progress,
             "interval_ms": round(self._send_interval * 1000),
+            "fadeout_ms_on_complete": self._fadeout_ms_on_complete,
         }
 
     async def load_settings(self) -> None:
@@ -178,7 +180,7 @@ class DMXGroupEngine:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    async def play(self, sequence_id: str) -> bool:
+    async def play(self, sequence_id: str, loop: bool = False, fadeout_ms: Optional[float] = None) -> bool:
         await self._cancel_tasks()
         loaded = await self._load_sequence(sequence_id)
         if not loaded:
@@ -192,6 +194,8 @@ class DMXGroupEngine:
         self._cue_index = 0
         self._phase = 'transitioning' if first_transition > 0 else 'holding'
         self._play_state = 'playing'
+        self._loop = loop
+        self._fadeout_ms_on_complete = fadeout_ms
         self._phase_start = asyncio.get_event_loop().time()
         self._paused_elapsed = 0.0
         self._last_dmx_send = 0.0
@@ -403,7 +407,10 @@ class DMXGroupEngine:
                         self._paused_elapsed = 0.0
                         self._last_dmx_send = 0.0
                     else:
-                        # Sequence complete — clear entity IDs and stop (lights stay at last cue)
+                        # Sequence complete — stop tick loop; lights stay at last cue unless
+                        # fadeout was configured, in which case kick off the fade background task.
+                        if self._fadeout_ms_on_complete is not None:
+                            fixtures = list(self._loaded[self._cue_index]['fixtures']) if self._loaded else []
                         self._play_state = 'stopped'
                         self._sequence_id = None
                         self._loaded = []
@@ -413,6 +420,10 @@ class DMXGroupEngine:
                         await self._set_dmx_lighting_active(
                             active_sequence_id=None, active_cue_id=None
                         )
+                        if self._fadeout_ms_on_complete is not None and fixtures:
+                            self._fade_task = asyncio.create_task(
+                                self._run_fade_out(fixtures, self._fadeout_ms_on_complete)
+                            )
                 else:
                     self._cue_index = next_idx
                     self._phase = 'transitioning'

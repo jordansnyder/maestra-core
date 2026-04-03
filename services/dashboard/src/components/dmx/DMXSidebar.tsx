@@ -88,6 +88,7 @@ interface DMXSidebarProps {
   openSequencesSignal?: number
   availableCues: DMXCue[]
   onCreateSequence: (groupId?: string) => void
+  onAdjustFixture?: (fixture: DMXFixture) => void
 }
 
 type ActiveSection = 'nodes' | 'fixtures' | 'groups' | 'cues' | 'sequences'
@@ -98,7 +99,7 @@ export function DMXSidebar({
   cues, activeCueId, editingCueId, cueFadeProgress, onRecallCue, onEnterEditCue, onExitEditCue, onRenameCue, onDeleteCue, onReorderCues, onOpenCues, onSaveCue, onUpdateCue, updateCueLoading,
   sequences, getStatusForSeq, activeGroupIds, onPlaySequence, onPauseSequence, onStopSequence, onRenameSequence, onDeleteSequence,
   onReorderSequences, onAddCueToSequence, onReorderSequenceCues, onUpdatePlacement, onRemoveCueFromSequence,
-  onOpenSequences, openSequencesSignal, availableCues, onToggleLoop, onFadeOut, onBlackout, onCreateSequence,
+  onOpenSequences, openSequencesSignal, availableCues, onToggleLoop, onFadeOut, onBlackout, onCreateSequence, onAdjustFixture,
 }: DMXSidebarProps) {
   const SESSION_KEY = 'dmx-sidebar-section'
   const [active, setActive] = useState<ActiveSection>(() => {
@@ -263,7 +264,7 @@ export function DMXSidebar({
 
   return (
     <>
-    <aside className="w-[295px] shrink-0 bg-slate-900 border-l border-slate-800 flex flex-col overflow-hidden">
+    <aside className="w-full md:w-sidebar-dmx md:shrink-0 bg-slate-900 md:border-l border-slate-800 flex flex-col overflow-hidden">
 
       {/* ── Art-Net Nodes section ───────────────────────────────────── */}
       <div className="flex flex-col shrink-0" style={{ transition: 'flex 350ms cubic-bezier(0.4,0,0.2,1)' }}>
@@ -510,21 +511,30 @@ export function DMXSidebar({
                                 {/* Row 1: grip · name · actions */}
                                 <div className="flex items-center gap-1">
                                   <GripVertical className="w-3 h-3 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
-                                  <div className="text-xs font-medium text-slate-200 truncate flex-1">{fixture.label || fixture.name}</div>
-                                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="text-xs font-medium text-slate-200 truncate flex-1">{fixture.name}</div>
+                                  {/* Action buttons: always visible on mobile, hover-only on desktop */}
+                                  <div className="flex items-center gap-1 shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); onAdjustDMX(); onSelect(fixture.id) }}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        if (onAdjustFixture) {
+                                          onAdjustFixture(fixture)
+                                        } else {
+                                          onSelect(fixture.id)
+                                          onAdjustDMX()
+                                        }
+                                      }}
                                       title="Adjust DMX channels"
-                                      className="text-slate-600 hover:text-blue-400 transition-colors"
+                                      className="text-slate-600 hover:text-blue-400 transition-colors p-0.5"
                                     >
-                                      <SlidersHorizontal className="w-3 h-3" />
+                                      <SlidersHorizontal className="w-3.5 h-3.5" />
                                     </button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); onEdit(fixture) }}
                                       title="Edit fixture"
-                                      className="text-slate-600 hover:text-slate-300 transition-colors"
+                                      className="text-slate-600 hover:text-slate-300 transition-colors p-0.5"
                                     >
-                                      <Pencil className="w-3 h-3" />
+                                      <Pencil className="w-3.5 h-3.5" />
                                     </button>
                                   </div>
                                 </div>

@@ -502,22 +502,22 @@ export default function DMXPage() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-900 border-b border-slate-800 shrink-0">
-        <div className="flex items-center gap-2">
-          <Zap className="w-4 h-4 text-amber-400" />
-          <span className="text-sm font-semibold text-white">DMX Lighting</span>
-          <span className="text-xs text-slate-600">
+      <div className="flex items-center justify-between px-3 md:px-4 py-2.5 bg-slate-900 border-b border-slate-800 shrink-0 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+          <span className="text-sm font-semibold text-white shrink-0">DMX Lighting</span>
+          <span className="text-xs text-slate-600 hidden sm:inline">
             {fixtures.length} fixture{fixtures.length !== 1 ? 's' : ''} · {nodes.length} node{nodes.length !== 1 ? 's' : ''}
           </span>
           {syncStatus && (
-            <span className="text-xs text-slate-600 ml-2 pl-2 border-l border-slate-800">
+            <span className="text-xs text-slate-600 ml-2 pl-2 border-l border-slate-800 hidden lg:inline">
               OFL synced {formatRelativeTime(syncStatus.ran_at)}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {actionError && (
-            <span className="text-xs text-red-400">{actionError}</span>
+            <span className="text-xs text-red-400 hidden sm:inline">{actionError}</span>
           )}
 
           {/* DMX Pause / Resume / Clear */}
@@ -525,34 +525,34 @@ export default function DMXPage() {
             <button
               onClick={handleTogglePause}
               disabled={pauseLoading}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+              className={`flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
                 isPaused
                   ? 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30'
                   : 'bg-slate-800 text-slate-400 hover:text-slate-200'
               }`}
             >
               {isPaused
-                ? <><Play className="w-3 h-3" /> Resume Listening</>
-                : <><Pause className="w-3 h-3" /> Pause</>
+                ? <><Play className="w-3 h-3" /><span className="hidden sm:inline ml-1">Resume</span></>
+                : <><Pause className="w-3 h-3" /><span className="hidden sm:inline ml-1">Pause</span></>
               }
             </button>
             {isPaused && (
-              <>
-                <button
-                  onClick={() => setShowClearConfirm(true)}
-                  disabled={clearLoading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400 bg-slate-800 hover:bg-red-900/30 hover:text-red-300 transition-colors disabled:opacity-50"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  Clear
-                </button>
-              </>
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                disabled={clearLoading}
+                className="flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 text-xs font-medium text-red-400 bg-slate-800 hover:bg-red-900/30 hover:text-red-300 transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span className="hidden sm:inline">Clear</span>
+              </button>
             )}
           </div>
+
+          {/* Paused badge — icon-only on mobile */}
           {isPaused && (
-            <span className="flex items-center gap-1.5 text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1.5 rounded-lg">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 md:px-2.5 py-1.5 rounded-lg">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
-              External signals paused
+              <span className="hidden md:inline">External signals paused</span>
             </span>
           )}
 
@@ -561,14 +561,14 @@ export default function DMXPage() {
             onClick={() => playbackApi.blackout().catch(() => {})}
             onDoubleClick={(e) => { e.preventDefault(); handleBlackoutAndPause() }}
             title="Blackout — double-click to blackout and pause"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-700 bg-slate-800 text-slate-400 hover:text-yellow-300 hover:border-yellow-700/50 hover:bg-yellow-900/20 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-700 bg-slate-800 text-slate-400 hover:text-yellow-300 hover:border-yellow-700/50 hover:bg-yellow-900/20 transition-colors"
           >
             <ZapOff className="w-3 h-3" />
-            Blackout
+            <span className="hidden sm:inline">Blackout</span>
           </button>
 
-          {/* Node scale picker */}
-          <div className="flex items-center rounded-lg overflow-hidden border border-slate-700">
+          {/* Node scale picker — desktop only (no canvas on mobile) */}
+          <div className="hidden md:flex items-center rounded-lg overflow-hidden border border-slate-700">
             {NODE_SCALES.map((scale) => (
               <button
                 key={scale.label}
@@ -588,7 +588,8 @@ export default function DMXPage() {
 
       {/* Canvas + sidebar */}
       <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 min-w-0">
+        {/* Canvas — hidden on mobile */}
+        <div className="hidden md:block flex-1 min-w-0">
           <DMXCanvas
             fixtures={fixtures}
             nodes={nodes}
@@ -668,13 +669,17 @@ export default function DMXPage() {
           openSequencesSignal={openSequencesSignal}
           availableCues={cues}
           onCreateSequence={handleCreateSequence}
+          onAdjustFixture={(fixture) => {
+            setSelectedIds(new Set([fixture.id]))
+            setShowDMXAdjust(true)
+          }}
         />
       </div>
 
       {/* Add Node Modal */}
       {showAddNode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+        <div className="modal-backdrop">
+          <div className="modal-panel max-w-lg">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <Network className="w-4 h-4 text-blue-400" />
@@ -699,8 +704,8 @@ export default function DMXPage() {
 
       {/* Edit Node Modal */}
       {editingNode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+        <div className="modal-backdrop">
+          <div className="modal-panel max-w-lg">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <Network className="w-4 h-4 text-blue-400" />
@@ -868,8 +873,8 @@ export default function DMXPage() {
 
       {/* Delete Sequence Confirmation */}
       {deleteSequenceTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+        <div className="modal-backdrop">
+          <div className="modal-panel max-w-sm">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800">
               <div className="w-8 h-8 rounded-full bg-red-900/40 border border-red-800/50 flex items-center justify-center shrink-0">
                 <Trash2 className="w-4 h-4 text-red-400" />
@@ -894,8 +899,8 @@ export default function DMXPage() {
 
       {/* Clear DMX Confirmation */}
       {showClearConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+        <div className="modal-backdrop">
+          <div className="modal-panel max-w-sm">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800">
               <div className="w-8 h-8 rounded-full bg-red-900/40 border border-red-800/50 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-4 h-4 text-red-400" />

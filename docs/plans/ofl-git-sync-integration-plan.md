@@ -139,7 +139,7 @@ Because Maestra must work offline at venues, fixture data cannot be fetched at r
 
 ```bash
 # From maestra-core project root
-git submodule add https://github.com/OpenLightingProject/open-fixture-library.git vendor/ofl
+git submodule add -b master https://github.com/aarongeiser/open-fixture-library.git vendor/ofl
 git submodule update --init --depth 1
 ```
 

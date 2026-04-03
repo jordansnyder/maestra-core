@@ -190,7 +190,6 @@ class DMXGroupUpdate(BaseModel):
 
 class DMXFixtureCreate(BaseModel):
     name: str
-    label: Optional[str] = None
     node_id: UUID
     universe: int
     start_channel: int = Field(..., ge=1, le=512)
@@ -212,7 +211,6 @@ class DMXFixtureCreate(BaseModel):
 
 class DMXFixtureUpdate(BaseModel):
     name: Optional[str] = None
-    label: Optional[str] = None
     node_id: Optional[UUID] = None
     universe: Optional[int] = None
     start_channel: Optional[int] = Field(None, ge=1, le=512)
@@ -282,7 +280,6 @@ def _row_to_fixture(row) -> dict:
     return {
         "id": str(row.id),
         "name": row.name,
-        "label": row.label,
         "ofl_manufacturer": getattr(row, "ofl_manufacturer", None),
         "ofl_model": getattr(row, "ofl_model", None),
         "node_id": str(row.node_id),
@@ -793,11 +790,11 @@ async def create_fixture(data: DMXFixtureCreate, db: AsyncSession = Depends(get_
 
     await db.execute(text("""
         INSERT INTO dmx_fixtures (
-            id, name, label, node_id, universe,
+            id, name, node_id, universe,
             start_channel, channel_count, fixture_mode, channel_map,
             entity_id, ofl_fixture_id, group_id, position_x, position_y, sort_order, metadata
         ) VALUES (
-            :id, :name, :label, :node_id, :universe,
+            :id, :name, :node_id, :universe,
             :start_channel, :channel_count, :fixture_mode, CAST(:channel_map AS jsonb),
             :entity_id, :ofl_fixture_id, :group_id, :position_x, :position_y,
             COALESCE((SELECT MAX(sort_order) + 1 FROM dmx_fixtures), 0),
@@ -806,7 +803,6 @@ async def create_fixture(data: DMXFixtureCreate, db: AsyncSession = Depends(get_
     """), {
         "id": fixture_id,
         "name": data.name,
-        "label": data.label,
         "node_id": str(data.node_id),
         "universe": data.universe,
         "start_channel": data.start_channel,

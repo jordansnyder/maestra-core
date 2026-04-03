@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { DMXFixture, ChannelMapping } from '@/lib/types'
-import { X, SlidersHorizontal, RotateCcw, ChevronUp, ChevronDown, Undo2 } from '@/components/icons'
+import { X, SlidersHorizontal, RotateCcw, ChevronUp, ChevronDown, Undo2, Move, Crosshair } from '@/components/icons'
 import { entitiesApi } from '@/lib/api'
 import { useWebSocket } from '@/hooks/useWebSocket'
 
@@ -35,13 +35,180 @@ interface DMXChannelModalProps {
   onDMXChannelChange?: () => void
 }
 
+// ── Pan/Tilt Joystick ─────────────────────────────────────────────────────────
+
+interface PanTiltJoystickProps {
+  panValue: number
+  tiltValue: number
+  padSize: number
+  onChange: (pan: number, tilt: number) => void
+}
+
+function PanTiltJoystick({ panValue, tiltValue, padSize, onChange }: PanTiltJoystickProps) {
+  const padRef = useRef<HTMLDivElement>(null)
+  const isDragging = useRef(false)
+  // Keep a stable ref to onChange so event listeners don't go stale
+  const onChangeRef = useRef(onChange)
+  useEffect(() => { onChangeRef.current = onChange }, [onChange])
+
+  const getValues = useCallback((clientX: number, clientY: number) => {
+    if (!padRef.current) return { pan: 0, tilt: 0 }
+    const rect = padRef.current.getBoundingClientRect()
+    const pan = Math.round(Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) * 255)
+    const tilt = Math.round(Math.max(0, Math.min(1, (clientY - rect.top) / rect.height)) * 255)
+    return { pan, tilt }
+  }, [])
+
+  // Mouse: track drag globally so fast moves don't escape the pad
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!isDragging.current) return
+      const { pan, tilt } = getValues(e.clientX, e.clientY)
+      onChangeRef.current(pan, tilt)
+    }
+    const onUp = () => { isDragging.current = false }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [getValues])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    isDragging.current = true
+    const { pan, tilt } = getValues(e.clientX, e.clientY)
+    onChangeRef.current(pan, tilt)
+  }, [getValues])
+
+  // Touch: add imperatively with { passive: false } so preventDefault works
+  useEffect(() => {
+    const el = padRef.current
+    if (!el) return
+    const onTouchStart = (e: TouchEvent) => {
+      e.preventDefault()
+      const t = e.touches[0]
+      const { pan, tilt } = getValues(t.clientX, t.clientY)
+      onChangeRef.current(pan, tilt)
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault()
+      const t = e.touches[0]
+      const { pan, tilt } = getValues(t.clientX, t.clientY)
+      onChangeRef.current(pan, tilt)
+    }
+    el.addEventListener('touchstart', onTouchStart, { passive: false })
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+    }
+  }, [getValues])
+
+  const dotLeft = `${(panValue / 255) * 100}%`
+  const dotTop = `${(tiltValue / 255) * 100}%`
+
+  return (
+    <div className="flex flex-col items-center gap-4">
+      {/* Pad */}
+      <div
+        ref={padRef}
+        onMouseDown={handleMouseDown}
+        className="relative rounded-xl border border-slate-700 bg-slate-800/80 cursor-crosshair select-none touch-none overflow-hidden"
+        style={{ width: padSize, height: padSize }}
+      >
+        {/* Grid — thirds */}
+        {[1, 2].map((n) => (
+          <div key={`h${n}`}
+            className="absolute left-0 right-0 border-t border-slate-700/40 pointer-events-none"
+            style={{ top: `${(n / 3) * 100}%` }}
+          />
+        ))}
+        {[1, 2].map((n) => (
+          <div key={`v${n}`}
+            className="absolute top-0 bottom-0 border-l border-slate-700/40 pointer-events-none"
+            style={{ left: `${(n / 3) * 100}%` }}
+          />
+        ))}
+
+        {/* Center crosshair */}
+        <div className="absolute top-1/2 left-0 right-0 border-t border-slate-600/60 pointer-events-none" />
+        <div className="absolute left-1/2 top-0 bottom-0 border-l border-slate-600/60 pointer-events-none" />
+
+        {/* Position dot with ring — container sized to ring, flex-centers the dot */}
+        <div
+          className="absolute pointer-events-none flex items-center justify-center rounded-full bg-blue-500/20"
+          style={{ width: 32, height: 32, left: dotLeft, top: dotTop, transform: 'translate(-50%, -50%)' }}
+        >
+          <div className="w-5 h-5 rounded-full bg-blue-500 border-2 border-white shadow-lg shadow-blue-500/40" />
+        </div>
+
+        {/* Axis labels */}
+        <div className="absolute bottom-1.5 left-0 right-0 flex justify-between px-2 pointer-events-none">
+          <span className="text-[9px] text-slate-600 font-mono">PAN 0</span>
+          <span className="text-[9px] text-slate-500 font-mono uppercase tracking-widest">← pan →</span>
+          <span className="text-[9px] text-slate-600 font-mono">255</span>
+        </div>
+        <div className="absolute left-1.5 top-0 bottom-0 flex flex-col justify-between py-5 pointer-events-none">
+          <span className="text-[9px] text-slate-600 font-mono" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>0</span>
+          <span className="text-[9px] text-slate-500 font-mono" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>TILT</span>
+          <span className="text-[9px] text-slate-600 font-mono" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>255</span>
+        </div>
+      </div>
+
+      {/* Value readout + center button */}
+      <div className="flex items-center gap-6">
+        <div className="text-center min-w-[48px]">
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider">Pan</div>
+          <div className="text-sm text-blue-400 font-mono font-semibold tabular-nums">{panValue}</div>
+        </div>
+        <button
+          onClick={() => onChangeRef.current(127, 127)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 bg-slate-800 hover:bg-slate-700 hover:text-white border border-slate-700 transition-colors"
+          title="Center (127, 127)"
+        >
+          <Crosshair className="w-3.5 h-3.5" />
+          Center
+        </button>
+        <div className="text-center min-w-[48px]">
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider">Tilt</div>
+          <div className="text-sm text-blue-400 font-mono font-semibold tabular-nums">{tiltValue}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Main modal ────────────────────────────────────────────────────────────────
+
 export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXChannelModalProps) {
   const primary = fixtures[0]
   const channelMap = primary?.channel_map ?? {}
   const channels = Object.entries(channelMap).sort(([, a], [, b]) => a.offset - b.offset)
 
+  // Detect coarse pan/tilt channels (exclude fine channels)
+  const panKey = channels.find(([k, ch]) => {
+    const lbl = ((ch as ChannelMapping).label ?? k).toLowerCase()
+    return (k === 'pan' || lbl === 'pan') && !k.includes('fine')
+  })?.[0]
+  const tiltKey = channels.find(([k, ch]) => {
+    const lbl = ((ch as ChannelMapping).label ?? k).toLowerCase()
+    return (k === 'tilt' || lbl === 'tilt') && !k.includes('fine')
+  })?.[0]
+  const hasPanTilt = !!(panKey && tiltKey)
+
   const [values, setValues] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
+  const [isMobile, setIsMobile] = useState(false)
+  const [viewMode, setViewMode] = useState<'sliders' | 'joystick'>('sliders')
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   // Snapshot of state at the time the panel opened — used by Cancel & Reset
@@ -95,7 +262,7 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
     if (!lastMessage) return
     const event = (lastMessage.data ?? {}) as Record<string, unknown>
     if (event.type !== 'state_changed') return
-    // Ignore updates we generated ourselves (slider moves)
+    // Ignore updates we generated ourselves (slider/joystick moves)
     if (event.source === 'dashboard-dmx' || event.source === 'dmx_panel') return
     if (!event.entity_id || !fixtureEntityIds.has(event.entity_id as string)) return
     const incoming = (event.current_state ?? {}) as Record<string, unknown>
@@ -145,6 +312,11 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
     }, 50)
   }, [fixtures, onDMXChannelChange])
 
+  const handleJoystickChange = useCallback((pan: number, tilt: number) => {
+    if (panKey) handleChange(panKey, pan)
+    if (tiltKey) handleChange(tiltKey, tilt)
+  }, [panKey, tiltKey, handleChange])
+
   const handleCancelAndReset = useCallback(() => {
     const snapshot = initialSnapshot.current
     if (!snapshot) { onClose(); return }
@@ -177,24 +349,33 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
     return () => document.removeEventListener('keydown', handler)
   }, [handleCancelAndReset])
 
+  const padSize = isMobile ? Math.min(280, (typeof window !== 'undefined' ? window.innerWidth : 375) - 64) : 240
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start pointer-events-none" style={{ paddingTop: '3rem' }}>
-      {/* Darkened/blurred backdrop covering canvas area only */}
+    <div
+      className="fixed inset-0 z-50 flex items-center pointer-events-none"
+      style={isMobile ? { alignItems: 'flex-end' } : { alignItems: 'flex-start', paddingTop: '3rem' }}
+    >
+      {/* Backdrop — full screen on mobile, canvas-area only on desktop */}
       <div
         className="absolute inset-0 pointer-events-auto bg-black/60 backdrop-blur-sm"
-        style={{ left: '14rem', right: '16rem' }}
+        style={isMobile ? {} : { left: 'var(--sidebar-nav-width)', right: 'var(--sidebar-dmx-width)' }}
         onClick={onClose}
       />
 
-      {/* Modal — inset within left nav (w-56=14rem) and right DMX sidebar (w-64=16rem) */}
+      {/* Modal — bottom sheet on mobile, canvas-inset on desktop */}
       <div
-        className="relative pointer-events-auto flex flex-col bg-slate-900 border border-slate-700 rounded-xl shadow-2xl"
-        style={{
-          marginLeft: 'calc(14rem + 16px)',
-          marginRight: 'calc(16rem + 16px)',
-          maxHeight: '70vh',
-          flex: 1,
-        }}
+        className="relative pointer-events-auto flex flex-col bg-slate-900 border border-slate-700 shadow-2xl"
+        style={isMobile
+          ? { width: '100%', maxHeight: '85vh', borderRadius: '1rem 1rem 0 0', borderBottom: 'none' }
+          : {
+              marginLeft: 'calc(var(--sidebar-nav-width) + 16px)',
+              marginRight: 'calc(var(--sidebar-dmx-width) + 16px)',
+              maxHeight: '70vh',
+              flex: 1,
+              borderRadius: '0.75rem',
+            }
+        }
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -216,13 +397,40 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Pan/Tilt toggle — only shown when fixture has both channels */}
+            {hasPanTilt && !loading && (
+              <div className="flex items-center rounded-lg bg-slate-800 border border-slate-700 p-0.5">
+                <button
+                  onClick={() => setViewMode('sliders')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-colors ${
+                    viewMode === 'sliders'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-3 h-3" />
+                  <span className="hidden sm:inline">Channels</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('joystick')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-colors ${
+                    viewMode === 'joystick'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Move className="w-3 h-3" />
+                  <span className="hidden sm:inline">Pan·Tilt</span>
+                </button>
+              </div>
+            )}
             <button
               onClick={handleZeroAll}
               title="Zero all channels"
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-slate-400 bg-slate-800 hover:bg-slate-700 hover:text-white transition-colors"
             >
               <RotateCcw className="w-3 h-3" />
-              Zero All
+              <span className="hidden sm:inline">Zero All</span>
             </button>
             <button
               onClick={handleCancelAndReset}
@@ -230,7 +438,7 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-slate-400 bg-slate-800 hover:bg-red-900/60 hover:text-red-300 hover:border-red-700/50 border border-transparent transition-colors"
             >
               <Undo2 className="w-3 h-3" />
-              Cancel & Reset
+              <span className="hidden sm:inline">Cancel & Reset</span>
             </button>
             <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
               <X className="w-4 h-4" />
@@ -238,8 +446,8 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
           </div>
         </div>
 
-        {/* Sliders */}
-        <div className="flex-1 overflow-x-auto overflow-y-hidden px-5 py-4">
+        {/* Body */}
+        <div className={`flex-1 overflow-auto px-5 py-4 ${viewMode === 'joystick' ? 'flex items-center justify-center' : 'overflow-x-auto overflow-y-hidden'}`}>
           {loading ? (
             <div className="h-full flex items-center justify-center">
               <span className="text-sm text-slate-600">Loading…</span>
@@ -250,6 +458,13 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
                 No channel map — select a fixture mode when adding the fixture
               </span>
             </div>
+          ) : viewMode === 'joystick' && hasPanTilt && panKey && tiltKey ? (
+            <PanTiltJoystick
+              panValue={values[panKey] ?? 127}
+              tiltValue={values[tiltKey] ?? 127}
+              padSize={padSize}
+              onChange={handleJoystickChange}
+            />
           ) : (
             <div className="flex gap-5 h-full items-start min-w-max">
               {channels.map(([key, ch]) => {

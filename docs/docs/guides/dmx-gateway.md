@@ -103,10 +103,28 @@ Each fixture node shows:
 - Click a fixture to select it
 - Shift-click fixtures of the same OFL model + universe to multi-select
 - Click empty canvas to deselect all
+- Double-click a fixture to open the DMX Adjust modal directly
+
+**Group mode (when a group is selected in the Groups tab):**
+
+The canvas switches into group assignment mode. Fixtures render differently based on their group membership:
+
+| State | Visual |
+|---|---|
+| In the selected group | Bright colored ring with glow |
+| Not in any group (eligible) | Faint dashed ring |
+| In a different group | Dimmed, cursor shows not-allowed |
+
+Shift-click any eligible or in-group fixture to toggle its membership. Ineligible fixtures (in a different group) cannot be shift-clicked.
+
+When viewing the Cues or Sequences tab, the canvas shows the same group highlight for the selected group context (read-only — shift-click assignment is only active in the Groups tab).
+
+**Multi-select actions:**
+- Select multiple fixtures to reveal an **Adjust DMX** button in the top-center of the canvas
+- All selected fixtures are adjusted simultaneously
 
 **Context menu (right-click):**
 - Edit fixture settings
-- Copy fixture (duplicates with auto-incremented name)
 - Adjust DMX channels (opens the channel slider modal)
 - Delete fixture
 
@@ -114,59 +132,98 @@ Each fixture node shows:
 
 | Control | Description |
 |---------|-------------|
-| **Pause / Resume Listening** | Pauses all external entity state sources from driving DMX output. Manual Adjust DMX sliders and cue/sequence playback still work when paused. |
+| **Pause / Resume Listening** | Pauses all external entity state sources from driving DMX output. Manual Adjust DMX sliders, cue recall, and sequence playback continue to work while paused. |
 | **Clear** | *(only visible when paused)* Zeros all DMX channel values across every fixture and universe immediately. Requires confirmation. |
+| **Blackout** | Instantly zeros all DMX channels across all universes without pausing. Double-click to blackout and pause simultaneously. |
 | **S / M / L** | Node size picker — persisted in localStorage. |
 
 When external signals are paused, an amber **"External signals paused"** badge appears in the toolbar as a persistent reminder.
 
+Recalling a cue while paused automatically resumes output first, since cue recall is an intentional fire action.
+
 #### Right Sidebar
 
-The sidebar has three collapsible sections:
+The sidebar has five collapsible tabs:
 
-**Nodes & Fixtures**
+**Art-Net Nodes**
 
-Lists all Art-Net nodes grouped by universe. Each node shows its IP address and universe labels. Fixtures appear beneath their parent node, color-coded by universe. You can:
-- Drag fixtures and nodes to reorder them
+Lists all configured Art-Net nodes. Each node shows its IP address and universe labels. You can drag to reorder, click the edit icon to open the node editor, or click **+ Add Node** at the top to add another.
+
+**Fixtures**
+
+Lists all fixtures, color-coded by universe. You can:
+- Drag fixtures to reorder them
 - Click a fixture to select it on the canvas
+- Filter by universe using the dropdown
 - Click the edit icon to open the fixture editor
+
+**Groups**
+
+Groups (also called layers) let you organize fixtures, cues, and sequences into independent playback lanes. Each group has its own playback engine — sequences in different groups run simultaneously without interfering with each other.
+
+| Action | How |
+|--------|-----|
+| Create a group | Click **+ New Group**, enter a name, pick a color |
+| Select a group | Click the group row — the canvas highlights which fixtures are in the group |
+| Assign fixtures to a group | Select the group, then **shift-click** fixtures on the canvas |
+| Remove a fixture from a group | Select the group, shift-click the fixture again (toggles) |
+| Rename / recolor a group | Click the pencil icon on the group row |
+| Delete a group | Click the trash icon — fixtures and cues are unlinked, not deleted |
+
+While a group is selected, fixture nodes on the canvas render in three states:
+
+| Canvas state | Meaning |
+|---|---|
+| Bright colored ring + glow | In this group |
+| Faint dashed ring | Unassigned — eligible to add |
+| Dimmed, no-drop cursor | Belongs to another group — cannot be shift-clicked |
+
+Selecting **All** at the top of the group list clears the selection and shows the full canvas without any highlighting.
+
+A green pulse indicator appears on each group row whenever that group has an active sequence engine running, so you can see what's playing across all groups at a glance.
 
 **Cues**
 
-Cues are snapshots of all linked fixture states at a moment in time.
+Cues are snapshots of all linked fixture states at a moment in time. Cues can optionally belong to a group.
 
 | Action | How |
 |--------|-----|
-| Save current state as cue | Click **+ Save Cue** at the bottom of the Cues panel |
+| Save current state as cue | Pause signals first, then click **+ Save Cue** at the top of the Cues panel |
 | Recall a cue | Click the cue row — a fade-progress bar shows cross-fade progress |
-| Recall with custom fade | Click the cue fade icon and set a duration (seconds), then click Recall |
-| Edit a cue (update snapshot) | Click the pencil icon → adjust DMX sliders → click **Save** |
-| Rename a cue | Double-click the cue name or click the rename icon |
+| Recall with custom fade | Set the **Fade** duration (seconds) at the top of the panel, then click any cue |
+| Edit a cue (update snapshot) | Click the pencil icon → adjust DMX sliders → click **Update Cue** |
+| Rename a cue | Click the rename icon on the cue row |
 | Reorder cues | Drag the handle on the left of each cue row |
 | Delete a cue | Click the trash icon on the cue row |
 
-The currently active cue is highlighted. Moving any DMX slider while not in Edit Mode clears the active cue highlight.
+The group context pill bar at the top of the Cues section filters the cue list to a specific group. Clicking **All** shows all cues across all groups. The canvas reflects the selected group context even while browsing cues.
+
+The currently active cue is highlighted in amber. Moving any DMX slider while not in Edit Mode clears the active cue highlight.
 
 **Sequences**
 
-Sequences chain cues together for automated playback with configurable transitions and hold durations.
+Sequences chain cues together for automated playback with configurable transitions and hold durations. Each sequence belongs to a group (or is ungrouped), and sequences in different groups play simultaneously on independent engines.
 
 | Action | How |
 |--------|-----|
-| Create sequence | Click **+ New Sequence** |
-| Add cue to sequence | Open the sequence, click **+ Add Cue**, pick from the list |
+| Create sequence | Click **+** next to the Sequences header |
+| Add cue to sequence | Open the sequence, click **+ Add Cue**, pick from the list (filtered to the sequence's group) |
 | Set transition time | Click the transition field on a cue placement row (seconds) |
-| Set hold duration | Click the hold field on a cue placement row (seconds, `0` = loop immediately) |
+| Set hold duration | Click the hold field on a cue placement row (seconds; `0` = advance immediately) |
 | Reorder cues in sequence | Drag the handle on each placement row |
 | Remove cue from sequence | Click the × on a placement row |
-| Play sequence | Click the **▶** button on the sequence header |
+| Play sequence | Click **▶** on the sequence header |
 | Pause / Resume | Click **⏸** or **▶** while playing |
 | Stop | Click **⏹** |
 | Toggle loop | Click the loop icon — loops indefinitely when enabled |
-| Fade out | Click the fade icon and set duration (seconds) — fades dimmer/intensity channels to zero then stops |
-| Rename sequence | Click the sequence name |
+| Fade out | Click the sunset icon — fades dimmer/intensity channels to zero then stops; duration set by the **Fade Out** control at the top of the section |
+| Rename sequence | Click the pencil icon on the sequence header |
 | Reorder sequences | Drag the sequence header row |
 | Delete sequence | Click the trash icon (requires confirmation if sequence has cues) |
+
+The group context pill bar at the top filters visible sequences to one group while still showing green pulse dots on all pills that have an active engine running. Clicking **All** shows every sequence across all groups. Because each group has an independent playback engine, you can play sequences from multiple groups at the same time — they do not interrupt each other.
+
+A green pulse dot appears on the Sequences tab header when any group engine is active.
 
 #### DMX Adjust Modal
 
@@ -203,34 +260,94 @@ Adding a node automatically creates a linked Maestra **Device** for it, which ap
 
 Maestra automatically creates a singleton entity called **DMX Lighting** (`slug: dmx-lighting`, type: `dmx_controller`). This entity:
 
-- **Reflects the cue and sequence catalog** in its state — any external tool subscribed to `maestra.entity.state.dmx_controller.dmx-lighting` sees the full list of cues and sequences plus the currently active IDs
-- **Enables external triggering** — PATCH the entity's `active_cue_id` or `active_sequence_id` fields from any SDK to recall a cue or start a sequence from outside the Dashboard
-- **Updates in real time** — the entity state is synced on every cue/sequence create, rename, reorder, or delete
+- **Reflects the full catalog** — groups, cues (with group membership), and sequences (with group membership) are all exposed in the entity state
+- **Enables external triggering** — any SDK, OSC message, MQTT topic, or NATS subject can start/stop playback by patching the entity state
+- **Supports simultaneous multi-group control** — each group has an independent playback engine; the `group_playback` field lets you address them independently
+- **Updates in real time** — the entity state is synced on every group/cue/sequence create, rename, reorder, or delete
 
-The entity state shape:
+### Entity state shape
 
 ```json
 {
+  "groups": [
+    { "id": "uuid", "name": "Center Grid", "color": "#ef4444" }
+  ],
   "cues": [
-    { "id": "uuid", "name": "Warm Stage", "fade_duration": 2.5 }
+    { "id": "uuid", "name": "Warm Stage", "fade_duration": 2.5, "group_id": "uuid-or-null" }
   ],
   "sequences": [
-    { "id": "uuid", "name": "Opening Show", "cue_count": 4, "fade_out_duration": 3.0 }
+    { "id": "uuid", "name": "Opening Show", "cue_count": 4, "fade_out_duration": 3.0, "group_id": "uuid-or-null" }
   ],
   "active_cue_id": "uuid-or-null",
-  "active_sequence_id": "uuid-or-null"
+  "active_sequence_id": "uuid-or-null",
+  "group_playback": {
+    "<group-uuid>": {
+      "active_sequence_id": "uuid-or-null",
+      "active_cue_id": "uuid-or-null"
+    }
+  }
 }
 ```
 
-To trigger a cue from any external tool:
+### Ungrouped (legacy) control
+
+Set `active_cue_id` to recall a cue on the ungrouped engine, or `active_sequence_id` to play a sequence. Set either to `null` to clear/stop. This is backward-compatible with any integration built before Groups were introduced.
 
 ```bash
+# Recall a cue
 curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
   -H "Content-Type: application/json" \
   -d '{"state": {"active_cue_id": "<cue-uuid>"}}'
+
+# Play a sequence
+curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
+  -H "Content-Type: application/json" \
+  -d '{"state": {"active_sequence_id": "<sequence-uuid>"}}'
+
+# Stop ungrouped playback
+curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
+  -H "Content-Type: application/json" \
+  -d '{"state": {"active_sequence_id": null, "active_cue_id": null}}'
 ```
 
-The Dashboard subscribes to `maestra.entity.state.dmx_controller.dmx-lighting` via WebSocket and updates cue/sequence highlights in real time when triggered externally.
+### Per-group control
+
+Use the `group_playback` field to address any group engine independently. Multiple groups can be started or stopped in a single state update:
+
+```bash
+# Play different sequences on two groups simultaneously
+curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
+  -H "Content-Type: application/json" \
+  -d '{
+    "state": {
+      "group_playback": {
+        "<group-a-uuid>": { "active_sequence_id": "<seq-uuid-A>" },
+        "<group-b-uuid>": { "active_sequence_id": "<seq-uuid-B>" }
+      }
+    }
+  }'
+
+# Stop one group while leaving the other running
+curl -X PATCH http://localhost:8080/entities/dmx-lighting/state \
+  -H "Content-Type: application/json" \
+  -d '{
+    "state": {
+      "group_playback": {
+        "<group-a-uuid>": { "active_sequence_id": null, "active_cue_id": null }
+      }
+    }
+  }'
+```
+
+The same control is available via any Maestra gateway:
+
+- **OSC:** `/entity/update/dmx-lighting/group_playback` with a JSON object value
+- **MQTT:** publish to `maestra/entity/state/update/dmx-lighting`
+- **NATS:** publish to `maestra.entity.state.update.dmx-lighting`
+
+The `group_playback` field in the entity state is hydrated from the live engine registry on every catalog sync, so external tools can read it to know what is currently playing on each group engine.
+
+The Dashboard subscribes to `maestra.entity.state.dmx_controller.dmx-lighting` via WebSocket and updates cue/sequence highlights and group activity indicators in real time when triggered externally.
 
 ---
 
@@ -270,6 +387,19 @@ nats sub 'maestra.dmx.fixture.>'
 
 All DMX configuration is managed via the Fleet Manager API. Full interactive docs at `http://localhost:8080/docs`.
 
+### Groups (`/dmx/groups`)
+
+Groups organize fixtures, cues, and sequences into independent playback layers. Each group runs its own playback engine, allowing simultaneous sequence playback across groups.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/dmx/groups` | List all groups ordered by sort_order |
+| `POST` | `/dmx/groups` | Create a new group (`{"name": "Stage Left", "color": "#ef4444"}`) |
+| `GET` | `/dmx/groups/{id}` | Get a group with fixture/cue/sequence counts |
+| `PATCH` | `/dmx/groups/{id}` | Update name, color, or sort_order |
+| `DELETE` | `/dmx/groups/{id}` | Delete a group (fixtures/cues/sequences are unlinked, not deleted) |
+| `PUT` | `/dmx/groups/{id}/fixtures` | Bulk assign fixtures to this group (body: `["fixture-id", ...]`; empty list unassigns all) |
+
 ### Art-Net Nodes (`/dmx/nodes`)
 
 | Method | Endpoint | Description |
@@ -305,12 +435,12 @@ All DMX configuration is managed via the Fleet Manager API. Full interactive doc
 
 ### Cues (`/dmx/cues`)
 
-Cues are named snapshots of all linked fixture states.
+Cues are named snapshots of all linked fixture states. Each cue optionally belongs to a group.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/dmx/cues` | List all cues ordered by sort_order |
-| `POST` | `/dmx/cues` | Save current entity states as a new cue (`{"name": "My Cue"}`) |
+| `POST` | `/dmx/cues` | Save current entity states as a new cue (`{"name": "My Cue", "group_id": "uuid-or-omit"}`) |
 | `PUT` | `/dmx/cues/reorder` | Reorder cues (body: `["id1","id2",...]`) |
 | `POST` | `/dmx/cues/{id}/recall` | Instantly restore all fixture states from this cue |
 | `POST` | `/dmx/cues/{id}/snapshot` | Replace cue fixture data with current entity states (Edit Mode save) |
@@ -320,12 +450,12 @@ Cues are named snapshots of all linked fixture states.
 
 ### Sequences (`/dmx/sequences`)
 
-Sequences chain cues with configurable transitions and hold durations.
+Sequences chain cues with configurable transitions and hold durations. Each sequence optionally belongs to a group — sequences in different groups run on independent engines and play simultaneously.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/dmx/sequences` | List all sequences with their cue placements |
-| `POST` | `/dmx/sequences` | Create a new empty sequence (`{"name": "My Sequence"}`) |
+| `POST` | `/dmx/sequences` | Create a new empty sequence (`{"name": "My Sequence", "group_id": "uuid-or-omit"}`) |
 | `PUT` | `/dmx/sequences/reorder` | Reorder sequences (body: `["id1","id2",...]`) |
 | `PUT` | `/dmx/sequences/{id}` | Rename a sequence |
 | `DELETE` | `/dmx/sequences/{id}` | Delete a sequence |
@@ -346,25 +476,29 @@ Sequences chain cues with configurable transitions and hold durations.
 
 The backend playback engine runs sequence playback at 80ms intervals, interpolating fixture states between cues and broadcasting entity state changes via NATS.
 
+All playback endpoints accept an optional `?group_id=<uuid>` query parameter to target a specific group's engine. Omitting `group_id` targets the ungrouped (legacy) engine. Pass `?group_id=all` to `GET /dmx/playback/status` to retrieve statuses for all active engines in one request.
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/dmx/playback/status` | Get current playback engine state |
-| `POST` | `/dmx/playback/play` | Start sequence playback |
-| `POST` | `/dmx/playback/pause` | Pause playback (holds current frame) |
+| `GET` | `/dmx/playback/status` | Get ungrouped engine state (add `?group_id=<uuid>` for a specific group, `?group_id=all` for all) |
+| `POST` | `/dmx/playback/play` | Start sequence playback (`?group_id=<uuid>` to target a group engine) |
+| `POST` | `/dmx/playback/pause` | Pause playback |
 | `POST` | `/dmx/playback/resume` | Resume paused playback |
 | `POST` | `/dmx/playback/stop` | Stop playback |
 | `POST` | `/dmx/playback/toggle-loop` | Toggle loop mode, returns `{"loop": bool}` |
 | `POST` | `/dmx/playback/fadeout` | Fade dimmer channels to zero then stop |
 | `POST` | `/dmx/playback/cue-fade` | Cross-fade from one cue snapshot to another |
+| `POST` | `/dmx/playback/blackout` | Zero all DMX channels immediately across all universes |
 
 **Play request:**
 ```json
 { "sequence_id": "uuid" }
 ```
 
-**Playback status response:**
+**Single-engine status response (`GET /dmx/playback/status`):**
 ```json
 {
+  "group_id": "uuid-or-null",
   "sequence_id": "uuid-or-null",
   "play_state": "stopped | playing | paused",
   "phase": "idle | transitioning | holding",
@@ -373,6 +507,16 @@ The backend playback engine runs sequence playback at 80ms intervals, interpolat
   "hold_progress": 0.3,
   "loop": false,
   "fade_progress": null
+}
+```
+
+**All-engines status response (`GET /dmx/playback/status?group_id=all`):**
+```json
+{
+  "engines": [
+    { "group_id": null, "sequence_id": null, "play_state": "stopped", ... },
+    { "group_id": "abc-uuid", "sequence_id": "seq-uuid", "play_state": "playing", ... }
+  ]
 }
 ```
 

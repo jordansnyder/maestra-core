@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useDMX } from '@/hooks/useDMX'
+import { useDMXGroups } from '@/hooks/useDMXGroups'
 import { DMXCanvas } from '@/components/dmx/DMXCanvas'
 import { DMXSidebar } from '@/components/dmx/DMXSidebar'
 import { NodeSetupForm } from '@/components/dmx/NodeSetupForm'
@@ -46,6 +47,7 @@ function getInitialScale(): number {
 
 export default function DMXPage() {
   const { nodes, fixtures, loading, error, createNode, updateNode, deleteNode, createFixture, updateFixture, deleteFixture, bulkUpdatePositions, reorderNodes, reorderFixtures } = useDMX()
+  const { groups } = useDMXGroups()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showDMXAdjust, setShowDMXAdjust] = useState(false)
   const [showAddNode, setShowAddNode] = useState(false)
@@ -559,6 +561,7 @@ export default function DMXPage() {
           <DMXCanvas
             fixtures={fixtures}
             nodes={nodes}
+            groups={groups}
             nodeSize={nodeDiameter}
             selectedIds={selectedIds}
             multiSelectGroup={multiSelectGroup}
@@ -578,6 +581,7 @@ export default function DMXPage() {
         <DMXSidebar
           nodes={nodes}
           fixtures={fixtures}
+          groups={groups}
           selectedIds={selectedIds}
           multiSelectGroup={multiSelectGroup}
           onSelect={handleSelect}
@@ -780,6 +784,7 @@ export default function DMXPage() {
         <AddFixtureModal
           nodes={nodes}
           fixtures={fixtures}
+          groups={groups}
           defaultPosition={{ x: 300 + fixtures.length * 30, y: 200 + fixtures.length * 20 }}
           onSubmit={createFixture}
           onClose={() => setShowAddFixture(false)}
@@ -791,6 +796,7 @@ export default function DMXPage() {
         <AddFixtureModal
           nodes={nodes}
           fixtures={fixtures}
+          groups={groups}
           fixture={editingFixture}
           onSubmit={async (data) => {
             await updateFixture(editingFixture.id, data)

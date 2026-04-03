@@ -7,6 +7,7 @@ interface FixtureNodeProps {
   fixture: DMXFixture
   diameter: number
   universeColor: string
+  groupColor?: string
   selected: boolean
   multiSelectable: boolean
   dragging: boolean
@@ -21,6 +22,7 @@ export function FixtureNode({
   fixture,
   diameter,
   universeColor,
+  groupColor,
   selected,
   multiSelectable,
   dragging,
@@ -107,6 +109,23 @@ export function FixtureNode({
             transition: 'background 0.15s, border-color 0.15s, box-shadow 0.15s',
           }}
         />
+
+        {/* Group color dot — top-left corner */}
+        {groupColor && (
+          <div
+            title="Group"
+            className="absolute rounded-full"
+            style={{
+              width: dotSize,
+              height: dotSize,
+              top: dotOffset,
+              left: dotOffset,
+              background: groupColor,
+              border: `1.5px solid ${groupColor}cc`,
+              boxShadow: `0 0 4px ${groupColor}88`,
+            }}
+          />
+        )}
 
         {/* Universe color inner circle */}
         <div

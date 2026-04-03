@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { DMXFixture, DMXNode, DMXCue, DMXSequence, DMXCuePlacement } from '@/lib/types'
+import { DMXFixture, DMXGroup, DMXNode, DMXCue, DMXSequence, DMXCuePlacement } from '@/lib/types'
 import { UNIVERSE_PALETTE } from '@/lib/dmx-constants'
 import { SequencePlaybackStatus } from '@/hooks/useSequencePlayback'
 import {
@@ -32,6 +32,7 @@ function formatRelativeTime(iso: string): string {
 interface DMXSidebarProps {
   nodes: DMXNode[]
   fixtures: DMXFixture[]
+  groups?: DMXGroup[]
   selectedIds: Set<string>
   multiSelectGroup: Set<string>
   onSelect: (id: string | null, shiftKey?: boolean) => void
@@ -84,7 +85,7 @@ interface DMXSidebarProps {
 type ActiveSection = 'nodes' | 'fixtures' | 'cues' | 'sequences'
 
 export function DMXSidebar({
-  nodes, fixtures, selectedIds, multiSelectGroup, onSelect, onEdit, onDelete, onEditNode, onAdjustDMX,
+  nodes, fixtures, groups = [], selectedIds, multiSelectGroup, onSelect, onEdit, onDelete, onEditNode, onAdjustDMX,
   isPaused, onAddNode, onAddFixture, onReorderNodes, onReorderFixtures,
   cues, activeCueId, editingCueId, cueFadeProgress, onRecallCue, onEnterEditCue, onExitEditCue, onRenameCue, onDeleteCue, onReorderCues, onOpenCues, onSaveCue, onUpdateCue, updateCueLoading,
   sequences, playbackStatus, onPlaySequence, onPauseSequence, onStopSequence, onRenameSequence, onDeleteSequence,
@@ -748,6 +749,16 @@ export function DMXSidebar({
                                   {cue.name}
                                 </span>
                               )}
+                              {cue.group_id && (() => {
+                                const g = groups.find((gr) => gr.id === cue.group_id)
+                                return g?.color ? (
+                                  <span
+                                    className="w-2 h-2 rounded-full shrink-0"
+                                    style={{ background: g.color }}
+                                    title={g.name}
+                                  />
+                                ) : null
+                              })()}
                               <div className={`flex items-center gap-1 shrink-0 transition-opacity ${isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                                 {isEditing ? (
                                   <button onClick={(e) => { e.stopPropagation(); onExitEditCue() }} title="Exit edit mode" className="text-indigo-400 hover:text-indigo-200 transition-colors">
@@ -969,6 +980,17 @@ export function DMXSidebar({
                               {seq.name}
                             </span>
                           )}
+
+                          {seq.group_id && (() => {
+                            const g = groups.find((gr) => gr.id === seq.group_id)
+                            return g?.color ? (
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ background: g.color }}
+                                title={g.name}
+                              />
+                            ) : null
+                          })()}
 
                           {/* Playback controls */}
                           {!isRenamingSeq && (

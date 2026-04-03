@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { DMXNode, DMXFixture, DMXFixtureCreate, ChannelMapping, Entity, EntityType, OFLManufacturer, OFLFixture, OFLFixtureMode } from '@/lib/types'
+import { DMXNode, DMXFixture, DMXFixtureCreate, DMXGroup, ChannelMapping, Entity, EntityType, OFLManufacturer, OFLFixture, OFLFixtureMode } from '@/lib/types'
 import { X, Search, ChevronDown, ExternalLink } from '@/components/icons'
 import { entitiesApi, entityTypesApi, oflApi } from '@/lib/api'
 
 interface AddFixtureModalProps {
   nodes: DMXNode[]
   fixtures: DMXFixture[]      // all existing fixtures, used to suggest start channel
+  groups?: DMXGroup[]         // available groups for assignment
   fixture?: DMXFixture        // edit mode: pre-filled, saves as update
   copyOf?: DMXFixture         // copy mode: pre-filled, saves as new create
   initialName?: string        // override the initial name field (used for copy)
@@ -50,7 +51,7 @@ function slugify(raw: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
-export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName, defaultPosition, onSubmit, onClose }: AddFixtureModalProps) {
+export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf, initialName, defaultPosition, onSubmit, onClose }: AddFixtureModalProps) {
   const isEditing = !!fixture
   const isCopying = !!copyOf
   // source to pre-fill from (edit uses fixture, copy uses copyOf)
@@ -94,6 +95,8 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
 
   // Edit mode: OFL profile loaded by ID for mode dropdown
   const [editOFLFixture, setEditOFLFixture] = useState<OFLFixture | null>(null)
+
+  const [groupId, setGroupId] = useState<string>(fixture?.group_id ?? '')
 
   // Edit mode only: entity picker
   const [entityId, setEntityId] = useState(fixture?.entity_id ?? '')
@@ -370,6 +373,7 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
         entity_id: resolvedEntityId,
         entity_slug: isEditing && trimmedSlug && trimmedSlug !== fixture?.entity_slug ? trimmedSlug : undefined,
         ofl_fixture_id: oflFixtureId ?? (isEditing ? fixture?.ofl_fixture_id : undefined),
+        group_id: groupId || undefined,
         channel_map: editChannelMap,
         position_x: (isCopying ? (copyOf!.position_x + 40) : fixture?.position_x) ?? defaultPosition?.x ?? 200,
         position_y: (isCopying ? (copyOf!.position_y + 40) : fixture?.position_y) ?? defaultPosition?.y ?? 200,
@@ -590,6 +594,21 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
                 />
               </div>
+              {groups.length > 0 && (
+                <div className="col-span-2">
+                  <label className="block text-xs text-slate-400 mb-1">Group</label>
+                  <select
+                    value={groupId}
+                    onChange={(e) => setGroupId(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">Ungrouped</option>
+                    {groups.map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Short Label</label>
                 <input

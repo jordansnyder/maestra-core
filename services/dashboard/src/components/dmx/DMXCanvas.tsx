@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
-import { DMXFixture, DMXNode, FixturePositionUpdate } from '@/lib/types'
+import { DMXFixture, DMXGroup, DMXNode, FixturePositionUpdate } from '@/lib/types'
 import { UNIVERSE_PALETTE } from '@/lib/dmx-constants'
 import { useDMXActivity } from '@/hooks/useDMXActivity'
 import { SlidersHorizontal } from '@/components/icons'
@@ -11,6 +11,7 @@ import { ContextMenu } from './ContextMenu'
 interface DMXCanvasProps {
   fixtures: DMXFixture[]
   nodes: DMXNode[]
+  groups: DMXGroup[]
   nodeSize: number
   selectedIds: Set<string>
   multiSelectGroup: Set<string>
@@ -36,6 +37,7 @@ function getUniverseColor(nodes: DMXNode[], fixture: DMXFixture): string {
 export function DMXCanvas({
   fixtures,
   nodes,
+  groups,
   nodeSize,
   selectedIds,
   multiSelectGroup,
@@ -243,6 +245,7 @@ export function DMXCanvas({
             fixture={displayFixture}
             diameter={nodeSize}
             universeColor={getUniverseColor(nodes, fixture)}
+            groupColor={fixture.group_id ? (groups.find((g) => g.id === fixture.group_id)?.color ?? undefined) : undefined}
             selected={selectedIds.has(fixture.id)}
             multiSelectable={multiSelectGroup.has(fixture.id) && !selectedIds.has(fixture.id)}
             dragging={dragging === fixture.id}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useDMX } from '@/hooks/useDMX'
 import { useDMXGroups } from '@/hooks/useDMXGroups'
 import { DMXCanvas } from '@/components/dmx/DMXCanvas'
@@ -65,6 +65,7 @@ export default function DMXPage() {
   const [deletingFixture, setDeletingFixture] = useState<DMXFixture | null>(null)
   const [confirmDeleteNode, setConfirmDeleteNode] = useState(false)
   const [deleteNodeDevice, setDeleteNodeDevice] = useState(false)
+  const dmxEntityIdRef = useRef<string | null>(null)
   const [isPaused, setIsPaused] = useState(false)
   const [pauseLoading, setPauseLoading] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
@@ -175,10 +176,13 @@ export default function DMXPage() {
         (e) => e.play_state !== 'stopped' || e.phase !== 'idle',
       )
       if (anyActive) startPlaybackPolling()
-      if (entity?.state) {
-        const s = entity.state as Record<string, unknown>
-        const cueId = (s.active_cue_id as string | null) ?? null
-        if (cueId && !anyActive) setActiveCueId(cueId)
+      if (entity) {
+        dmxEntityIdRef.current = entity.id
+        if (entity.state) {
+          const s = entity.state as Record<string, unknown>
+          const cueId = (s.active_cue_id as string | null) ?? null
+          if (cueId && !anyActive) setActiveCueId(cueId)
+        }
       }
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -233,6 +237,9 @@ export default function DMXPage() {
     if (activeCueId === id) {
       setActiveCueId(null)
       cancelCueFade()
+      if (dmxEntityIdRef.current) {
+        entitiesApi.updateState(dmxEntityIdRef.current, { state: { active_cue_id: null } }).catch(() => {})
+      }
       return
     }
     // If we're editing a different cue, exit that edit mode

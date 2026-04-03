@@ -630,6 +630,21 @@ export const playbackApi = {
     }>(`/dmx/playback/status${q}`)
   },
 
+  getAllStatuses: () =>
+    fetchApi<{
+      engines: Array<{
+        group_id: string | null
+        sequence_id: string | null
+        play_state: string
+        phase: string
+        cue_index: number
+        progress: number
+        hold_progress: number
+        loop: boolean
+        fade_progress: number | null
+      }>
+    }>('/dmx/playback/status?group_id=all'),
+
   play: (sequenceId: string, groupId?: string) => {
     const q = groupId ? `?group_id=${groupId}` : ''
     return fetchApi<{ status: string; group_id: string | null }>(`/dmx/playback/play${q}`, {

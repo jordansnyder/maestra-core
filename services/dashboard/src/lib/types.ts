@@ -567,7 +567,8 @@ export interface DMXFixtureUpdate {
   entity_id?: string | null
   /** New slug for the linked entity. Returns 409 if already in use. */
   entity_slug?: string
-  group_id?: string
+  /** Pass null explicitly to remove from a group; omit to leave unchanged. */
+  group_id?: string | null
   position_x?: number
   position_y?: number
   metadata?: Record<string, unknown>

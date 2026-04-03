@@ -32,22 +32,35 @@ _DMX_LIGHTING_SLUG = "dmx-lighting"
 
 
 async def _sync_dmx_lighting_entity(db: AsyncSession) -> None:
-    """Rebuild and persist the DMX Lighting entity state from current cues and sequences.
+    """Rebuild and persist the DMX Lighting entity state from current groups, cues, and sequences.
 
     Executes an UPDATE within the caller's transaction — the caller must commit.
     Safe to call even if the entity does not exist yet (UPDATE is a no-op in that case).
     """
+    group_rows = await db.execute(text("""
+        SELECT id, name, color FROM dmx_groups ORDER BY sort_order ASC, created_at ASC
+    """))
+    groups = [
+        {"id": str(r.id), "name": r.name, "color": r.color}
+        for r in group_rows.fetchall()
+    ]
+
     cue_rows = await db.execute(text("""
-        SELECT id, name, fade_duration, sort_order
+        SELECT id, name, fade_duration, group_id, sort_order
         FROM dmx_cues ORDER BY sort_order ASC, created_at ASC
     """))
     cues = [
-        {"id": str(r.id), "name": r.name, "fade_duration": float(r.fade_duration or 0)}
+        {
+            "id": str(r.id),
+            "name": r.name,
+            "fade_duration": float(r.fade_duration or 0),
+            "group_id": str(r.group_id) if r.group_id else None,
+        }
         for r in cue_rows.fetchall()
     ]
 
     seq_rows = await db.execute(text("""
-        SELECT s.id, s.name, s.fade_out_duration, s.sort_order,
+        SELECT s.id, s.name, s.fade_out_duration, s.group_id, s.sort_order,
                (SELECT COUNT(*) FROM dmx_sequence_cues sc WHERE sc.sequence_id = s.id) AS cue_count
         FROM dmx_sequences s
         ORDER BY s.sort_order ASC, s.created_at ASC
@@ -58,6 +71,7 @@ async def _sync_dmx_lighting_entity(db: AsyncSession) -> None:
             "name": r.name,
             "cue_count": int(r.cue_count),
             "fade_out_duration": float(r.fade_out_duration or 3),
+            "group_id": str(r.group_id) if r.group_id else None,
         }
         for r in seq_rows.fetchall()
     ]
@@ -69,11 +83,29 @@ async def _sync_dmx_lighting_entity(db: AsyncSession) -> None:
     existing = existing_row.fetchone()
     existing_state = (existing.state if existing else {}) or {}
 
+    # Hydrate group_playback from actual engine states so the entity reflects
+    # what is currently playing across all group engines.
+    from dmx_playback_engine import engine_registry
+    group_playback: dict = {}
+    for engine_status in engine_registry.all_statuses():
+        gid = engine_status.get("group_id")
+        if gid is None:
+            # Ungrouped engine — reflected in active_sequence_id / active_cue_id below.
+            continue
+        play_state = engine_status.get("play_state", "stopped")
+        if play_state != "stopped":
+            group_playback[str(gid)] = {
+                "active_sequence_id": engine_status.get("sequence_id"),
+                "active_cue_id": None,
+            }
+
     state = json.dumps({
+        "groups": groups,
         "cues": cues,
         "sequences": sequences,
         "active_cue_id": existing_state.get("active_cue_id"),
         "active_sequence_id": existing_state.get("active_sequence_id"),
+        "group_playback": group_playback,
     })
 
     await db.execute(text("""
@@ -1156,8 +1188,7 @@ async def list_cues(db: AsyncSession = Depends(get_db)):
     if not cues:
         return cues
 
-    # Build node/universe summary per cue in one query
-    cue_ids = [c["id"] for c in cues]
+    # Build node/universe summary per cue in one query (no parameter binding needed)
     node_rows = await db.execute(text("""
         SELECT
             cf.cue_id::text,
@@ -1165,12 +1196,12 @@ async def list_cues(db: AsyncSession = Depends(get_db)):
             n.name       AS node_name,
             f.universe
         FROM dmx_cue_fixtures cf
-        JOIN dmx_fixtures f  ON f.entity_id = cf.entity_id
-        JOIN dmx_nodes    n  ON n.id = f.node_id
-        WHERE cf.cue_id = ANY(:ids)
+        JOIN dmx_cues        c  ON c.id = cf.cue_id
+        JOIN dmx_fixtures    f  ON f.entity_id = CAST(cf.entity_id AS uuid)
+        JOIN dmx_nodes       n  ON n.id = f.node_id
         GROUP BY cf.cue_id, n.id, n.name, f.universe
         ORDER BY n.name, f.universe
-    """), {"ids": [c["id"] for c in cues]})
+    """))
 
     # Aggregate: {cue_id: {node_id: {name, universes: set}}}
     from collections import defaultdict

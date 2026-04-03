@@ -453,18 +453,42 @@ async def startup_event():
                 if event.get('source') == 'dmx-engine':
                     return  # Ignore our own broadcasts
                 current_state = event.get('current_state', {}) or {}
-                active_sequence_id = current_state.get('active_sequence_id')
-                active_cue_id = current_state.get('active_cue_id')
+                # changed_keys is set by state_manager on internal updates; external
+                # NATS messages may omit it — treat as "all keys changed" in that case.
+                changed_keys = event.get('changed_keys') or list(current_state.keys())
 
-                if active_sequence_id:
-                    if playback_engine.status['sequence_id'] != active_sequence_id:
-                        await playback_engine.play(active_sequence_id)
-                elif active_cue_id:
-                    prev_cue = playback_engine.status.get('active_cue_id') if playback_engine.status else None
-                    await playback_engine.recall_cue_fade(prev_cue, active_cue_id, 0)
-                else:
-                    if playback_engine.status['play_state'] != 'stopped':
-                        await playback_engine.stop()
+                # ── Ungrouped (legacy) engine ─────────────────────────────────
+                if 'active_sequence_id' in changed_keys or 'active_cue_id' in changed_keys:
+                    active_sequence_id = current_state.get('active_sequence_id')
+                    active_cue_id = current_state.get('active_cue_id')
+                    if active_sequence_id:
+                        if playback_engine.status['sequence_id'] != active_sequence_id:
+                            await playback_engine.play(active_sequence_id)
+                    elif active_cue_id:
+                        prev_cue = playback_engine.status.get('sequence_id')
+                        await playback_engine.recall_cue_fade(prev_cue, active_cue_id, 0)
+                    else:
+                        if playback_engine.status['play_state'] != 'stopped':
+                            await playback_engine.stop()
+
+                # ── Per-group engines ─────────────────────────────────────────
+                # group_playback: {<group_uuid>: {active_sequence_id, active_cue_id}}
+                if 'group_playback' in changed_keys:
+                    group_playback = current_state.get('group_playback') or {}
+                    for group_id, control in group_playback.items():
+                        if not isinstance(control, dict):
+                            continue
+                        grp_engine = engine_registry.get(group_id)
+                        seq_id = control.get('active_sequence_id')
+                        cue_id = control.get('active_cue_id')
+                        if seq_id:
+                            if grp_engine.status['sequence_id'] != seq_id:
+                                await grp_engine.play(seq_id)
+                        elif cue_id:
+                            await grp_engine.recall_cue_fade(None, cue_id, 0)
+                        else:
+                            if grp_engine.status['play_state'] != 'stopped':
+                                await grp_engine.stop()
             except Exception as e:
                 print(f"⚠️ DMX lighting state handler error: {e}")
 

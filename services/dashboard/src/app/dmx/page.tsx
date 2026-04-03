@@ -47,7 +47,12 @@ function getInitialScale(): number {
 
 export default function DMXPage() {
   const { nodes, fixtures, loading, error, createNode, updateNode, deleteNode, createFixture, updateFixture, deleteFixture, bulkUpdatePositions, reorderNodes, reorderFixtures } = useDMX()
-  const { groups } = useDMXGroups()
+  const { groups, createGroup, updateGroup, deleteGroup } = useDMXGroups()
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+  const [cueGroupId, setCueGroupId] = useState<string | null>(null)
+  // Canvas shows group highlight from whichever context is active;
+  // shift-click editing only enabled when selectedGroupId is set (Groups tab)
+  const effectiveCanvasGroupId = selectedGroupId ?? cueGroupId
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showDMXAdjust, setShowDMXAdjust] = useState(false)
   const [showAddNode, setShowAddNode] = useState(false)
@@ -71,7 +76,7 @@ export default function DMXPage() {
   const [sequences, setSequences] = useState<DMXSequence[]>([])
   const [deleteSequenceTarget, setDeleteSequenceTarget] = useState<DMXSequence | null>(null)
   const [openSequencesSignal, setOpenSequencesSignal] = useState(0)
-  const { status: playbackStatus, play: playSequence, pause: pauseSequence, resume: resumeSequence, stop: stopSequence, toggleLoop, fadeOut, startPolling: startPlaybackPolling } = useSequencePlayback()
+  const { getGroupStatus, activeGroupIds, play: playSequence, pause: pauseSequence, resume: resumeSequence, stop: stopSequence, toggleLoop, fadeOut, startPolling: startPlaybackPolling } = useSequencePlayback()
   const { fadeProgress: cueFadeProgress, fadeTo: fadeCueTo, cancelFade: cancelCueFade, trackExternalFade } = useCueFade()
 
   // Real-time sync: subscribe to dmx-lighting entity state changes for external control
@@ -163,18 +168,17 @@ export default function DMXPage() {
     // while a sequence or cue is already running (WebSocket events may not fire
     // during the hold phase between cue transitions)
     Promise.all([
-      playbackApi.getStatus().catch(() => null),
+      playbackApi.getAllStatuses().catch(() => null),
       entitiesApi.getBySlug('dmx-lighting').catch(() => null),
-    ]).then(([status, entity]) => {
-      if (status && (status.play_state !== 'stopped' || status.phase !== 'idle')) {
-        startPlaybackPolling()
-      }
+    ]).then(([allStatuses, entity]) => {
+      const anyActive = allStatuses?.engines.some(
+        (e) => e.play_state !== 'stopped' || e.phase !== 'idle',
+      )
+      if (anyActive) startPlaybackPolling()
       if (entity?.state) {
         const s = entity.state as Record<string, unknown>
         const cueId = (s.active_cue_id as string | null) ?? null
-        if (cueId && (!status || status.play_state === 'stopped')) {
-          setActiveCueId(cueId)
-        }
+        if (cueId && !anyActive) setActiveCueId(cueId)
       }
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,6 +188,18 @@ export default function DMXPage() {
     setNodeDiameter(diameter)
     localStorage.setItem('dmx-node-scale', String(diameter))
   }
+
+  const handleToggleFixtureGroup = useCallback(async (fixtureId: string) => {
+    if (!selectedGroupId) return
+    const fixture = fixtures.find((f) => f.id === fixtureId)
+    if (!fixture) return
+    const newGroupId = fixture.group_id === selectedGroupId ? null : selectedGroupId
+    try {
+      await updateFixture(fixtureId, { group_id: newGroupId })
+    } catch {
+      // non-critical, fixture list will still reflect DB state on next refresh
+    }
+  }, [selectedGroupId, fixtures, updateFixture])
 
   const handleTogglePause = async () => {
     setPauseLoading(true)
@@ -222,6 +238,11 @@ export default function DMXPage() {
     // If we're editing a different cue, exit that edit mode
     if (editingCueId && editingCueId !== id) setEditingCueId(null)
     setActiveCueId(id)
+    // Auto-resume output — cue recall is an intentional "fire" action,
+    // not an edit operation. Gateway filters engine writes while paused.
+    if (isPaused) {
+      try { await dmxApi.resumeOutput(); setIsPaused(false) } catch { /* non-critical */ }
+    }
     try {
       await fadeCueTo(activeCueId, id, fadeDuration * 1000)
     } catch {
@@ -284,13 +305,13 @@ export default function DMXPage() {
 
   // ── Sequence handlers ──────────────────────────────────────────────────────
 
-  const handleCreateSequence = async () => {
+  const handleCreateSequence = async (groupId?: string) => {
     const names = sequences.map((s) => s.name)
     let base = 'New Sequence'; let n = 1
     while (names.includes(n === 1 ? base : `${base} ${n}`)) n++
     const name = n === 1 ? base : `${base} ${n}`
     try {
-      const seq = await dmxApi.createSequence(name)
+      const seq = await dmxApi.createSequence(name, groupId)
       setSequences((prev) => [...prev, seq])
       setOpenSequencesSignal((s) => s + 1)
     } catch (err) { console.error('Failed to create sequence:', err) }
@@ -305,9 +326,11 @@ export default function DMXPage() {
 
   const handleDeleteSequence = async (id: string) => {
     try {
+      const seq = sequences.find((s) => s.id === id)
+      const groupId = seq?.group_id ?? null
       await dmxApi.deleteSequence(id)
       setSequences((prev) => prev.filter((s) => s.id !== id))
-      if (playbackStatus.sequenceId === id) stopSequence()
+      if (getGroupStatus(groupId).sequenceId === id) await stopSequence(groupId)
       setDeleteSequenceTarget(null)
     } catch { /* silently ignore */ }
   }
@@ -366,8 +389,9 @@ export default function DMXPage() {
   }
 
   const handlePlaySequence = (seq: DMXSequence) => {
-    if (playbackStatus.sequenceId === seq.id && playbackStatus.playState === 'paused') {
-      resumeSequence()
+    const groupStatus = getGroupStatus(seq.group_id ?? null)
+    if (groupStatus.sequenceId === seq.id && groupStatus.playState === 'paused') {
+      resumeSequence(seq.group_id ?? null)
     } else {
       playSequence(seq)
     }
@@ -565,6 +589,8 @@ export default function DMXPage() {
             nodeSize={nodeDiameter}
             selectedIds={selectedIds}
             multiSelectGroup={multiSelectGroup}
+            selectedGroupId={effectiveCanvasGroupId}
+            onToggleFixtureGroup={selectedGroupId ? handleToggleFixtureGroup : undefined}
             onSelect={handleSelect}
             onEdit={(fixture) => setEditingFixture(fixture)}
             onDelete={handleDeleteRequest}
@@ -582,6 +608,13 @@ export default function DMXPage() {
           nodes={nodes}
           fixtures={fixtures}
           groups={groups}
+          selectedGroupId={selectedGroupId}
+          onGroupSelect={setSelectedGroupId}
+          cueGroupId={cueGroupId}
+          onCueGroupChange={setCueGroupId}
+          onCreateGroup={async (name, color) => { await createGroup({ name, color }) }}
+          onUpdateGroup={async (id, name, color) => { await updateGroup(id, { name, color }) }}
+          onDeleteGroup={async (id) => { await deleteGroup(id) }}
           selectedIds={selectedIds}
           multiSelectGroup={multiSelectGroup}
           onSelect={handleSelect}
@@ -605,16 +638,17 @@ export default function DMXPage() {
           onDeleteCue={handleDeleteCue}
           onReorderCues={handleReorderCues}
           onOpenCues={() => dmxApi.listCues().then(setCues).catch(() => {})}
-          onSaveCue={async (name) => { const cue = await dmxApi.saveCue(name); setCues((prev) => [cue, ...prev]) }}
+          onSaveCue={async (name, groupId) => { const cue = await dmxApi.saveCue(name, groupId); setCues((prev) => [cue, ...prev]) }}
           onUpdateCue={handleUpdateCue}
           updateCueLoading={updateCueLoading}
           sequences={sequences}
-          playbackStatus={playbackStatus}
+          getStatusForSeq={(seq) => getGroupStatus(seq.group_id ?? null)}
+          activeGroupIds={activeGroupIds}
           onPlaySequence={handlePlaySequence}
-          onPauseSequence={pauseSequence}
-          onStopSequence={stopSequence}
-          onToggleLoop={toggleLoop}
-          onFadeOut={(durationSec) => fadeOut(durationSec * 1000)}
+          onPauseSequence={(seq) => pauseSequence(seq.group_id ?? null)}
+          onStopSequence={(seq) => stopSequence(seq.group_id ?? null)}
+          onToggleLoop={(seq) => toggleLoop(seq.group_id ?? null)}
+          onFadeOut={(durationSec, seq) => fadeOut(durationSec * 1000, seq.group_id ?? null)}
           onBlackout={() => playbackApi.blackout().catch(() => {})}
           onRenameSequence={handleRenameSequence}
           onDeleteSequence={handleRequestDeleteSequence}

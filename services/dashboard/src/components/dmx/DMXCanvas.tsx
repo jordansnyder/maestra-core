@@ -5,7 +5,7 @@ import { DMXFixture, DMXGroup, DMXNode, FixturePositionUpdate } from '@/lib/type
 import { UNIVERSE_PALETTE } from '@/lib/dmx-constants'
 import { useDMXActivity } from '@/hooks/useDMXActivity'
 import { SlidersHorizontal } from '@/components/icons'
-import { FixtureNode } from './FixtureNode'
+import { FixtureNode, GroupMode } from './FixtureNode'
 import { ContextMenu } from './ContextMenu'
 
 interface DMXCanvasProps {
@@ -15,6 +15,8 @@ interface DMXCanvasProps {
   nodeSize: number
   selectedIds: Set<string>
   multiSelectGroup: Set<string>
+  selectedGroupId?: string | null
+  onToggleFixtureGroup?: (fixtureId: string) => void
   onSelect: (id: string | null, shiftKey?: boolean) => void
   onEdit: (fixture: DMXFixture) => void
   onDelete: (id: string) => void
@@ -41,6 +43,8 @@ export function DMXCanvas({
   nodeSize,
   selectedIds,
   multiSelectGroup,
+  selectedGroupId,
+  onToggleFixtureGroup,
   onSelect,
   onEdit,
   onDelete,
@@ -239,20 +243,36 @@ export function DMXCanvas({
       {fixtures.map((fixture) => {
         const pos = getPos(fixture)
         const displayFixture = { ...fixture, position_x: pos.x, position_y: pos.y }
+        const groupColor = fixture.group_id ? (groups.find((g) => g.id === fixture.group_id)?.color ?? undefined) : undefined
+
+        let groupMode: GroupMode | undefined
+        if (selectedGroupId) {
+          if (fixture.group_id === selectedGroupId) groupMode = 'in-group'
+          else if (!fixture.group_id) groupMode = 'eligible'
+          else groupMode = 'ineligible'
+        }
+
         return (
           <FixtureNode
             key={fixture.id}
             fixture={displayFixture}
             diameter={nodeSize}
             universeColor={getUniverseColor(nodes, fixture)}
-            groupColor={fixture.group_id ? (groups.find((g) => g.id === fixture.group_id)?.color ?? undefined) : undefined}
+            groupColor={groupColor}
+            groupMode={groupMode}
             selected={selectedIds.has(fixture.id)}
             multiSelectable={multiSelectGroup.has(fixture.id) && !selectedIds.has(fixture.id)}
             dragging={dragging === fixture.id}
             isActive={!!fixture.entity_id && activeEntityIds.has(fixture.entity_id)}
             onMouseDown={(e) => handleMouseDown(e, fixture.id)}
             onContextMenu={(e) => handleContextMenu(e, fixture.id)}
-            onClick={(shiftKey) => onSelect(fixture.id, shiftKey)}
+            onClick={(shiftKey) => {
+              if (shiftKey && selectedGroupId && onToggleFixtureGroup) {
+                if (groupMode !== 'ineligible') onToggleFixtureGroup(fixture.id)
+              } else {
+                onSelect(fixture.id, shiftKey)
+              }
+            }}
             onDoubleClick={() => { onSelect(fixture.id, false); onAdjustDMX() }}
           />
         )

@@ -422,6 +422,34 @@ export interface UniverseConfig {
   color?: string
 }
 
+export interface DMXGroup {
+  id: string
+  name: string
+  color?: string
+  sort_order: number
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+  // populated by GET /dmx/groups/{id}
+  fixture_count?: number
+  cue_count?: number
+  sequence_count?: number
+}
+
+export interface DMXGroupCreate {
+  name: string
+  color?: string
+  sort_order?: number
+  metadata?: Record<string, unknown>
+}
+
+export interface DMXGroupUpdate {
+  name?: string
+  color?: string
+  sort_order?: number
+  metadata?: Record<string, unknown>
+}
+
 export interface DMXNode {
   id: string
   name: string
@@ -498,6 +526,7 @@ export interface DMXFixture {
   /** Slug of the linked entity — read-only on the fixture, derived via JOIN. */
   entity_slug?: string
   ofl_fixture_id?: string
+  group_id?: string
   position_x: number
   position_y: number
   sort_order: number
@@ -519,6 +548,7 @@ export interface DMXFixtureCreate {
   /** Desired slug for the auto-created linked entity. Returns 409 if already in use. */
   entity_slug?: string
   ofl_fixture_id?: string
+  group_id?: string
   position_x?: number
   position_y?: number
   metadata?: Record<string, unknown>
@@ -537,6 +567,7 @@ export interface DMXFixtureUpdate {
   entity_id?: string | null
   /** New slug for the linked entity. Returns 409 if already in use. */
   entity_slug?: string
+  group_id?: string
   position_x?: number
   position_y?: number
   metadata?: Record<string, unknown>
@@ -559,6 +590,7 @@ export interface DMXCue {
   name: string
   fade_duration: number
   sort_order: number
+  group_id?: string
   created_at: string
   updated_at: string
   /** Art-Net nodes and universes used by fixtures snapshotted in this cue. */
@@ -587,6 +619,7 @@ export interface DMXSequence {
   name: string
   fade_out_duration: number
   sort_order: number
+  group_id?: string
   cue_placements: DMXCuePlacement[]
   created_at: string
   updated_at: string

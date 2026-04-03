@@ -87,14 +87,19 @@ def _interpolate_state(
     return result
 
 
-class DMXPlaybackEngine:
+class DMXGroupEngine:
     """
-    Singleton playback engine.  Call play(), pause(), resume(), stop(),
-    toggle_loop(), fade_out(), and recall_cue_fade() from FastAPI routes.
-    Status is exposed via the .status property.
+    Per-group playback engine.  One instance per DMX group (None key = ungrouped).
+    Call play(), pause(), resume(), stop(), toggle_loop(), fade_out(), and
+    recall_cue_fade() from FastAPI routes.  Status is exposed via the .status property.
+
+    Uses jsonb_set merge semantics for entity state updates so multiple group
+    engines can drive different channels on the same entity simultaneously (LTP).
     """
 
-    def __init__(self):
+    def __init__(self, group_id: Optional[str] = None):
+        self.group_id: Optional[str] = group_id  # None = ungrouped (legacy) engine
+
         # Configurable tick interval (seconds); loaded from DB at startup
         self._send_interval: float = DMX_SEND_INTERVAL_DEFAULT
 
@@ -127,6 +132,7 @@ class DMXPlaybackEngine:
     @property
     def status(self) -> dict:
         return {
+            "group_id": self.group_id,
             "sequence_id": self._sequence_id,
             "play_state": self._play_state,
             "phase": self._phase,
@@ -534,7 +540,12 @@ class DMXPlaybackEngine:
         await self._batch_update(updates)
 
     async def _batch_update(self, updates: list):
-        """Batch-update entity states in DB, then broadcast each change to NATS."""
+        """Batch-update entity states via jsonb merge, then broadcast each change to NATS.
+
+        Uses `state || patch` (jsonb concatenation) instead of a full state replace so
+        multiple group engines can write different channels on the same entity
+        simultaneously without clobbering each other (LTP semantics).
+        """
         if not updates:
             return
         try:
@@ -546,9 +557,10 @@ class DMXPlaybackEngine:
                 for entity_id, _, new_state in updates:
                     await db.execute(text("""
                         UPDATE entities
-                        SET state = CAST(:state AS jsonb), state_updated_at = NOW()
+                        SET state = COALESCE(state, '{}'::jsonb) || CAST(:patch AS jsonb),
+                            state_updated_at = NOW()
                         WHERE id = CAST(:id AS uuid)
-                    """), {"state": json.dumps(new_state), "id": entity_id})
+                    """), {"patch": json.dumps(new_state), "id": entity_id})
                 await db.commit()
 
             for entity_id, prev_state, new_state in updates:
@@ -747,5 +759,54 @@ class DMXPlaybackEngine:
         await self._cancel_tasks()
 
 
-# Singleton instance
-playback_engine = DMXPlaybackEngine()
+# =============================================================================
+# Engine Registry — one DMXGroupEngine per group (None key = ungrouped/legacy)
+# =============================================================================
+
+class DMXEngineRegistry:
+    """
+    Singleton registry of per-group playback engines.
+
+    Key None  →  ungrouped (legacy) engine — backward-compatible with all
+                 existing API calls that omit group_id.
+    Key <str> →  one engine per DMX group UUID.
+
+    Engines are created on demand and never destroyed (they just sit idle).
+    This preserves playback state across API calls without re-instantiation.
+    """
+
+    def __init__(self):
+        self._engines: dict[Optional[str], DMXGroupEngine] = {
+            None: DMXGroupEngine(group_id=None)
+        }
+        self._lock = asyncio.Lock()
+
+    def get(self, group_id: Optional[str] = None) -> DMXGroupEngine:
+        """Return the engine for the given group_id, creating it on first access."""
+        if group_id not in self._engines:
+            self._engines[group_id] = DMXGroupEngine(group_id=group_id)
+        return self._engines[group_id]
+
+    @property
+    def ungrouped(self) -> DMXGroupEngine:
+        """Convenience accessor for the legacy ungrouped engine."""
+        return self._engines[None]
+
+    def all_statuses(self) -> list:
+        """Return status dicts for all engines that are not idle."""
+        return [e.status for e in self._engines.values()]
+
+    async def load_settings(self) -> None:
+        """Load persisted settings into the ungrouped (legacy) engine at startup."""
+        await self._engines[None].load_settings()
+
+    async def shutdown_all(self) -> None:
+        for engine in self._engines.values():
+            await engine.shutdown()
+
+
+# Registry singleton — used by dmx_router.py playback endpoints
+engine_registry = DMXEngineRegistry()
+
+# Backward-compatible alias — existing imports of `playback_engine` continue to work
+playback_engine = engine_registry.ungrouped

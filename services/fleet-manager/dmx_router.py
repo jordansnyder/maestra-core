@@ -137,6 +137,20 @@ class ChannelMapping(BaseModel):
     enum_dmx_values: Optional[Dict[str, int]] = None
 
 
+class DMXGroupCreate(BaseModel):
+    name: str
+    color: Optional[str] = None
+    sort_order: int = 0
+    metadata: Dict[str, Any] = {}
+
+
+class DMXGroupUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+    sort_order: Optional[int] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
 class DMXFixtureCreate(BaseModel):
     name: str
     label: Optional[str] = None
@@ -153,6 +167,7 @@ class DMXFixtureCreate(BaseModel):
     # Not stored on the fixture record; derived from the linked entity on read.
     entity_slug: Optional[str] = None
     ofl_fixture_id: Optional[str] = None
+    group_id: Optional[UUID] = None
     position_x: float = 100.0
     position_y: float = 100.0
     metadata: Dict[str, Any] = {}
@@ -173,6 +188,7 @@ class DMXFixtureUpdate(BaseModel):
     # New slug for the linked entity. Applied to entities.slug — not stored on the fixture.
     # Returns 409 if the slug is already in use by another entity.
     entity_slug: Optional[str] = None
+    group_id: Optional[UUID] = None
     position_x: Optional[float] = None
     position_y: Optional[float] = None
     metadata: Optional[Dict[str, Any]] = None
@@ -213,6 +229,18 @@ def _row_to_node(row) -> dict:
     }
 
 
+def _row_to_group(row) -> dict:
+    return {
+        "id": str(row.id),
+        "name": row.name,
+        "color": row.color,
+        "sort_order": row.sort_order,
+        "metadata": row.metadata if row.metadata else {},
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
 def _row_to_fixture(row) -> dict:
     return {
         "id": str(row.id),
@@ -229,6 +257,7 @@ def _row_to_fixture(row) -> dict:
         "entity_id": str(row.entity_id) if row.entity_id else None,
         "entity_slug": getattr(row, "entity_slug", None),
         "ofl_fixture_id": str(row.ofl_fixture_id) if row.ofl_fixture_id else None,
+        "group_id": str(row.group_id) if row.group_id else None,
         "position_x": row.position_x,
         "position_y": row.position_y,
         "sort_order": row.sort_order if hasattr(row, "sort_order") else 0,
@@ -355,6 +384,128 @@ async def _require_node(node_id: UUID, db: AsyncSession) -> None:
     )
     if not result.fetchone():
         raise HTTPException(status_code=404, detail="DMX node not found")
+
+
+# =============================================================================
+# DMX Group Endpoints
+# =============================================================================
+
+@router.get("/groups")
+async def list_groups(db: AsyncSession = Depends(get_db)):
+    """List all DMX groups ordered by sort_order."""
+    result = await db.execute(text("""
+        SELECT id, name, color, sort_order, metadata, created_at, updated_at
+        FROM dmx_groups ORDER BY sort_order ASC, created_at ASC
+    """))
+    return [_row_to_group(r) for r in result.fetchall()]
+
+
+@router.post("/groups", status_code=201)
+async def create_group(data: DMXGroupCreate, db: AsyncSession = Depends(get_db)):
+    """Create a new DMX group."""
+    row = await db.execute(text("""
+        INSERT INTO dmx_groups (name, color, sort_order, metadata)
+        VALUES (:name, :color, :sort_order, CAST(:metadata AS jsonb))
+        RETURNING id, name, color, sort_order, metadata, created_at, updated_at
+    """), {
+        "name": data.name,
+        "color": data.color,
+        "sort_order": data.sort_order,
+        "metadata": json.dumps(data.metadata),
+    })
+    await db.commit()
+    return _row_to_group(row.fetchone())
+
+
+@router.get("/groups/{group_id}")
+async def get_group(group_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Get a single DMX group with member fixture/cue/sequence counts."""
+    result = await db.execute(text("""
+        SELECT id, name, color, sort_order, metadata, created_at, updated_at
+        FROM dmx_groups WHERE id = :id
+    """), {"id": str(group_id)})
+    row = result.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Group not found")
+    group = _row_to_group(row)
+
+    counts = await db.execute(text("""
+        SELECT
+            (SELECT COUNT(*) FROM dmx_fixtures  WHERE group_id = :id) AS fixture_count,
+            (SELECT COUNT(*) FROM dmx_cues      WHERE group_id = :id) AS cue_count,
+            (SELECT COUNT(*) FROM dmx_sequences WHERE group_id = :id) AS sequence_count
+    """), {"id": str(group_id)})
+    c = counts.fetchone()
+    group["fixture_count"] = c.fixture_count
+    group["cue_count"] = c.cue_count
+    group["sequence_count"] = c.sequence_count
+    return group
+
+
+@router.patch("/groups/{group_id}")
+async def update_group(group_id: UUID, data: DMXGroupUpdate, db: AsyncSession = Depends(get_db)):
+    """Update a DMX group's name, color, or sort_order."""
+    updates = data.model_dump(exclude_unset=True)
+    if not updates:
+        result = await db.execute(text(
+            "SELECT id, name, color, sort_order, metadata, created_at, updated_at FROM dmx_groups WHERE id = :id"
+        ), {"id": str(group_id)})
+        row = result.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Group not found")
+        return _row_to_group(row)
+
+    set_clauses = []
+    params: Dict[str, Any] = {"id": str(group_id)}
+    for key, value in updates.items():
+        if key == "metadata":
+            set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
+            params[key] = json.dumps(value)
+        else:
+            set_clauses.append(f"{key} = :{key}")
+            params[key] = value
+
+    row = await db.execute(text(
+        f"UPDATE dmx_groups SET {', '.join(set_clauses)}, updated_at = NOW() WHERE id = :id "
+        "RETURNING id, name, color, sort_order, metadata, created_at, updated_at"
+    ), params)
+    updated = row.fetchone()
+    if not updated:
+        raise HTTPException(status_code=404, detail="Group not found")
+    await db.commit()
+    return _row_to_group(updated)
+
+
+@router.delete("/groups/{group_id}")
+async def delete_group(group_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Delete a DMX group. Fixtures, cues, and sequences in this group become ungrouped (group_id = NULL)."""
+    row = await db.execute(text(
+        "DELETE FROM dmx_groups WHERE id = :id RETURNING id"
+    ), {"id": str(group_id)})
+    if not row.fetchone():
+        raise HTTPException(status_code=404, detail="Group not found")
+    await db.commit()
+    return {"status": "deleted", "id": str(group_id)}
+
+
+@router.post("/groups/{group_id}/fixtures")
+async def bulk_assign_fixtures_to_group(
+    group_id: UUID,
+    fixture_ids: List[str],
+    db: AsyncSession = Depends(get_db),
+):
+    """Bulk assign fixtures to a group. Pass an empty list to ungroup all fixtures in this group."""
+    # Verify group exists
+    result = await db.execute(text("SELECT id FROM dmx_groups WHERE id = :id"), {"id": str(group_id)})
+    if not result.fetchone():
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    if fixture_ids:
+        await db.execute(text("""
+            UPDATE dmx_fixtures SET group_id = :gid WHERE id = ANY(:ids)
+        """), {"gid": str(group_id), "ids": fixture_ids})
+    await db.commit()
+    return {"assigned": len(fixture_ids), "group_id": str(group_id)}
 
 
 # =============================================================================
@@ -607,11 +758,11 @@ async def create_fixture(data: DMXFixtureCreate, db: AsyncSession = Depends(get_
         INSERT INTO dmx_fixtures (
             id, name, label, node_id, universe,
             start_channel, channel_count, fixture_mode, channel_map,
-            entity_id, ofl_fixture_id, position_x, position_y, sort_order, metadata
+            entity_id, ofl_fixture_id, group_id, position_x, position_y, sort_order, metadata
         ) VALUES (
             :id, :name, :label, :node_id, :universe,
             :start_channel, :channel_count, :fixture_mode, CAST(:channel_map AS jsonb),
-            :entity_id, :ofl_fixture_id, :position_x, :position_y,
+            :entity_id, :ofl_fixture_id, :group_id, :position_x, :position_y,
             COALESCE((SELECT MAX(sort_order) + 1 FROM dmx_fixtures), 0),
             CAST(:metadata AS jsonb)
         )
@@ -627,6 +778,7 @@ async def create_fixture(data: DMXFixtureCreate, db: AsyncSession = Depends(get_
         "channel_map": channel_map_json,
         "entity_id": str(data.entity_id) if data.entity_id else None,
         "ofl_fixture_id": data.ofl_fixture_id if data.ofl_fixture_id else None,
+        "group_id": str(data.group_id) if data.group_id else None,
         "position_x": data.position_x,
         "position_y": data.position_y,
         "metadata": metadata_json,
@@ -736,7 +888,7 @@ async def update_fixture(
             elif key == "metadata":
                 set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
                 params[key] = json.dumps(value)
-            elif key in ("entity_id", "node_id") and value is not None:
+            elif key in ("entity_id", "node_id", "group_id") and value is not None:
                 # UUID fields — store as string; None passes through as NULL below
                 set_clauses.append(f"{key} = :{key}")
                 params[key] = str(value)
@@ -969,6 +1121,7 @@ async def clear_dmx_output(db: AsyncSession = Depends(get_db)):
 
 class DMXCueCreate(BaseModel):
     name: str
+    group_id: Optional[UUID] = None
 
 class DMXCueRename(BaseModel):
     name: str
@@ -980,6 +1133,7 @@ def _row_to_cue(row) -> dict:
         "name": row.name,
         "fade_duration": float(getattr(row, "fade_duration", 0) or 0),
         "sort_order": getattr(row, "sort_order", 0),
+        "group_id": str(row.group_id) if row.group_id else None,
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
@@ -994,7 +1148,7 @@ async def list_cues(db: AsyncSession = Depends(get_db)):
     denormalized data stored on the cue record itself.
     """
     rows = await db.execute(text("""
-        SELECT id, name, fade_duration, sort_order, created_at, updated_at
+        SELECT id, name, fade_duration, sort_order, group_id, created_at, updated_at
         FROM dmx_cues ORDER BY sort_order ASC, created_at ASC
     """))
     cues = [_row_to_cue(r) for r in rows.fetchall()]
@@ -1037,15 +1191,20 @@ async def list_cues(db: AsyncSession = Depends(get_db)):
 
 @router.post("/cues")
 async def save_cue(data: DMXCueCreate, db: AsyncSession = Depends(get_db)):
-    """Snapshot current entity states for all linked fixtures into a new named cue."""
-    # Collect all fixtures with a linked entity and a channel map
+    """Snapshot current entity states for fixtures in this cue's group into a new named cue.
+
+    If group_id is provided, only fixtures belonging to that group are snapshotted.
+    If group_id is null, only ungrouped fixtures are snapshotted.
+    """
+    # Collect fixtures scoped to the same group as the cue
     fixture_rows = await db.execute(text("""
         SELECT f.id, f.entity_id, f.channel_map
         FROM dmx_fixtures f
         WHERE f.entity_id IS NOT NULL
           AND f.channel_map IS NOT NULL
           AND f.channel_map != '{}'::jsonb
-    """))
+          AND f.group_id IS NOT DISTINCT FROM :group_id
+    """), {"group_id": str(data.group_id) if data.group_id else None})
     fixtures = fixture_rows.fetchall()
 
     # Fetch current entity states in one query
@@ -1060,9 +1219,9 @@ async def save_cue(data: DMXCueCreate, db: AsyncSession = Depends(get_db)):
 
     # Create cue header
     cue_row = await db.execute(text("""
-        INSERT INTO dmx_cues (name) VALUES (:name)
-        RETURNING id, name, created_at, updated_at
-    """), {"name": data.name})
+        INSERT INTO dmx_cues (name, group_id) VALUES (:name, :group_id)
+        RETURNING id, name, group_id, created_at, updated_at
+    """), {"name": data.name, "group_id": str(data.group_id) if data.group_id else None})
     cue = cue_row.fetchone()
 
     import json as _json
@@ -1178,20 +1337,21 @@ async def update_cue_snapshot(cue_id: UUID, db: AsyncSession = Depends(get_db)):
 
     # Verify cue exists
     cue_check = await db.execute(text("""
-        SELECT id, name, fade_duration, sort_order, created_at, updated_at FROM dmx_cues WHERE id = :id
+        SELECT id, name, fade_duration, sort_order, group_id, created_at, updated_at FROM dmx_cues WHERE id = :id
     """), {"id": str(cue_id)})
     cue = cue_check.fetchone()
     if not cue:
         raise HTTPException(status_code=404, detail="Cue not found")
 
-    # Re-snapshot current entity states (same logic as save_cue)
+    # Re-snapshot current entity states scoped to this cue's group
     fixture_rows = await db.execute(text("""
         SELECT f.id, f.entity_id, f.channel_map
         FROM dmx_fixtures f
         WHERE f.entity_id IS NOT NULL
           AND f.channel_map IS NOT NULL
           AND f.channel_map != '{}'::jsonb
-    """))
+          AND f.group_id IS NOT DISTINCT FROM :group_id
+    """), {"group_id": str(cue.group_id) if cue.group_id else None})
     fixtures = fixture_rows.fetchall()
 
     entity_ids = [r.entity_id for r in fixtures]
@@ -1227,7 +1387,7 @@ async def update_cue_snapshot(cue_id: UUID, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     updated = await db.execute(text("""
-        SELECT id, name, fade_duration, sort_order, created_at, updated_at FROM dmx_cues WHERE id = :id
+        SELECT id, name, fade_duration, sort_order, group_id, created_at, updated_at FROM dmx_cues WHERE id = :id
     """), {"id": str(cue_id)})
     return _row_to_cue(updated.fetchone())
 
@@ -1237,7 +1397,7 @@ async def rename_cue(cue_id: UUID, data: DMXCueRename, db: AsyncSession = Depend
     """Rename a cue."""
     row = await db.execute(text("""
         UPDATE dmx_cues SET name = :name WHERE id = :id
-        RETURNING id, name, fade_duration, sort_order, created_at, updated_at
+        RETURNING id, name, fade_duration, sort_order, group_id, created_at, updated_at
     """), {"name": data.name, "id": str(cue_id)})
     cue = row.fetchone()
     if not cue:
@@ -1281,6 +1441,7 @@ async def get_cue_fixtures(cue_id: UUID, db: AsyncSession = Depends(get_db)):
 
 class DMXSequenceCreate(BaseModel):
     name: str
+    group_id: Optional[UUID] = None
 
 class DMXSequenceRename(BaseModel):
     name: str
@@ -1326,6 +1487,7 @@ def _row_to_sequence(row, placements: list) -> dict:
         "name": row.name,
         "fade_out_duration": float(getattr(row, "fade_out_duration", 3) or 3),
         "sort_order": getattr(row, "sort_order", 0),
+        "group_id": str(row.group_id) if row.group_id else None,
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         "cue_placements": placements,
@@ -1336,7 +1498,7 @@ def _row_to_sequence(row, placements: list) -> dict:
 async def list_sequences(db: AsyncSession = Depends(get_db)):
     """List all sequences with their cue placements, ordered by sort_order."""
     seq_rows = await db.execute(text("""
-        SELECT id, name, fade_out_duration, sort_order, created_at, updated_at
+        SELECT id, name, fade_out_duration, sort_order, group_id, created_at, updated_at
         FROM dmx_sequences ORDER BY sort_order ASC, created_at ASC
     """))
     sequences = seq_rows.fetchall()
@@ -1355,10 +1517,10 @@ async def create_sequence(data: DMXSequenceCreate, db: AsyncSession = Depends(ge
     next_order = (max_row.fetchone().m or 0) + 1
 
     row = await db.execute(text("""
-        INSERT INTO dmx_sequences (name, sort_order)
-        VALUES (:name, :sort_order)
-        RETURNING id, name, fade_out_duration, sort_order, created_at, updated_at
-    """), {"name": data.name, "sort_order": next_order})
+        INSERT INTO dmx_sequences (name, sort_order, group_id)
+        VALUES (:name, :sort_order, :group_id)
+        RETURNING id, name, fade_out_duration, sort_order, group_id, created_at, updated_at
+    """), {"name": data.name, "sort_order": next_order, "group_id": str(data.group_id) if data.group_id else None})
     seq = row.fetchone()
     await _sync_dmx_lighting_entity(db)
     await db.commit()
@@ -1382,7 +1544,7 @@ async def rename_sequence(sequence_id: UUID, data: DMXSequenceRename, db: AsyncS
     """Rename a sequence."""
     row = await db.execute(text("""
         UPDATE dmx_sequences SET name = :name WHERE id = :id
-        RETURNING id, name, fade_out_duration, sort_order, created_at, updated_at
+        RETURNING id, name, fade_out_duration, sort_order, group_id, created_at, updated_at
     """), {"name": data.name, "id": str(sequence_id)})
     seq = row.fetchone()
     if not seq:
@@ -1536,17 +1698,24 @@ class PlaybackCueFadeRequest(BaseModel):
 
 
 @router.get("/playback/status")
-async def get_playback_status():
-    """Return current playback engine status."""
-    from dmx_playback_engine import playback_engine
-    return playback_engine.status
+async def get_playback_status(group_id: Optional[str] = None):
+    """Return playback engine status.
+
+    - Omit group_id to get the ungrouped (legacy) engine status (backward compatible).
+    - Pass group_id=<uuid> to get a specific group's engine status.
+    - Pass group_id=all to get all engines' statuses.
+    """
+    from dmx_playback_engine import engine_registry
+    if group_id == "all":
+        return {"engines": engine_registry.all_statuses()}
+    return engine_registry.get(group_id).status
 
 
 @router.get("/playback/config")
 async def get_playback_config():
-    """Return current playback engine configuration."""
-    from dmx_playback_engine import playback_engine
-    return {"interval_ms": round(playback_engine._send_interval * 1000)}
+    """Return current playback engine configuration (shared across all engines)."""
+    from dmx_playback_engine import engine_registry
+    return {"interval_ms": round(engine_registry.ungrouped._send_interval * 1000)}
 
 
 class PlaybackConfigUpdate(BaseModel):
@@ -1556,71 +1725,71 @@ class PlaybackConfigUpdate(BaseModel):
 @router.put("/playback/config")
 async def update_playback_config(data: PlaybackConfigUpdate):
     """Update playback engine configuration at runtime and persist it."""
-    from dmx_playback_engine import playback_engine
-    await playback_engine.set_interval(data.interval_ms)
-    return {"interval_ms": round(playback_engine._send_interval * 1000)}
+    from dmx_playback_engine import engine_registry
+    await engine_registry.ungrouped.set_interval(data.interval_ms)
+    return {"interval_ms": round(engine_registry.ungrouped._send_interval * 1000)}
 
 
 @router.post("/playback/play")
-async def playback_play(data: PlaybackPlayRequest):
-    """Start sequence playback."""
-    from dmx_playback_engine import playback_engine
-    ok = await playback_engine.play(data.sequence_id)
+async def playback_play(data: PlaybackPlayRequest, group_id: Optional[str] = None):
+    """Start sequence playback. Pass group_id to target a specific group's engine."""
+    from dmx_playback_engine import engine_registry
+    ok = await engine_registry.get(group_id).play(data.sequence_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Sequence not found or has no cue placements")
-    return {"status": "playing"}
+    return {"status": "playing", "group_id": group_id}
 
 
 @router.post("/playback/pause")
-async def playback_pause():
+async def playback_pause(group_id: Optional[str] = None):
     """Pause playback."""
-    from dmx_playback_engine import playback_engine
-    await playback_engine.pause()
-    return {"status": "paused"}
+    from dmx_playback_engine import engine_registry
+    await engine_registry.get(group_id).pause()
+    return {"status": "paused", "group_id": group_id}
 
 
 @router.post("/playback/resume")
-async def playback_resume():
+async def playback_resume(group_id: Optional[str] = None):
     """Resume paused playback."""
-    from dmx_playback_engine import playback_engine
-    await playback_engine.resume()
-    return {"status": "playing"}
+    from dmx_playback_engine import engine_registry
+    await engine_registry.get(group_id).resume()
+    return {"status": "playing", "group_id": group_id}
 
 
 @router.post("/playback/stop")
-async def playback_stop():
+async def playback_stop(group_id: Optional[str] = None):
     """Stop playback."""
-    from dmx_playback_engine import playback_engine
-    await playback_engine.stop()
-    return {"status": "stopped"}
+    from dmx_playback_engine import engine_registry
+    await engine_registry.get(group_id).stop()
+    return {"status": "stopped", "group_id": group_id}
 
 
 @router.post("/playback/toggle-loop")
-async def playback_toggle_loop():
+async def playback_toggle_loop(group_id: Optional[str] = None):
     """Toggle loop mode."""
-    from dmx_playback_engine import playback_engine
-    loop = await playback_engine.toggle_loop()
-    return {"loop": loop}
+    from dmx_playback_engine import engine_registry
+    loop = await engine_registry.get(group_id).toggle_loop()
+    return {"loop": loop, "group_id": group_id}
 
 
 @router.post("/playback/fadeout")
-async def playback_fadeout(data: PlaybackFadeOutRequest):
+async def playback_fadeout(data: PlaybackFadeOutRequest, group_id: Optional[str] = None):
     """Fade out dimmer channels of the current cue then stop."""
-    from dmx_playback_engine import playback_engine
-    await playback_engine.fade_out(data.duration_ms)
-    return {"status": "fading_out"}
+    from dmx_playback_engine import engine_registry
+    await engine_registry.get(group_id).fade_out(data.duration_ms)
+    return {"status": "fading_out", "group_id": group_id}
 
 
 @router.post("/playback/cue-fade")
-async def playback_cue_fade(data: PlaybackCueFadeRequest):
+async def playback_cue_fade(data: PlaybackCueFadeRequest, group_id: Optional[str] = None):
     """Fade from one cue snapshot to another."""
-    from dmx_playback_engine import playback_engine
-    ok = await playback_engine.recall_cue_fade(
+    from dmx_playback_engine import engine_registry
+    ok = await engine_registry.get(group_id).recall_cue_fade(
         data.from_cue_id, data.to_cue_id, data.duration_ms
     )
     if not ok:
         raise HTTPException(status_code=404, detail="Target cue has no fixture snapshots")
-    return {"status": "fading"}
+    return {"status": "fading", "group_id": group_id}
 
 
 @router.post("/playback/blackout")

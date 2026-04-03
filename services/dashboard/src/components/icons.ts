@@ -91,6 +91,7 @@ export {
   Pencil,
   Trash2,
   X,
+  Menu,
   ChevronRight,
   Search,
   RefreshCw,

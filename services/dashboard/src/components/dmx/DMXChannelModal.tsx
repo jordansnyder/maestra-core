@@ -42,6 +42,13 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
 
   const [values, setValues] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   // Snapshot of state at the time the panel opened — used by Cancel & Reset
@@ -178,23 +185,30 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
   }, [handleCancelAndReset])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start pointer-events-none" style={{ paddingTop: '3rem' }}>
-      {/* Darkened/blurred backdrop covering canvas area only */}
+    <div
+      className="fixed inset-0 z-50 flex items-center pointer-events-none"
+      style={isMobile ? { alignItems: 'flex-end' } : { alignItems: 'flex-start', paddingTop: '3rem' }}
+    >
+      {/* Backdrop — full screen on mobile, canvas-area only on desktop */}
       <div
         className="absolute inset-0 pointer-events-auto bg-black/60 backdrop-blur-sm"
-        style={{ left: '14rem', right: '16rem' }}
+        style={isMobile ? {} : { left: '14rem', right: '16rem' }}
         onClick={onClose}
       />
 
-      {/* Modal — inset within left nav (w-56=14rem) and right DMX sidebar (w-64=16rem) */}
+      {/* Modal — bottom sheet on mobile, canvas-inset on desktop */}
       <div
-        className="relative pointer-events-auto flex flex-col bg-slate-900 border border-slate-700 rounded-xl shadow-2xl"
-        style={{
-          marginLeft: 'calc(14rem + 16px)',
-          marginRight: 'calc(16rem + 16px)',
-          maxHeight: '70vh',
-          flex: 1,
-        }}
+        className="relative pointer-events-auto flex flex-col bg-slate-900 border border-slate-700 shadow-2xl"
+        style={isMobile
+          ? { width: '100%', maxHeight: '85vh', borderRadius: '1rem 1rem 0 0', borderBottom: 'none' }
+          : {
+              marginLeft: 'calc(14rem + 16px)',
+              marginRight: 'calc(16rem + 16px)',
+              maxHeight: '70vh',
+              flex: 1,
+              borderRadius: '0.75rem',
+            }
+        }
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

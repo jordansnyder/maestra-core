@@ -19,7 +19,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Mobile backdrop */}
       {mobileSidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+          className="nav-overlay-backdrop"
           onClick={() => setMobileSidebarOpen(false)}
         />
       )}

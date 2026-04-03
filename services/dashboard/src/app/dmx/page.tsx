@@ -678,8 +678,8 @@ export default function DMXPage() {
 
       {/* Add Node Modal */}
       {showAddNode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+        <div className="modal-backdrop">
+          <div className="modal-panel max-w-lg">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <Network className="w-4 h-4 text-blue-400" />
@@ -704,8 +704,8 @@ export default function DMXPage() {
 
       {/* Edit Node Modal */}
       {editingNode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+        <div className="modal-backdrop">
+          <div className="modal-panel max-w-lg">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <Network className="w-4 h-4 text-blue-400" />
@@ -873,8 +873,8 @@ export default function DMXPage() {
 
       {/* Delete Sequence Confirmation */}
       {deleteSequenceTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+        <div className="modal-backdrop">
+          <div className="modal-panel max-w-sm">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800">
               <div className="w-8 h-8 rounded-full bg-red-900/40 border border-red-800/50 flex items-center justify-center shrink-0">
                 <Trash2 className="w-4 h-4 text-red-400" />
@@ -899,8 +899,8 @@ export default function DMXPage() {
 
       {/* Clear DMX Confirmation */}
       {showClearConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+        <div className="modal-backdrop">
+          <div className="modal-panel max-w-sm">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800">
               <div className="w-8 h-8 rounded-full bg-red-900/40 border border-red-800/50 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-4 h-4 text-red-400" />

@@ -192,7 +192,7 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
       {/* Backdrop — full screen on mobile, canvas-area only on desktop */}
       <div
         className="absolute inset-0 pointer-events-auto bg-black/60 backdrop-blur-sm"
-        style={isMobile ? {} : { left: '14rem', right: '16rem' }}
+        style={isMobile ? {} : { left: 'var(--sidebar-nav-width)', right: 'var(--sidebar-dmx-width)' }}
         onClick={onClose}
       />
 
@@ -202,8 +202,8 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
         style={isMobile
           ? { width: '100%', maxHeight: '85vh', borderRadius: '1rem 1rem 0 0', borderBottom: 'none' }
           : {
-              marginLeft: 'calc(14rem + 16px)',
-              marginRight: 'calc(16rem + 16px)',
+              marginLeft: 'calc(var(--sidebar-nav-width) + 16px)',
+              marginRight: 'calc(var(--sidebar-dmx-width) + 16px)',
               maxHeight: '70vh',
               flex: 1,
               borderRadius: '0.75rem',

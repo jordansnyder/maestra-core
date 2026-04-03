@@ -210,7 +210,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   return (
     <aside
       className={`
-        fixed inset-y-0 left-0 z-50 w-56
+        fixed inset-y-0 left-0 z-50 w-sidebar-nav
         transform transition-transform duration-300 ease-in-out
         md:relative md:translate-x-0 md:z-auto md:transition-none
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}

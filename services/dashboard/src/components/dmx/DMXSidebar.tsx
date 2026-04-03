@@ -264,7 +264,7 @@ export function DMXSidebar({
 
   return (
     <>
-    <aside className="w-full md:w-[295px] md:shrink-0 bg-slate-900 md:border-l border-slate-800 flex flex-col overflow-hidden">
+    <aside className="w-full md:w-sidebar-dmx md:shrink-0 bg-slate-900 md:border-l border-slate-800 flex flex-col overflow-hidden">
 
       {/* ── Art-Net Nodes section ───────────────────────────────────── */}
       <div className="flex flex-col shrink-0" style={{ transition: 'flex 350ms cubic-bezier(0.4,0,0.2,1)' }}>

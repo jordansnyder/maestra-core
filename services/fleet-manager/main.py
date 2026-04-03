@@ -33,7 +33,7 @@ from discovery_router import router as discovery_router
 from dmx_router import router as dmx_router
 from fixtures_router import router as fixtures_router
 from osc_mapping_router import router as osc_mapping_router
-from dmx_playback_engine import playback_engine
+from dmx_playback_engine import playback_engine, engine_registry
 from show_control_router import router as show_control_router, handle_show_command
 from show_scheduler import show_scheduler
 
@@ -444,7 +444,7 @@ async def startup_event():
 
     # Load persisted DMX settings (interval, etc.)
     if db_ok:
-        await playback_engine.load_settings()
+        await engine_registry.load_settings()
     # Subscribe NATS for external DMX lighting entity control
     if state_manager.nc:
         async def _on_dmx_lighting_state(msg):
@@ -453,18 +453,63 @@ async def startup_event():
                 if event.get('source') == 'dmx-engine':
                     return  # Ignore our own broadcasts
                 current_state = event.get('current_state', {}) or {}
-                active_sequence_id = current_state.get('active_sequence_id')
-                active_cue_id = current_state.get('active_cue_id')
+                # changed_keys is set by state_manager on internal updates; external
+                # NATS messages may omit it — treat as "all keys changed" in that case.
+                changed_keys = event.get('changed_keys') or list(current_state.keys())
 
-                if active_sequence_id:
-                    if playback_engine.status['sequence_id'] != active_sequence_id:
-                        await playback_engine.play(active_sequence_id)
-                elif active_cue_id:
-                    prev_cue = playback_engine.status.get('active_cue_id') if playback_engine.status else None
-                    await playback_engine.recall_cue_fade(prev_cue, active_cue_id, 0)
-                else:
-                    if playback_engine.status['play_state'] != 'stopped':
-                        await playback_engine.stop()
+                def _parse_seq_control(value):
+                    """Parse active_sequence_id which can be:
+                    - None/null  → stop
+                    - str        → play once, stop on last values
+                    - dict       → {id, loop?, fadeout?}  (fadeout in seconds)
+                    Returns (seq_id, loop, fadeout_ms).
+                    """
+                    if value is None:
+                        return None, False, None
+                    if isinstance(value, str):
+                        return value, False, None
+                    if isinstance(value, dict):
+                        seq_id = value.get('id')
+                        loop = bool(value.get('loop', False))
+                        fadeout_s = value.get('fadeout')
+                        fadeout_ms = float(fadeout_s) * 1000.0 if fadeout_s is not None else None
+                        return seq_id, loop, fadeout_ms
+                    return None, False, None
+
+                # ── Ungrouped (legacy) engine ─────────────────────────────────
+                if 'active_sequence_id' in changed_keys or 'active_cue_id' in changed_keys:
+                    raw_seq = current_state.get('active_sequence_id')
+                    active_cue_id = current_state.get('active_cue_id')
+                    seq_id, loop, fadeout_ms = _parse_seq_control(raw_seq)
+                    if seq_id:
+                        if playback_engine.status['sequence_id'] != seq_id:
+                            await playback_engine.play(seq_id, loop=loop, fadeout_ms=fadeout_ms)
+                    elif active_cue_id:
+                        prev_cue = playback_engine.status.get('sequence_id')
+                        await playback_engine.recall_cue_fade(prev_cue, active_cue_id, 0)
+                    else:
+                        if playback_engine.status['play_state'] != 'stopped':
+                            await playback_engine.stop()
+
+                # ── Per-group engines ─────────────────────────────────────────
+                # group_playback: {<group_uuid>: {active_sequence_id, active_cue_id}}
+                if 'group_playback' in changed_keys:
+                    group_playback = current_state.get('group_playback') or {}
+                    for group_id, control in group_playback.items():
+                        if not isinstance(control, dict):
+                            continue
+                        grp_engine = engine_registry.get(group_id)
+                        raw_seq = control.get('active_sequence_id')
+                        cue_id = control.get('active_cue_id')
+                        seq_id, loop, fadeout_ms = _parse_seq_control(raw_seq)
+                        if seq_id:
+                            if grp_engine.status['sequence_id'] != seq_id:
+                                await grp_engine.play(seq_id, loop=loop, fadeout_ms=fadeout_ms)
+                        elif cue_id:
+                            await grp_engine.recall_cue_fade(None, cue_id, 0)
+                        else:
+                            if grp_engine.status['play_state'] != 'stopped':
+                                await grp_engine.stop()
             except Exception as e:
                 print(f"⚠️ DMX lighting state handler error: {e}")
 
@@ -522,7 +567,7 @@ async def shutdown_event():
     """Cleanup on shutdown"""
     print("👋 Maestra Fleet Manager shutting down...")
     await show_scheduler.stop()
-    await playback_engine.shutdown()
+    await engine_registry.shutdown_all()
     await demo_simulator.stop()
     await cloud_manager.disconnect()
     await stream_manager.disconnect()

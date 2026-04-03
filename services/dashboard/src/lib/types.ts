@@ -513,7 +513,6 @@ export interface ChannelMapping {
 export interface DMXFixture {
   id: string
   name: string
-  label?: string
   ofl_manufacturer?: string
   ofl_model?: string
   node_id: string
@@ -537,7 +536,6 @@ export interface DMXFixture {
 
 export interface DMXFixtureCreate {
   name: string
-  label?: string
   node_id: string
   universe: number
   start_channel: number
@@ -556,7 +554,6 @@ export interface DMXFixtureCreate {
 
 export interface DMXFixtureUpdate {
   name?: string
-  label?: string
   node_id?: string
   universe?: number
   start_channel?: number

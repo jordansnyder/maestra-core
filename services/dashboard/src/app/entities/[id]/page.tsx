@@ -221,7 +221,7 @@ export default function EntityDetailPage() {
   )
   const filteredFixtures = linkableFixtures.filter((f) => {
     const q = fixtureSearch.toLowerCase()
-    return !q || f.name.toLowerCase().includes(q) || (f.label ?? '').toLowerCase().includes(q)
+    return !q || f.name.toLowerCase().includes(q)
   })
 
   const channelMapEntries = linkedFixture
@@ -364,12 +364,6 @@ export default function EntityDetailPage() {
                     <span className="text-slate-500">Fixture</span>
                     <span className="text-slate-200 font-medium">{linkedFixture.name}</span>
                   </div>
-                  {linkedFixture.label && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Label</span>
-                      <span className="text-slate-300">{linkedFixture.label}</span>
-                    </div>
-                  )}
                   <div className="flex justify-between">
                     <span className="text-slate-500">Universe</span>
                     <span className="text-slate-300 font-mono">U{linkedFixture.universe}</span>
@@ -488,7 +482,10 @@ export default function EntityDetailPage() {
               {editing ? (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Name</label>
+                    <label className="block text-sm font-medium mb-1">
+                      Display Name
+                      <span className="ml-2 text-xs font-normal text-slate-500">slug stays unchanged</span>
+                    </label>
                     <input
                       type="text"
                       value={editName}

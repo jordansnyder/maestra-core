@@ -511,7 +511,7 @@ export function DMXSidebar({
                                 {/* Row 1: grip · name · actions */}
                                 <div className="flex items-center gap-1">
                                   <GripVertical className="w-3 h-3 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
-                                  <div className="text-xs font-medium text-slate-200 truncate flex-1">{fixture.label || fixture.name}</div>
+                                  <div className="text-xs font-medium text-slate-200 truncate flex-1">{fixture.name}</div>
                                   {/* Action buttons: always visible on mobile, hover-only on desktop */}
                                   <div className="flex items-center gap-1 shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                     <button

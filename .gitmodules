@@ -1,4 +1,4 @@
 [submodule "vendor/ofl"]
 	path = vendor/ofl
 	url = https://github.com/aarongeiser/open-fixture-library.git
-	branch = branch2026-03-23T04-51-04
+	branch = master

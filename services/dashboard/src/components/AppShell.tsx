@@ -5,7 +5,7 @@ import { Sidebar } from './Sidebar'
 import { useOnboarding } from '@/hooks/useOnboarding'
 import { useSystemHealth } from '@/hooks/useSystemHealth'
 import { useWebSocket } from '@/hooks/useWebSocket'
-import { Menu } from '@/components/icons'
+import { Menu, Server, MessageSquare, Database, Cloud, Wifi } from '@/components/icons'
 
 /** Silently tracks page visits to auto-complete onboarding checklist steps */
 function OnboardingTracker() {
@@ -17,6 +17,13 @@ const DOT_COLORS: Record<string, string> = {
   healthy: 'bg-green-500',
   unhealthy: 'bg-red-500',
   checking: 'bg-slate-600 animate-pulse',
+}
+
+const SERVICE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  'Fleet Manager': Server,
+  'Message Bus': MessageSquare,
+  'Database': Database,
+  'Cloud Gateway': Cloud,
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -53,21 +60,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </span>
 
           {/* System health status dots */}
-          <div className="ml-auto flex items-center gap-2">
-            {services.map((service) => (
-              <span
-                key={service.name}
-                className={`w-2 h-2 rounded-full shrink-0 ${DOT_COLORS[service.status] ?? 'bg-slate-600'}`}
-                title={`${service.name}: ${service.status}`}
-                aria-label={`${service.name}: ${service.status}`}
-              />
-            ))}
-            {/* WebSocket dot */}
-            <span
-              className={`w-2 h-2 rounded-full shrink-0 ${wsConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}
+          <div className="ml-auto flex items-center gap-2.5">
+            {services.map((service) => {
+              const Icon = SERVICE_ICONS[service.name]
+              return (
+                <div
+                  key={service.name}
+                  className="flex items-center gap-1"
+                  title={`${service.name}: ${service.status}`}
+                  aria-label={`${service.name}: ${service.status}`}
+                >
+                  {Icon && <Icon className="w-3 h-3 text-slate-500" />}
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${DOT_COLORS[service.status] ?? 'bg-slate-600'}`} />
+                </div>
+              )
+            })}
+            {/* WebSocket indicator */}
+            <div
+              className="flex items-center gap-1"
               title={`WebSocket: ${wsConnected ? 'connected' : 'disconnected'}`}
               aria-label={`WebSocket: ${wsConnected ? 'connected' : 'disconnected'}`}
-            />
+            >
+              <Wifi className="w-3 h-3 text-slate-500" />
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${wsConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
+            </div>
           </div>
         </div>
 

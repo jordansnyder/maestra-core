@@ -38,7 +38,7 @@ export function FixtureNode({
 }: FixtureNodeProps) {
   const [hovered, setHovered] = useState(false)
   const color = universeColor
-  const displayName = fixture.label || fixture.name
+  const displayName = fixture.name
   const shortId = fixture.id.replace(/-/g, '').slice(0, 7)
 
   const radius = Math.round(diameter / 2)

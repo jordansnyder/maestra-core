@@ -64,7 +64,6 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
     isEditing ? (fixture?.entity_slug ?? '') : slugify(initialName ?? source?.name ?? '')
   )
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(isEditing)
-  const [label, setLabel] = useState(source?.label ?? '')
   const [fixtureMode, setFixtureMode] = useState(source?.fixture_mode ?? '')
   const initialNodeId = source?.node_id ?? nodes[0]?.id ?? ''
   const initialUniverse = source?.universe ?? 1
@@ -110,6 +109,9 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
 
   // Track all fixture names for auto-numbering
   const [allFixtureNames, setAllFixtureNames] = useState<string[]>([])
+  useEffect(() => {
+    setAllFixtureNames(fixtures.map((f) => f.name))
+  }, [fixtures])
 
   const selectedNode = nodes.find((n) => n.id === nodeId)
   const selectedEntity = entities.find((e) => e.id === entityId) ?? null
@@ -364,7 +366,6 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
 
       await onSubmit({
         name: name.trim(),
-        label: label.trim() || undefined,
         fixture_mode: fixtureMode.trim() || undefined,
         node_id: nodeId,
         universe,
@@ -378,6 +379,14 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
         position_x: (isCopying ? (copyOf!.position_x + 40) : fixture?.position_x) ?? defaultPosition?.x ?? 200,
         position_y: (isCopying ? (copyOf!.position_y + 40) : fixture?.position_y) ?? defaultPosition?.y ?? 200,
       })
+      // In edit mode, keep the linked entity's display name in sync with the fixture name
+      if (isEditing && resolvedEntityId) {
+        try {
+          await entitiesApi.update(resolvedEntityId, { name: name.trim() })
+        } catch {
+          // Non-fatal: display name sync failure doesn't block the save
+        }
+      }
       onClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : isEditing ? 'Failed to update fixture' : 'Failed to create fixture')
@@ -609,17 +618,8 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
                   </select>
                 </div>
               )}
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Short Label</label>
-                <input
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                  placeholder="e.g. FWL"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
-                />
-              </div>
               {isEditing && editOFLFixture && editOFLFixture.modes.length > 0 && (
-                <div>
+                <div className="col-span-2">
                   <label className="block text-xs text-slate-400 mb-1 flex items-center gap-2">
                     Fixture Mode
                     <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-900/40 border border-emerald-800/50 text-emerald-400 normal-case tracking-normal">

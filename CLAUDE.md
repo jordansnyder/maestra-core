@@ -582,6 +582,7 @@ The `dmx-lighting` singleton entity (slug `dmx-lighting`, type `dmx_controller`)
 - **Green pulse indicators**: active sequence engines shown on group rows, context pills, Sequences tab header
 - **`useSequencePlayback` hook**: tracks `Map<string|null, SequencePlaybackStatus>` keyed by `group_id`; `activeGroupIds` useMemo set drives all visual indicators; polls every 150ms while any engine is active
 - **`onAdjustFixture` prop**: mobile-specific path to open the DMX channel modal for a specific fixture without requiring canvas selection
+- **DMX Adjust Modal** (`DMXChannelModal.tsx`): vertical channel sliders (`0–255`) for each channel in the fixture's channel map; when both `pan` and `tilt` channels are detected a segmented toggle in the header switches to **Pan/Tilt joystick mode** — a 2D drag pad (mouse + touch) with a Center button; both modes write through `handleChange` → `entitiesApi.updateState` with 50ms debounce; touch listeners added imperatively with `{ passive: false }` so drag doesn't scroll the page
 
 ## Configuration
 

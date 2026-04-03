@@ -227,9 +227,11 @@ A green pulse dot appears on the Sequences tab header when any group engine is a
 
 #### DMX Adjust Modal
 
-Select one or more fixtures on the canvas, then click **Adjust DMX** (toolbar or context menu) to open the channel slider panel. Each channel from the fixture's channel map is shown as a labeled slider (`0–255`). Changes are sent to the linked entity in real time.
+Select one or more fixtures on the canvas, then click **Adjust DMX** (toolbar or context menu) to open the channel slider panel. Each channel from the fixture's channel map is shown as a labeled vertical slider (`0–255`). Changes are sent to the linked entity in real time.
 
 Multi-selected fixtures of the same OFL model and universe can be adjusted simultaneously.
+
+**Pan/Tilt Joystick mode** — When the fixture's channel map includes both a `pan` and `tilt` channel, a toggle appears in the modal header to switch between the standard channel sliders and a 2D joystick pad. The joystick maps the X axis to Pan and the Y axis to Tilt; drag with a mouse on desktop or use touch on mobile. A **Center** button snaps both channels to 127. Values update in real time using the same entity state pipeline as the individual sliders.
 
 #### Add / Edit Fixture Modal
 
@@ -240,7 +242,7 @@ When adding a fixture you can:
 4. Choose the Art-Net node, universe, and start channel
 5. Optionally link to an existing Maestra entity (or let the system auto-create one)
 
-Editing an existing fixture uses the same form. Deleting a fixture optionally deletes its linked entity as well.
+Editing an existing fixture uses the same form. When you change a fixture's name, its linked entity's display name is automatically updated to match. Deleting a fixture optionally deletes its linked entity as well.
 
 #### Art-Net Node Setup
 
@@ -636,7 +638,7 @@ make sync-ofl
 
 ## Open Fixture Library Integration
 
-Maestra ships the [Open Fixture Library](https://open-fixture-library.org/) as a git submodule and syncs it into the `ofl_manufacturers` and `ofl_fixtures` tables. When you add a fixture in the Dashboard, you can search manufacturers and models; the channel map is auto-generated from the OFL fixture definition and the selected mode.
+Maestra ships the [Open Fixture Library](https://open-fixture-library.org/) as a git submodule (tracking the `master` branch) and syncs it into the `ofl_manufacturers` and `ofl_fixtures` tables. When you add a fixture in the Dashboard, you can search manufacturers and models; the channel map is auto-generated from the OFL fixture definition and the selected mode.
 
 The OFL catalog is **never synced automatically** — run `make sync-ofl` manually to pull the latest fixture definitions. Check sync status with `make ofl-status` or `GET /ofl/sync/status`.
 

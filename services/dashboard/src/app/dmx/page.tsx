@@ -51,7 +51,6 @@ export default function DMXPage() {
   const [showAddNode, setShowAddNode] = useState(false)
   const [showAddFixture, setShowAddFixture] = useState(false)
   const [editingFixture, setEditingFixture] = useState<DMXFixture | null>(null)
-  const [copyingFixture, setCopyingFixture] = useState<{ fixture: DMXFixture; name: string } | null>(null)
   const [nodeDiameter, setNodeDiameter] = useState<number>(getInitialScale)
   const [editingNode, setEditingNode] = useState<DMXNode | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -395,13 +394,6 @@ export default function DMXPage() {
     }
   }
 
-  const handleCopy = (fixture: DMXFixture) => {
-    const existingNames = fixtures.map((f) => f.name)
-    const base = fixture.name.replace(/ \d+$/, '')
-    let n = 2
-    while (existingNames.includes(`${base} ${n}`)) n++
-    setCopyingFixture({ fixture, name: `${base} ${n}` })
-  }
 
   const handleDeleteRequest = (id: string) => {
     const fixture = fixtures.find((f) => f.id === id)
@@ -572,7 +564,6 @@ export default function DMXPage() {
             multiSelectGroup={multiSelectGroup}
             onSelect={handleSelect}
             onEdit={(fixture) => setEditingFixture(fixture)}
-            onCopy={handleCopy}
             onDelete={handleDeleteRequest}
             onAdjustDMX={() => setShowDMXAdjust(true)}
             onPositionsChange={async (positions) => {
@@ -809,20 +800,6 @@ export default function DMXPage() {
         />
       )}
 
-      {/* Copy Fixture Modal */}
-      {copyingFixture && (
-        <AddFixtureModal
-          nodes={nodes}
-          fixtures={fixtures}
-          copyOf={copyingFixture.fixture}
-          initialName={copyingFixture.name}
-          onSubmit={async (data) => {
-            await createFixture(data)
-            setCopyingFixture(null)
-          }}
-          onClose={() => setCopyingFixture(null)}
-        />
-      )}
 
       {/* Delete Fixture Confirmation */}
       {deletingFixture && (

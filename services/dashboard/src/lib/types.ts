@@ -495,6 +495,8 @@ export interface DMXFixture {
   fixture_mode?: string
   channel_map: Record<string, ChannelMapping>
   entity_id?: string
+  /** Slug of the linked entity — read-only on the fixture, derived via JOIN. */
+  entity_slug?: string
   ofl_fixture_id?: string
   position_x: number
   position_y: number
@@ -514,6 +516,8 @@ export interface DMXFixtureCreate {
   fixture_mode?: string
   channel_map?: Record<string, ChannelMapping>
   entity_id?: string
+  /** Desired slug for the auto-created linked entity. Returns 409 if already in use. */
+  entity_slug?: string
   ofl_fixture_id?: string
   position_x?: number
   position_y?: number
@@ -531,6 +535,8 @@ export interface DMXFixtureUpdate {
   channel_map?: Record<string, ChannelMapping>
   /** Pass null explicitly to unlink from an entity; omit to leave unchanged. */
   entity_id?: string | null
+  /** New slug for the linked entity. Returns 409 if already in use. */
+  entity_slug?: string
   position_x?: number
   position_y?: number
   metadata?: Record<string, unknown>
@@ -542,6 +548,12 @@ export interface FixturePositionUpdate {
   position_y: number
 }
 
+export interface DMXCueNode {
+  node_id: string
+  node_name: string
+  universes: number[]
+}
+
 export interface DMXCue {
   id: string
   name: string
@@ -549,6 +561,8 @@ export interface DMXCue {
   sort_order: number
   created_at: string
   updated_at: string
+  /** Art-Net nodes and universes used by fixtures snapshotted in this cue. */
+  nodes: DMXCueNode[]
 }
 
 export interface DMXCueRecallResult {

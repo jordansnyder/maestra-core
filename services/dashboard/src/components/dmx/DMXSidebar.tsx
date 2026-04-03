@@ -473,6 +473,7 @@ export function DMXSidebar({
                                     : 'border-transparent hover:bg-slate-800/70'
                                 }`}
                                 onClick={(e) => onSelect(fixture.id, e.shiftKey)}
+                                onDoubleClick={(e) => { e.stopPropagation(); onEdit(fixture) }}
                               >
                                 {/* Row 1: grip · name · actions */}
                                 <div className="flex items-center gap-1">
@@ -767,6 +768,24 @@ export function DMXSidebar({
                             <div className={`text-[10px] mt-0.5 ${isEditing ? 'text-indigo-600' : isActive ? 'text-amber-700' : 'text-slate-600'}`}>
                               {isEditing ? 'Edit mode — adjust channels, then Update Cue' : isActive ? 'Active' : formatRelativeTime(cue.created_at)}
                             </div>
+                            {!isEditing && cue.nodes && cue.nodes.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {cue.nodes.map((n) => (
+                                  <span
+                                    key={n.node_id}
+                                    className={`inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded font-mono ${
+                                      isActive
+                                        ? 'bg-amber-900/30 text-amber-600 border border-amber-800/40'
+                                        : 'bg-slate-800 text-slate-500 border border-slate-700/50'
+                                    }`}
+                                  >
+                                    {n.node_name}
+                                    <span className="opacity-60 mx-0.5">·</span>
+                                    U{n.universes.join(',')}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </>
                         )}
                         </div>{/* end px-3 py-2 */}

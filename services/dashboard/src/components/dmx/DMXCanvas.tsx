@@ -16,7 +16,6 @@ interface DMXCanvasProps {
   multiSelectGroup: Set<string>
   onSelect: (id: string | null, shiftKey?: boolean) => void
   onEdit: (fixture: DMXFixture) => void
-  onCopy: (fixture: DMXFixture) => void
   onDelete: (id: string) => void
   onAdjustDMX: () => void
   onPositionsChange: (positions: FixturePositionUpdate[]) => void
@@ -42,7 +41,6 @@ export function DMXCanvas({
   multiSelectGroup,
   onSelect,
   onEdit,
-  onCopy,
   onDelete,
   onAdjustDMX,
   onPositionsChange,
@@ -266,10 +264,7 @@ export function DMXCanvas({
             const fixture = fixtures.find((f) => f.id === ctxMenu.fixtureId)
             if (fixture) onEdit(fixture)
           }}
-          onCopy={() => {
-            const fixture = fixtures.find((f) => f.id === ctxMenu.fixtureId)
-            if (fixture) onCopy(fixture)
-          }}
+
           onDelete={() => onDelete(ctxMenu.fixtureId)}
           onAdjustDMX={onAdjustDMX}
           onClose={() => setCtxMenu(null)}

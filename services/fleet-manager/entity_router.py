@@ -340,12 +340,14 @@ async def create_entity(
             raise HTTPException(status_code=404, detail="Parent entity not found")
 
     # Generate slug if not provided
+    explicit_slug = bool(entity.slug)
     slug = entity.slug or generate_slug(entity.name)
 
     # Check for duplicate slug
     result = await db.execute(select(EntityDB).where(EntityDB.slug == slug))
     if result.scalar_one_or_none():
-        # Append random suffix
+        if explicit_slug:
+            raise HTTPException(status_code=409, detail=f"Slug '{slug}' is already in use")
         import secrets
         slug = f"{slug}-{secrets.token_hex(3)}"
 

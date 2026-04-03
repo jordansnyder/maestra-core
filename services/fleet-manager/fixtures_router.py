@@ -236,8 +236,13 @@ async def list_fixtures(
     where_clauses = []
 
     if q:
-        where_clauses.append("f.search_vector @@ plainto_tsquery('english', :q)")
+        where_clauses.append(
+            "(f.search_vector @@ plainto_tsquery('english', :q)"
+            " OR f.name ILIKE :q_like"
+            " OR f.fixture_key ILIKE :q_like)"
+        )
         params["q"] = q
+        params["q_like"] = f"%{q}%"
 
     if manufacturer:
         where_clauses.append("f.manufacturer_key = :manufacturer")

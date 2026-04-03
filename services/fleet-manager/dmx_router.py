@@ -148,6 +148,10 @@ class DMXFixtureCreate(BaseModel):
     channel_map: Dict[str, ChannelMapping] = {}
     # UUID validated at model layer; existence validated against entities table at write time
     entity_id: Optional[UUID] = None
+    # Desired slug for the auto-created linked entity — passed through to POST /entities.
+    # Conflict checking happens in the entity router (409 if already in use).
+    # Not stored on the fixture record; derived from the linked entity on read.
+    entity_slug: Optional[str] = None
     ofl_fixture_id: Optional[str] = None
     position_x: float = 100.0
     position_y: float = 100.0
@@ -166,6 +170,9 @@ class DMXFixtureUpdate(BaseModel):
     # Pass null explicitly to unlink; omit to leave unchanged.
     # exclude_unset=True in model_dump() distinguishes "omitted" from "set to null".
     entity_id: Optional[UUID] = Field(default=None)
+    # New slug for the linked entity. Applied to entities.slug — not stored on the fixture.
+    # Returns 409 if the slug is already in use by another entity.
+    entity_slug: Optional[str] = None
     position_x: Optional[float] = None
     position_y: Optional[float] = None
     metadata: Optional[Dict[str, Any]] = None
@@ -220,6 +227,7 @@ def _row_to_fixture(row) -> dict:
         "fixture_mode": row.fixture_mode,
         "channel_map": row.channel_map if row.channel_map else {},
         "entity_id": str(row.entity_id) if row.entity_id else None,
+        "entity_slug": getattr(row, "entity_slug", None),
         "ofl_fixture_id": str(row.ofl_fixture_id) if row.ofl_fixture_id else None,
         "position_x": row.position_x,
         "position_y": row.position_y,
@@ -230,15 +238,18 @@ def _row_to_fixture(row) -> dict:
     }
 
 
-# SQL fragment for selecting fixtures with OFL manufacturer + model joined in
+# SQL fragment for selecting fixtures with OFL manufacturer + model joined in,
+# and entity slug derived from the linked entity (no slug column on dmx_fixtures).
 _FIXTURE_SELECT = """
     SELECT
         f.*,
         m.name AS ofl_manufacturer,
-        of2.name AS ofl_model
+        of2.name AS ofl_model,
+        e.slug AS entity_slug
     FROM dmx_fixtures f
     LEFT JOIN ofl_fixtures of2 ON of2.id = f.ofl_fixture_id
     LEFT JOIN ofl_manufacturers m ON m.key = of2.manufacturer_key
+    LEFT JOIN entities e ON e.id = f.entity_id
 """
 
 
@@ -670,7 +681,12 @@ async def update_fixture(
         raise HTTPException(status_code=404, detail="DMX fixture not found")
 
     updates = data.model_dump(exclude_unset=True)
-    if not updates:
+
+    # entity_slug targets the linked entity, not the fixture table — handle separately.
+    import re as _re
+    new_entity_slug = updates.pop("entity_slug", None)
+
+    if not updates and new_entity_slug is None:
         result = await db.execute(
             text(f"{_FIXTURE_SELECT} WHERE f.id = :id"), {"id": str(fixture_id)}
         )
@@ -684,29 +700,55 @@ async def update_fixture(
     if "node_id" in updates and updates["node_id"] is not None:
         await _require_node(updates["node_id"], db)
 
-    set_clauses = []
-    params: Dict[str, Any] = {"id": str(fixture_id)}
-    for key, value in updates.items():
-        if key == "channel_map":
-            set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
-            params[key] = json.dumps(
-                {k: (v if isinstance(v, dict) else v.model_dump()) for k, v in value.items()}
+    # Apply entity_slug change to the linked entity
+    if new_entity_slug is not None:
+        if not _re.match(r'^[a-z0-9][a-z0-9-]*$', new_entity_slug):
+            raise HTTPException(status_code=422, detail="entity_slug must be lowercase alphanumeric with hyphens and start with a letter or digit")
+        # Resolve the current entity_id (may be changing in this same request)
+        target_entity_id = updates.get("entity_id") or None
+        if target_entity_id is None:
+            eid_row = await db.execute(
+                text("SELECT entity_id FROM dmx_fixtures WHERE id = :id"), {"id": str(fixture_id)}
             )
-        elif key == "metadata":
-            set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
-            params[key] = json.dumps(value)
-        elif key in ("entity_id", "node_id") and value is not None:
-            # UUID fields — store as string; None passes through as NULL below
-            set_clauses.append(f"{key} = :{key}")
-            params[key] = str(value)
-        else:
-            # Handles None (→ NULL) for entity_id unlinking, and scalar fields
-            set_clauses.append(f"{key} = :{key}")
-            params[key] = value
+            eid_row = eid_row.fetchone()
+            target_entity_id = eid_row.entity_id if eid_row else None
+        if target_entity_id:
+            conflict = await db.execute(
+                text("SELECT id FROM entities WHERE slug = :slug AND id != :eid"),
+                {"slug": new_entity_slug, "eid": str(target_entity_id)},
+            )
+            if conflict.fetchone():
+                raise HTTPException(status_code=409, detail=f"Slug '{new_entity_slug}' is already in use")
+            await db.execute(
+                text("UPDATE entities SET slug = :slug, updated_at = NOW() WHERE id = :eid"),
+                {"slug": new_entity_slug, "eid": str(target_entity_id)},
+            )
 
-    await db.execute(text(
-        f"UPDATE dmx_fixtures SET {', '.join(set_clauses)} WHERE id = :id"
-    ), params)
+    if updates:
+        set_clauses = []
+        params: Dict[str, Any] = {"id": str(fixture_id)}
+        for key, value in updates.items():
+            if key == "channel_map":
+                set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
+                params[key] = json.dumps(
+                    {k: (v if isinstance(v, dict) else v.model_dump()) for k, v in value.items()}
+                )
+            elif key == "metadata":
+                set_clauses.append(f"{key} = CAST(:{key} AS jsonb)")
+                params[key] = json.dumps(value)
+            elif key in ("entity_id", "node_id") and value is not None:
+                # UUID fields — store as string; None passes through as NULL below
+                set_clauses.append(f"{key} = :{key}")
+                params[key] = str(value)
+            else:
+                # Handles None (→ NULL) for entity_id unlinking, and scalar fields
+                set_clauses.append(f"{key} = :{key}")
+                params[key] = value
+
+        await db.execute(text(
+            f"UPDATE dmx_fixtures SET {', '.join(set_clauses)} WHERE id = :id"
+        ), params)
+
     await db.commit()
 
     result = await db.execute(
@@ -945,12 +987,52 @@ def _row_to_cue(row) -> dict:
 
 @router.get("/cues")
 async def list_cues(db: AsyncSession = Depends(get_db)):
-    """List all saved cues ordered by sort_order, then created_at."""
+    """List all saved cues ordered by sort_order, then created_at.
+
+    Each cue includes a `nodes` summary: the distinct Art-Net nodes and universes
+    referenced by the fixtures snapshotted in that cue, derived via JOIN — no
+    denormalized data stored on the cue record itself.
+    """
     rows = await db.execute(text("""
         SELECT id, name, fade_duration, sort_order, created_at, updated_at
         FROM dmx_cues ORDER BY sort_order ASC, created_at ASC
     """))
-    return [_row_to_cue(r) for r in rows.fetchall()]
+    cues = [_row_to_cue(r) for r in rows.fetchall()]
+
+    if not cues:
+        return cues
+
+    # Build node/universe summary per cue in one query
+    cue_ids = [c["id"] for c in cues]
+    node_rows = await db.execute(text("""
+        SELECT
+            cf.cue_id::text,
+            n.id::text   AS node_id,
+            n.name       AS node_name,
+            f.universe
+        FROM dmx_cue_fixtures cf
+        JOIN dmx_fixtures f  ON f.entity_id = cf.entity_id
+        JOIN dmx_nodes    n  ON n.id = f.node_id
+        WHERE cf.cue_id = ANY(:ids)
+        GROUP BY cf.cue_id, n.id, n.name, f.universe
+        ORDER BY n.name, f.universe
+    """), {"ids": [c["id"] for c in cues]})
+
+    # Aggregate: {cue_id: {node_id: {name, universes: set}}}
+    from collections import defaultdict
+    cue_nodes: dict = defaultdict(lambda: defaultdict(lambda: {"name": "", "universes": set()}))
+    for r in node_rows.fetchall():
+        cue_nodes[r.cue_id][r.node_id]["name"] = r.node_name
+        cue_nodes[r.cue_id][r.node_id]["universes"].add(r.universe)
+
+    for cue in cues:
+        node_map = cue_nodes.get(cue["id"], {})
+        cue["nodes"] = [
+            {"node_id": nid, "node_name": info["name"], "universes": sorted(info["universes"])}
+            for nid, info in node_map.items()
+        ]
+
+    return cues
 
 
 @router.post("/cues")

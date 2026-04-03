@@ -42,6 +42,14 @@ function sanitizeName(raw: string): string {
     .replace(/^_+|_+$/g, '')
 }
 
+/** Derive a URL-safe entity slug from a fixture name */
+function slugify(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
 export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName, defaultPosition, onSubmit, onClose }: AddFixtureModalProps) {
   const isEditing = !!fixture
   const isCopying = !!copyOf
@@ -51,6 +59,10 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
   const [error, setError] = useState<string | null>(null)
 
   const [name, setName] = useState(initialName ?? source?.name ?? '')
+  const [entitySlug, setEntitySlug] = useState(
+    isEditing ? (fixture?.entity_slug ?? '') : slugify(initialName ?? source?.name ?? '')
+  )
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(isEditing)
   const [label, setLabel] = useState(source?.label ?? '')
   const [fixtureMode, setFixtureMode] = useState(source?.fixture_mode ?? '')
   const initialNodeId = source?.node_id ?? nodes[0]?.id ?? ''
@@ -108,6 +120,13 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
       setEntityTypes(types)
     }).catch(() => {})
   }, [])
+
+  // Auto-derive slug from name while user hasn't manually edited it
+  useEffect(() => {
+    if (!slugManuallyEdited && !isEditing) {
+      setEntitySlug(slugify(name))
+    }
+  }, [name, slugManuallyEdited, isEditing])
 
   // Re-suggest start channel when node or universe changes (add/copy only).
   // Preserves the current channel span (end - start + 1) and shifts both fields to a new gap.
@@ -277,6 +296,11 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
     if (isNaN(ec) || ec < 1 || ec > 512) { setError('End channel must be 1–512'); return }
     if (ec < sc) { setError('End channel must be ≥ start channel'); return }
     const cc = ec - sc + 1
+    const trimmedSlug = entitySlug.trim()
+    if (trimmedSlug && !/^[a-z0-9][a-z0-9-]*$/.test(trimmedSlug)) {
+      setError('Slug must be lowercase letters, numbers, and hyphens only')
+      return
+    }
 
     setSubmitting(true)
     setError(null)
@@ -292,6 +316,7 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
             const created = await entitiesApi.create({
               name: name.trim(),
               entity_type_id: typeId,
+              slug: trimmedSlug || undefined,
               description: `DMX fixture — ${selectedOFLFixture ? `${selectedMfr?.name ?? ''} ${selectedOFLFixture.name}`.trim() : name.trim() || 'linked fixture'}`,
               metadata: { dmx_fixture: true },
             })
@@ -343,6 +368,7 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
         start_channel: sc,
         channel_count: cc,
         entity_id: resolvedEntityId,
+        entity_slug: isEditing && trimmedSlug && trimmedSlug !== fixture?.entity_slug ? trimmedSlug : undefined,
         ofl_fixture_id: oflFixtureId ?? (isEditing ? fixture?.ofl_fixture_id : undefined),
         channel_map: editChannelMap,
         position_x: (isCopying ? (copyOf!.position_x + 40) : fixture?.position_x) ?? defaultPosition?.x ?? 200,
@@ -547,6 +573,21 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
                   required
                   autoFocus={isEditing}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs text-slate-400 mb-1">
+                  Entity Slug
+                  <span className="ml-2 text-slate-600 font-normal">used as the linked entity identifier</span>
+                </label>
+                <input
+                  value={entitySlug}
+                  onChange={(e) => {
+                    setEntitySlug(e.target.value)
+                    setSlugManuallyEdited(true)
+                  }}
+                  placeholder="e.g. front-wash-left"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
                 />
               </div>
               <div>

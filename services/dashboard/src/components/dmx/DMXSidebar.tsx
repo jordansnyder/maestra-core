@@ -2,12 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { DMXFixture, DMXNode, DMXCue, DMXSequence, DMXCuePlacement } from '@/lib/types'
+import { DMXFixture, DMXGroup, DMXNode, DMXCue, DMXSequence, DMXCuePlacement } from '@/lib/types'
 import { UNIVERSE_PALETTE } from '@/lib/dmx-constants'
 import { SequencePlaybackStatus } from '@/hooks/useSequencePlayback'
 import {
   Pencil, Network, Layers, SlidersHorizontal, ChevronRight, BookOpen, Trash2,
-  GripVertical, X, Check, Play, Pause, Square, ListOrdered, Plus, Repeat, Sunset, ExternalLink, ZapOff,
+  GripVertical, X, Check, Play, Pause, Square, ListOrdered, Plus, Repeat, Sunset, ExternalLink, ZapOff, FolderOpen,
 } from '@/components/icons'
 
 function getUniverseColor(nodes: DMXNode[], fixture: DMXFixture): string {
@@ -32,6 +32,14 @@ function formatRelativeTime(iso: string): string {
 interface DMXSidebarProps {
   nodes: DMXNode[]
   fixtures: DMXFixture[]
+  groups?: DMXGroup[]
+  selectedGroupId?: string | null
+  onGroupSelect?: (id: string | null) => void
+  cueGroupId?: string | null
+  onCueGroupChange?: (id: string | null) => void
+  onCreateGroup?: (name: string, color: string) => Promise<void>
+  onUpdateGroup?: (id: string, name: string, color: string) => Promise<void>
+  onDeleteGroup?: (id: string) => Promise<void>
   selectedIds: Set<string>
   multiSelectGroup: Set<string>
   onSelect: (id: string | null, shiftKey?: boolean) => void
@@ -56,17 +64,18 @@ interface DMXSidebarProps {
   onDeleteCue: (id: string) => void
   onReorderCues: (draggedId: string, targetId: string) => void
   onOpenCues: () => void
-  onSaveCue: (name: string) => Promise<void>
+  onSaveCue: (name: string, groupId?: string) => Promise<void>
   onUpdateCue: () => void
   updateCueLoading: boolean
   // Sequences
   sequences: DMXSequence[]
-  playbackStatus: SequencePlaybackStatus
+  getStatusForSeq: (seq: DMXSequence) => SequencePlaybackStatus
+  activeGroupIds: Set<string | null>
   onPlaySequence: (seq: DMXSequence) => void
-  onPauseSequence: () => void
-  onStopSequence: () => void
-  onToggleLoop: () => void
-  onFadeOut: (durationSec: number) => void
+  onPauseSequence: (seq: DMXSequence) => void
+  onStopSequence: (seq: DMXSequence) => void
+  onToggleLoop: (seq: DMXSequence) => void
+  onFadeOut: (durationSec: number, seq: DMXSequence) => void
   onBlackout: () => void
   onRenameSequence: (id: string, name: string) => Promise<void>
   onDeleteSequence: (seq: DMXSequence) => void
@@ -78,41 +87,53 @@ interface DMXSidebarProps {
   onOpenSequences: () => void
   openSequencesSignal?: number
   availableCues: DMXCue[]
-  onCreateSequence: () => void
+  onCreateSequence: (groupId?: string) => void
+  onAdjustFixture?: (fixture: DMXFixture) => void
 }
 
-type ActiveSection = 'nodes' | 'fixtures' | 'cues' | 'sequences'
+type ActiveSection = 'nodes' | 'fixtures' | 'groups' | 'cues' | 'sequences'
 
 export function DMXSidebar({
-  nodes, fixtures, selectedIds, multiSelectGroup, onSelect, onEdit, onDelete, onEditNode, onAdjustDMX,
+  nodes, fixtures, groups = [], selectedGroupId, onGroupSelect, cueGroupId = null, onCueGroupChange, onCreateGroup, onUpdateGroup, onDeleteGroup, selectedIds, multiSelectGroup, onSelect, onEdit, onDelete, onEditNode, onAdjustDMX,
   isPaused, onAddNode, onAddFixture, onReorderNodes, onReorderFixtures,
   cues, activeCueId, editingCueId, cueFadeProgress, onRecallCue, onEnterEditCue, onExitEditCue, onRenameCue, onDeleteCue, onReorderCues, onOpenCues, onSaveCue, onUpdateCue, updateCueLoading,
-  sequences, playbackStatus, onPlaySequence, onPauseSequence, onStopSequence, onRenameSequence, onDeleteSequence,
+  sequences, getStatusForSeq, activeGroupIds, onPlaySequence, onPauseSequence, onStopSequence, onRenameSequence, onDeleteSequence,
   onReorderSequences, onAddCueToSequence, onReorderSequenceCues, onUpdatePlacement, onRemoveCueFromSequence,
-  onOpenSequences, openSequencesSignal, availableCues, onToggleLoop, onFadeOut, onBlackout, onCreateSequence,
+  onOpenSequences, openSequencesSignal, availableCues, onToggleLoop, onFadeOut, onBlackout, onCreateSequence, onAdjustFixture,
 }: DMXSidebarProps) {
   const SESSION_KEY = 'dmx-sidebar-section'
   const [active, setActive] = useState<ActiveSection>(() => {
     try {
       const saved = sessionStorage.getItem(SESSION_KEY)
-      if (saved === 'nodes' || saved === 'fixtures' || saved === 'cues' || saved === 'sequences') return saved
+      if (saved === 'nodes' || saved === 'fixtures' || saved === 'groups' || saved === 'cues' || saved === 'sequences') return saved
     } catch {}
     return 'fixtures'
   })
   const setActiveSection = (s: ActiveSection) => {
     setActive(s)
+    if (s === 'groups') {
+      // Carry cue/sequence context into the Groups tab so the same group stays highlighted
+      if (cueGroupId) onGroupSelect?.(cueGroupId)
+    } else if (s === 'fixtures' || s === 'nodes') {
+      // These tabs have no group concept — clear everything
+      onGroupSelect?.(null)
+      onCueGroupChange?.(null)
+    } else {
+      // cues / sequences: selectedGroupId no longer needed (canvas driven by cueGroupId)
+      onGroupSelect?.(null)
+    }
     try { sessionStorage.setItem(SESSION_KEY, s) } catch {}
   }
 
-  // Auto-switch to sequences if one is playing when the sidebar mounts
+  // Auto-switch to sequences if any group engine is playing when the sidebar mounts
   const didAutoSwitch = useRef(false)
   useEffect(() => {
-    if (!didAutoSwitch.current && playbackStatus.playState !== 'stopped') {
+    if (!didAutoSwitch.current && activeGroupIds.size > 0) {
       didAutoSwitch.current = true
       setActiveSection('sequences')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playbackStatus.playState])
+  }, [activeGroupIds.size])
 
   // ── Node drag state ────────────────────────────────────────────────────────
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
@@ -136,7 +157,7 @@ export function DMXSidebar({
     setSaveCueLoading(true)
     setSaveCueError(null)
     try {
-      await onSaveCue(newCueName.trim())
+      await onSaveCue(newCueName.trim(), cueGroupId ?? undefined)
       setShowSaveCueForm(false)
       setNewCueName('')
     } catch (e) {
@@ -176,6 +197,17 @@ export function DMXSidebar({
 
   // Inline editing of placement times
   const [editingPlacement, setEditingPlacement] = useState<{ id: string; field: 'transition_time' | 'hold_duration'; value: string } | null>(null)
+
+  // ── Group management state ─────────────────────────────────────────────────
+  const GROUP_COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899','#94a3b8']
+  const [showNewGroupForm, setShowNewGroupForm] = useState(false)
+  const [newGroupName, setNewGroupName] = useState('')
+  const [newGroupColor, setNewGroupColor] = useState(GROUP_COLORS[0])
+  const [newGroupLoading, setNewGroupLoading] = useState(false)
+  const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null)
+  const [renameGroupValue, setRenameGroupValue] = useState('')
+  const [renamingGroupColor, setRenamingGroupColor] = useState('')
+  const [groupError, setGroupError] = useState<string | null>(null)
 
   // Auto-switch to sequences section when a new sequence is added externally
   useEffect(() => {
@@ -223,15 +255,16 @@ export function DMXSidebar({
     setEditingPlacement(null)
   }
 
-  function getPlaybackPhaseForSeq(seqId: string) {
-    if (playbackStatus.sequenceId !== seqId) return null
-    if (playbackStatus.playState === 'stopped') return null
-    return { state: playbackStatus.playState, phase: playbackStatus.phase, progress: playbackStatus.progress, holdProgress: playbackStatus.holdProgress, cueIndex: playbackStatus.cueIndex }
+  function getPlaybackPhaseForSeq(seq: DMXSequence) {
+    const s = getStatusForSeq(seq)
+    if (s.sequenceId !== seq.id) return null
+    if (s.playState === 'stopped') return null
+    return { state: s.playState, phase: s.phase, progress: s.progress, holdProgress: s.holdProgress, cueIndex: s.cueIndex, loop: s.loop }
   }
 
   return (
     <>
-    <aside className="w-[295px] shrink-0 bg-slate-900 border-l border-slate-800 flex flex-col overflow-hidden">
+    <aside className="w-full md:w-sidebar-dmx md:shrink-0 bg-slate-900 md:border-l border-slate-800 flex flex-col overflow-hidden">
 
       {/* ── Art-Net Nodes section ───────────────────────────────────── */}
       <div className="flex flex-col shrink-0" style={{ transition: 'flex 350ms cubic-bezier(0.4,0,0.2,1)' }}>
@@ -473,25 +506,35 @@ export function DMXSidebar({
                                     : 'border-transparent hover:bg-slate-800/70'
                                 }`}
                                 onClick={(e) => onSelect(fixture.id, e.shiftKey)}
+                                onDoubleClick={(e) => { e.stopPropagation(); onEdit(fixture) }}
                               >
                                 {/* Row 1: grip · name · actions */}
                                 <div className="flex items-center gap-1">
                                   <GripVertical className="w-3 h-3 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
-                                  <div className="text-xs font-medium text-slate-200 truncate flex-1">{fixture.label || fixture.name}</div>
-                                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="text-xs font-medium text-slate-200 truncate flex-1">{fixture.name}</div>
+                                  {/* Action buttons: always visible on mobile, hover-only on desktop */}
+                                  <div className="flex items-center gap-1 shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); onAdjustDMX(); onSelect(fixture.id) }}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        if (onAdjustFixture) {
+                                          onAdjustFixture(fixture)
+                                        } else {
+                                          onSelect(fixture.id)
+                                          onAdjustDMX()
+                                        }
+                                      }}
                                       title="Adjust DMX channels"
-                                      className="text-slate-600 hover:text-blue-400 transition-colors"
+                                      className="text-slate-600 hover:text-blue-400 transition-colors p-0.5"
                                     >
-                                      <SlidersHorizontal className="w-3 h-3" />
+                                      <SlidersHorizontal className="w-3.5 h-3.5" />
                                     </button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); onEdit(fixture) }}
                                       title="Edit fixture"
-                                      className="text-slate-600 hover:text-slate-300 transition-colors"
+                                      className="text-slate-600 hover:text-slate-300 transition-colors p-0.5"
                                     >
-                                      <Pencil className="w-3 h-3" />
+                                      <Pencil className="w-3.5 h-3.5" />
                                     </button>
                                   </div>
                                 </div>
@@ -537,6 +580,238 @@ export function DMXSidebar({
         </div>
       </div>
 
+      {/* ── Groups section ───────────────────────────────────────────── */}
+      <div className="flex flex-col shrink-0" style={{ transition: 'flex 350ms cubic-bezier(0.4,0,0.2,1)' }}>
+        <div
+          onClick={() => setActiveSection('groups')}
+          className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 cursor-pointer select-none border-t border-slate-800 ${
+            active === 'groups' ? 'border-b border-slate-800' : 'hover:bg-slate-800/40'
+          }`}
+        >
+          <FolderOpen className={`w-3.5 h-3.5 transition-colors ${active === 'groups' ? 'text-slate-400' : 'text-slate-600'}`} />
+          <span className={`text-[10px] uppercase tracking-wider font-medium transition-colors ${active === 'groups' ? 'text-slate-400' : 'text-slate-600'}`}>
+            Groups
+          </span>
+          <span className={`text-[10px] transition-colors ${active === 'groups' ? 'text-slate-600' : 'text-slate-700'}`}>
+            ({groups.length})
+          </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowNewGroupForm(true); setActiveSection('groups') }}
+            className="ml-auto text-slate-600 hover:text-blue-400 transition-colors cursor-pointer p-0.5"
+            title="Add Group"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+          <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${active === 'groups' ? 'text-slate-500 rotate-90' : 'text-slate-700'}`} />
+        </div>
+
+        <div
+          className="overflow-hidden"
+          style={{
+            display: 'grid',
+            gridTemplateRows: active === 'groups' ? '1fr' : '0fr',
+            transition: 'grid-template-rows 350ms cubic-bezier(0.4,0,0.2,1)',
+          }}
+        >
+          <div className="min-h-0 overflow-y-auto">
+            <div
+              className="px-4 py-3 space-y-2 min-h-[48px]"
+              onClick={() => { onGroupSelect?.(null); onCueGroupChange?.(null) }}
+            >
+              {groupError && (
+                <p className="text-[10px] text-red-400">{groupError}</p>
+              )}
+
+              {/* New group form */}
+              {showNewGroupForm && (
+                <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-3 space-y-2">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') { setShowNewGroupForm(false); setNewGroupName('') }
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        if (!newGroupName.trim() || !onCreateGroup) return
+                        setNewGroupLoading(true)
+                        setGroupError(null)
+                        onCreateGroup(newGroupName.trim(), newGroupColor)
+                          .then(() => { setShowNewGroupForm(false); setNewGroupName(''); setNewGroupColor(GROUP_COLORS[0]) })
+                          .catch((err: unknown) => setGroupError(err instanceof Error ? err.message : 'Failed'))
+                          .finally(() => setNewGroupLoading(false))
+                      }
+                    }}
+                    placeholder="Group name"
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-slate-500"
+                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    {GROUP_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => setNewGroupColor(c)}
+                        className="w-5 h-5 rounded-full border-2 transition-all"
+                        style={{ background: c, borderColor: newGroupColor === c ? '#ffffff' : 'transparent' }}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        if (!newGroupName.trim() || !onCreateGroup) return
+                        setNewGroupLoading(true)
+                        setGroupError(null)
+                        onCreateGroup(newGroupName.trim(), newGroupColor)
+                          .then(() => { setShowNewGroupForm(false); setNewGroupName(''); setNewGroupColor(GROUP_COLORS[0]) })
+                          .catch((err: unknown) => setGroupError(err instanceof Error ? err.message : 'Failed'))
+                          .finally(() => setNewGroupLoading(false))
+                      }}
+                      disabled={!newGroupName.trim() || newGroupLoading}
+                      className="flex-1 py-1 rounded text-[10px] font-medium bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white transition-colors"
+                    >
+                      {newGroupLoading ? 'Creating…' : 'Create'}
+                    </button>
+                    <button
+                      onClick={() => { setShowNewGroupForm(false); setNewGroupName('') }}
+                      className="px-3 py-1 rounded text-[10px] text-slate-400 hover:text-slate-200 bg-slate-700/50 hover:bg-slate-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {groups.length === 0 && !showNewGroupForm ? (
+                <p className="text-xs text-slate-600">No groups yet</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {/* All — clears group selection, shows full canvas */}
+                  <div
+                    onClick={(e) => { e.stopPropagation(); onGroupSelect?.(null); onCueGroupChange?.(null) }}
+                    className={`rounded-lg px-3 py-2 border transition-colors cursor-pointer select-none ${
+                      selectedGroupId === null
+                        ? 'border-slate-500 bg-slate-700/60'
+                        : 'bg-slate-800/50 border-transparent hover:border-slate-700/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-slate-600 border border-slate-500" />
+                      <span className={`text-xs flex-1 transition-colors ${selectedGroupId === null ? 'text-white' : 'text-slate-400'}`}>All</span>
+                      <span className="text-[10px] text-slate-500 shrink-0">{fixtures.length}fx</span>
+                      {selectedGroupId === null && (
+                        <span className="text-[9px] text-slate-400 shrink-0 font-mono">all</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {groups.map((group) => {
+                    const fixtureCount = fixtures.filter((f) => f.group_id === group.id).length
+                    const isRenaming = renamingGroupId === group.id
+                    const isSelected = selectedGroupId === group.id
+                    return (
+                      <div
+                        key={group.id}
+                        onClick={(e) => { e.stopPropagation(); if (!isRenaming) { const next = isSelected ? null : group.id; onGroupSelect?.(next); onCueGroupChange?.(next) } }}
+                        className={`rounded-lg px-3 py-2 border transition-colors cursor-pointer select-none ${
+                          isSelected
+                            ? 'border-slate-500 bg-slate-700/60'
+                            : 'bg-slate-800/50 border-transparent hover:border-slate-700/50'
+                        }`}
+                        style={isSelected && group.color ? { borderColor: `${group.color}66`, backgroundColor: `${group.color}18` } : undefined}
+                      >
+                        {isRenaming ? (
+                          <div className="space-y-2">
+                            <input
+                              autoFocus
+                              type="text"
+                              value={renameGroupValue}
+                              onChange={(e) => setRenameGroupValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') setRenamingGroupId(null)
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  if (!renameGroupValue.trim() || !onUpdateGroup) { setRenamingGroupId(null); return }
+                                  onUpdateGroup(group.id, renameGroupValue.trim(), renamingGroupColor)
+                                    .catch((err: unknown) => setGroupError(err instanceof Error ? err.message : 'Failed'))
+                                    .finally(() => setRenamingGroupId(null))
+                                }
+                              }}
+                              className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-slate-500"
+                            />
+                            <div className="flex flex-wrap gap-1.5">
+                              {GROUP_COLORS.map((c) => (
+                                <button
+                                  key={c}
+                                  onClick={() => setRenamingGroupColor(c)}
+                                  className="w-4 h-4 rounded-full border-2 transition-all"
+                                  style={{ background: c, borderColor: renamingGroupColor === c ? '#ffffff' : 'transparent' }}
+                                />
+                              ))}
+                            </div>
+                            <div className="flex gap-1.5">
+                              <button
+                                onClick={() => {
+                                  if (!renameGroupValue.trim() || !onUpdateGroup) { setRenamingGroupId(null); return }
+                                  onUpdateGroup(group.id, renameGroupValue.trim(), renamingGroupColor)
+                                    .catch((err: unknown) => setGroupError(err instanceof Error ? err.message : 'Failed'))
+                                    .finally(() => setRenamingGroupId(null))
+                                }}
+                                className="flex items-center justify-center w-6 h-6 rounded bg-blue-700 hover:bg-blue-600 transition-colors"
+                              >
+                                <Check className="w-3 h-3 text-white" />
+                              </button>
+                              <button
+                                onClick={() => setRenamingGroupId(null)}
+                                className="flex items-center justify-center w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 transition-colors"
+                              >
+                                <X className="w-3 h-3 text-slate-300" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0 transition-all"
+                              style={{
+                                background: group.color ?? '#64748b',
+                                boxShadow: isSelected && group.color ? `0 0 6px ${group.color}cc` : 'none',
+                              }}
+                            />
+                            <span className={`text-xs truncate flex-1 transition-colors ${isSelected ? 'text-white' : 'text-slate-200'}`}>{group.name}</span>
+                            {activeGroupIds.has(group.id) && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" title="Sequence playing" />
+                            )}
+                            <span className="text-[10px] text-slate-500 shrink-0">{fixtureCount}fx</span>
+                            {isSelected && (
+                              <span className="text-[9px] text-slate-400 shrink-0 font-mono">editing</span>
+                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setRenamingGroupId(group.id); setRenameGroupValue(group.name); setRenamingGroupColor(group.color ?? GROUP_COLORS[0]) }}
+                              className="text-slate-600 hover:text-slate-300 transition-colors shrink-0"
+                              title="Rename"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onDeleteGroup?.(group.id).catch((err: unknown) => setGroupError(err instanceof Error ? err.message : 'Failed')) }}
+                              className="text-slate-700 hover:text-red-400 transition-colors shrink-0"
+                              title="Delete group"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── Cues section ─────────────────────────────────────────────── */}
       <div
         className="flex flex-col min-h-0"
@@ -563,6 +838,36 @@ export function DMXSidebar({
           )}
           <ChevronRight className={`w-3 h-3 ml-auto transition-transform duration-300 ${active === 'cues' ? 'text-slate-500 rotate-90' : 'text-slate-700'}`} />
         </button>
+
+        {/* Group context selector — only shown when expanded and groups exist */}
+        {active === 'cues' && groups.length > 0 && (
+          <div className="flex items-center gap-1.5 px-4 py-2 border-b border-slate-800/60 overflow-x-auto scrollbar-none shrink-0">
+            <button
+              onClick={() => onCueGroupChange?.(null)}
+              className={`shrink-0 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                cueGroupId === null ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              All
+            </button>
+            {groups.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => onCueGroupChange?.(cueGroupId === g.id ? null : g.id)}
+                className={`shrink-0 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                  cueGroupId === g.id ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                }`}
+                style={cueGroupId === g.id && g.color ? { borderLeft: `2px solid ${g.color}`, paddingLeft: 6 } : undefined}
+              >
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: g.color ?? '#64748b' }} />
+                {g.name}
+                {activeGroupIds.has(g.id) && (
+                  <span className="w-1 h-1 rounded-full bg-green-400 animate-pulse shrink-0" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div
           className="overflow-hidden flex-1"
@@ -640,7 +945,7 @@ export function DMXSidebar({
                   )}
                 </>
               ) : (
-                <p className="text-[10px] text-slate-600">Pause signals to save cues</p>
+                <p className="text-[10px] text-slate-600">Click a cue to recall it · Pause signals to save</p>
               )}
             </div>
             {/* Fade duration setting */}
@@ -659,12 +964,18 @@ export function DMXSidebar({
                 <span className="ml-auto text-[9px] text-amber-600 font-medium uppercase tracking-wide">on</span>
               )}
             </div>
+            {(() => {
+              const visibleCues = cueGroupId === null ? cues : cues.filter((c) => (c.group_id ?? null) === cueGroupId)
+              const cueEmptyMsg = cues.length === 0
+                ? 'No cues saved yet. Pause signals and use Save Cue to capture the current state.'
+                : `No cues in ${groups.find((g) => g.id === cueGroupId)?.name ?? 'this group'} yet.`
+              return (
             <div className="px-4 py-3">
-              {cues.length === 0 ? (
-                <p className="text-xs text-slate-600">No cues saved yet. Pause signals and use Save Cue to capture the current state.</p>
+              {visibleCues.length === 0 ? (
+                <p className="text-xs text-slate-600">{cueEmptyMsg}</p>
               ) : (
                 <div className="space-y-1">
-                  {cues.map((cue) => {
+                  {visibleCues.map((cue) => {
                     const isActive = activeCueId === cue.id
                     const isEditing = editingCueId === cue.id
                     const isRenaming = renamingCueId === cue.id
@@ -747,6 +1058,16 @@ export function DMXSidebar({
                                   {cue.name}
                                 </span>
                               )}
+                              {cue.group_id && (() => {
+                                const g = groups.find((gr) => gr.id === cue.group_id)
+                                return g?.color ? (
+                                  <span
+                                    className="w-2 h-2 rounded-full shrink-0"
+                                    style={{ background: g.color }}
+                                    title={g.name}
+                                  />
+                                ) : null
+                              })()}
                               <div className={`flex items-center gap-1 shrink-0 transition-opacity ${isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                                 {isEditing ? (
                                   <button onClick={(e) => { e.stopPropagation(); onExitEditCue() }} title="Exit edit mode" className="text-indigo-400 hover:text-indigo-200 transition-colors">
@@ -767,6 +1088,24 @@ export function DMXSidebar({
                             <div className={`text-[10px] mt-0.5 ${isEditing ? 'text-indigo-600' : isActive ? 'text-amber-700' : 'text-slate-600'}`}>
                               {isEditing ? 'Edit mode — adjust channels, then Update Cue' : isActive ? 'Active' : formatRelativeTime(cue.created_at)}
                             </div>
+                            {!isEditing && cue.nodes && cue.nodes.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {cue.nodes.map((n) => (
+                                  <span
+                                    key={n.node_id}
+                                    className={`inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded font-mono ${
+                                      isActive
+                                        ? 'bg-amber-900/30 text-amber-600 border border-amber-800/40'
+                                        : 'bg-slate-800 text-slate-500 border border-slate-700/50'
+                                    }`}
+                                  >
+                                    {n.node_name}
+                                    <span className="opacity-60 mx-0.5">·</span>
+                                    U{n.universes.join(',')}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </>
                         )}
                         </div>{/* end px-3 py-2 */}
@@ -776,6 +1115,8 @@ export function DMXSidebar({
                 </div>
               )}
             </div>
+              )
+            })()}
           </div>
         </div>
       </div>
@@ -801,11 +1142,11 @@ export function DMXSidebar({
           <span className={`text-[10px] transition-colors ${active === 'sequences' ? 'text-slate-600' : 'text-slate-700'}`}>
             ({sequences.length})
           </span>
-          {playbackStatus.playState !== 'stopped' && (
+          {activeGroupIds.size > 0 && (
             <span className="ml-1 w-1.5 h-1.5 rounded-full shrink-0 bg-green-400 animate-pulse" />
           )}
           <button
-            onClick={(e) => { e.stopPropagation(); onCreateSequence() }}
+            onClick={(e) => { e.stopPropagation(); onCreateSequence(cueGroupId ?? undefined) }}
             className="ml-auto text-slate-600 hover:text-blue-400 transition-colors cursor-pointer p-0.5"
             title="Add Sequence"
           >
@@ -813,6 +1154,36 @@ export function DMXSidebar({
           </button>
           <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${active === 'sequences' ? 'text-slate-500 rotate-90' : 'text-slate-700'}`} />
         </div>
+
+        {/* Group context selector — shared with Cues */}
+        {active === 'sequences' && groups.length > 0 && (
+          <div className="flex items-center gap-1.5 px-4 py-2 border-b border-slate-800/60 overflow-x-auto scrollbar-none shrink-0">
+            <button
+              onClick={() => onCueGroupChange?.(null)}
+              className={`shrink-0 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                cueGroupId === null ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              All
+            </button>
+            {groups.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => onCueGroupChange?.(cueGroupId === g.id ? null : g.id)}
+                className={`shrink-0 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                  cueGroupId === g.id ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                }`}
+                style={cueGroupId === g.id && g.color ? { borderLeft: `2px solid ${g.color}`, paddingLeft: 6 } : undefined}
+              >
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: g.color ?? '#64748b' }} />
+                {g.name}
+                {activeGroupIds.has(g.id) && (
+                  <span className="w-1 h-1 rounded-full bg-green-400 animate-pulse shrink-0" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div
           className="overflow-hidden flex-1"
@@ -839,13 +1210,19 @@ export function DMXSidebar({
                 <span className="ml-auto text-[9px] text-amber-600 font-medium uppercase tracking-wide">on</span>
               )}
             </div>
+            {(() => {
+              const visibleSeqs = cueGroupId === null ? sequences : sequences.filter((s) => (s.group_id ?? null) === cueGroupId)
+              const seqEmptyMsg = sequences.length === 0
+                ? 'No sequences yet. Click + to create one.'
+                : `No sequences in ${groups.find((g) => g.id === cueGroupId)?.name ?? 'this group'} yet.`
+              return (
             <div className="px-3 py-3">
-              {sequences.length === 0 ? (
-                <p className="text-xs text-slate-600 px-1">No sequences yet. Pause signals to create one.</p>
+              {visibleSeqs.length === 0 ? (
+                <p className="text-xs text-slate-600 px-1">{seqEmptyMsg}</p>
               ) : (
                 <div className="space-y-1.5">
-                  {sequences.map((seq) => {
-                    const pb = getPlaybackPhaseForSeq(seq.id)
+                  {visibleSeqs.map((seq) => {
+                    const pb = getPlaybackPhaseForSeq(seq)
                     const isThisPlaying = pb !== null && pb.state === 'playing'
                     const isThisPaused = pb !== null && pb.state === 'paused'
                     const isThisActive = pb !== null
@@ -951,21 +1328,32 @@ export function DMXSidebar({
                             </span>
                           )}
 
+                          {seq.group_id && (() => {
+                            const g = groups.find((gr) => gr.id === seq.group_id)
+                            return g?.color ? (
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ background: g.color }}
+                                title={g.name}
+                              />
+                            ) : null
+                          })()}
+
                           {/* Playback controls */}
                           {!isRenamingSeq && (
                             <div className="flex items-center gap-0.5 shrink-0">
                               {/* Loop toggle */}
                               <button
-                                onClick={(e) => { e.stopPropagation(); onToggleLoop() }}
-                                title={playbackStatus.loop ? 'Loop on — click to disable' : 'Enable loop'}
-                                className={`p-0.5 rounded transition-colors ${playbackStatus.loop ? 'text-blue-400 hover:text-blue-200' : 'text-slate-600 hover:text-blue-400'}`}
+                                onClick={(e) => { e.stopPropagation(); onToggleLoop(seq) }}
+                                title={pb?.loop ? 'Loop on — click to disable' : 'Enable loop'}
+                                className={`p-0.5 rounded transition-colors ${pb?.loop ? 'text-blue-400 hover:text-blue-200' : 'text-slate-600 hover:text-blue-400'}`}
                               >
                                 <Repeat className="w-3 h-3" />
                               </button>
 
                               {/* Play / Pause toggle */}
                               <button
-                                onClick={(e) => { e.stopPropagation(); isThisPlaying ? onPauseSequence() : onPlaySequence(seq) }}
+                                onClick={(e) => { e.stopPropagation(); isThisPlaying ? onPauseSequence(seq) : onPlaySequence(seq) }}
                                 title={isThisPlaying ? 'Pause sequence' : isThisPaused ? 'Resume sequence' : 'Play sequence'}
                                 className={`p-0.5 rounded transition-colors ${isThisPlaying ? 'text-green-400 hover:text-green-200' : 'text-slate-500 hover:text-green-400'}`}
                               >
@@ -985,14 +1373,14 @@ export function DMXSidebar({
                               {isThisActive && (
                                 <>
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); onStopSequence() }}
+                                    onClick={(e) => { e.stopPropagation(); onStopSequence(seq) }}
                                     title="Stop sequence"
                                     className="p-0.5 rounded text-slate-500 hover:text-red-400 transition-colors"
                                   >
                                     <Square className="w-3 h-3" />
                                   </button>
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); onFadeOut(fadeOutDuration) }}
+                                    onClick={(e) => { e.stopPropagation(); onFadeOut(fadeOutDuration, seq) }}
                                     title="Stop with 3s dimmer fadeout"
                                     className="p-0.5 rounded text-slate-500 hover:text-amber-400 transition-colors"
                                   >
@@ -1167,6 +1555,8 @@ export function DMXSidebar({
                 </div>
               )}
             </div>
+              )
+            })()}
           </div>
         </div>
       </div>
@@ -1192,15 +1582,24 @@ export function DMXSidebar({
         </div>
         <div className="max-h-56 overflow-y-auto">
           {(() => {
-            const filtered = availableCues.filter((c) =>
-              c.name.toLowerCase().includes(cueSearch.toLowerCase())
-            )
+            // Only show cues whose group matches the sequence being added to
+            const targetSeq = sequences.find((s) => s.id === showAddCueFor)
+            const targetGroupId = targetSeq?.group_id ?? null
+            const filtered = availableCues.filter((c) => {
+              const matchesGroup = (c.group_id ?? null) === targetGroupId
+              const matchesSearch = c.name.toLowerCase().includes(cueSearch.toLowerCase())
+              return matchesGroup && matchesSearch
+            })
             return filtered.length === 0 ? (
-              <p className="text-[10px] text-slate-500 px-3 py-2">No cues found</p>
+              <p className="text-[10px] text-slate-500 px-3 py-2">
+                {targetGroupId
+                  ? `No cues in ${groups.find((g) => g.id === targetGroupId)?.name ?? 'this group'}`
+                  : 'No ungrouped cues found'}
+              </p>
             ) : filtered.map((c) => (
               <button
                 key={c.id}
-                onClick={() => { onAddCueToSequence(showAddCueFor, c.id); setShowAddCueFor(null); setDropdownPos(null); setCueSearch('') }}
+                onClick={() => { onAddCueToSequence(showAddCueFor!, c.id); setShowAddCueFor(null); setDropdownPos(null); setCueSearch('') }}
                 className="w-full text-left px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors truncate"
               >
                 {c.name}

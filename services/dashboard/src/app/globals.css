@@ -4,12 +4,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Design tokens ──────────────────────────────────────────────────────── */
 :root {
   --foreground-rgb: 255, 255, 255;
   --background-start-rgb: 15, 23, 42;
   --background-end-rgb: 30, 41, 59;
+
+  /* Sidebar dimensions — referenced by Tailwind (w-sidebar-nav, w-sidebar-dmx)
+     and by components that need inline CSS (e.g. DMXChannelModal positioning) */
+  --sidebar-nav-width: 14rem;    /* 224px — left navigation sidebar (w-56) */
+  --sidebar-dmx-width: 295px;    /* DMX Lighting right sidebar             */
+
+  /* Z-index layers */
+  --z-nav-backdrop: 40;
+  --z-overlay: 50;
+
+  /* Mobile breakpoint reference (mirrors Tailwind's built-in `md`) */
+  --breakpoint-mobile: 768px;
 }
 
+/* ─── Global styles ──────────────────────────────────────────────────────── */
 body {
   color: rgb(var(--foreground-rgb));
   background: linear-gradient(
@@ -44,4 +58,32 @@ body {
 @keyframes fadeOut {
   from { opacity: 1; }
   to { opacity: 0; }
+}
+
+/* ─── Reusable component classes ─────────────────────────────────────────── */
+@layer components {
+  /**
+   * Full-screen modal backdrop with centered, safe-padded content.
+   * Use: <div class="modal-backdrop"> <div class="modal-panel max-w-lg"> … </div> </div>
+   */
+  .modal-backdrop {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4;
+  }
+
+  /**
+   * Standard modal panel frame. Pair with a max-width utility (max-w-sm or
+   * max-w-lg) and any additional layout classes (flex flex-col, max-h-[90vh]).
+   */
+  .modal-panel {
+    @apply w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl;
+  }
+
+  /**
+   * Mobile navigation drawer backdrop — visible only below the md breakpoint.
+   * Sits beneath the sidebar (z-40) so the drawer itself (z-50) renders above.
+   */
+  .nav-overlay-backdrop {
+    @apply fixed inset-0 bg-black/60 backdrop-blur-sm md:hidden;
+    z-index: var(--z-nav-backdrop);
+  }
 }

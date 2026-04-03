@@ -176,8 +176,7 @@ services:
       - "3001:3000"
     volumes:
       - ./services/dashboard:/app
-      - /app/node_modules
-      - /app/.next
+      - dashboard-next:/app/.next
       - ./VERSION:/etc/maestra-version:ro
     networks:
       - maestra-network
@@ -420,3 +419,4 @@ volumes:
   nodered-data:
   grafana-data:
   portainer-data:
+  dashboard-next:

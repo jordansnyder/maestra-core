@@ -20,8 +20,8 @@ export function DeleteFixtureDialog({ fixture, onConfirm, onCancel }: DeleteFixt
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+    <div className="modal-backdrop">
+      <div className="modal-panel max-w-sm">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
           <div className="flex items-center gap-2">
             <Trash2 className="w-4 h-4 text-red-400" />

@@ -18,7 +18,8 @@ import {
   Settings,
   Cloud,
   Zap,
-  Play
+  Play,
+  X,
 } from '@/components/icons'
 import { getServiceLinks } from '@/lib/hosts'
 import { useSystemHealth } from '@/hooks/useSystemHealth'
@@ -60,7 +61,12 @@ function getServiceLinkItems(): ServiceLink[] {
   ]
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean
+  onClose?: () => void
+}
+
+export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname()
   const { services } = useSystemHealth(30000)
   const [cloudStatus, setCloudStatus] = useState<'none' | 'connected' | 'disconnected' | 'connecting' | 'error'>('none')
@@ -87,20 +93,30 @@ export function Sidebar() {
     return () => clearInterval(timer)
   }, [])
 
-  return (
-    <aside className="w-56 shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col">
+  const sidebarContent = (
+    <>
       {/* Logo */}
-      <div className="px-5 py-4 border-b border-slate-800">
-        <Link href="/" className="flex items-center gap-2">
+      <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+        <Link href="/" onClick={onClose} className="flex items-center gap-2">
           <span className="text-xl text-purple-400">{'\u2726'}</span>
           <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
             Maestra
           </span>
         </Link>
+        {/* Close button — mobile only */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="md:hidden text-slate-500 hover:text-white transition-colors p-0.5"
+            aria-label="Close navigation"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
           const isActive = item.href === '/'
             ? pathname === '/'
@@ -110,6 +126,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 isActive
                   ? 'bg-slate-800 text-white'
@@ -187,6 +204,20 @@ export function Sidebar() {
           )
         })}
       </div>
+    </>
+  )
+
+  return (
+    <aside
+      className={`
+        fixed inset-y-0 left-0 z-50 w-sidebar-nav
+        transform transition-transform duration-300 ease-in-out
+        md:relative md:translate-x-0 md:z-auto md:transition-none
+        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        bg-slate-900 border-r border-slate-800 flex flex-col shrink-0
+      `}
+    >
+      {sidebarContent}
     </aside>
   )
 }

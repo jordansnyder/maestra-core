@@ -178,6 +178,10 @@ Located at `services/fleet-manager/main.py`:
   - Optional API key auth via `SHOW_CONTROL_TOKEN` env var
   - Inbound commands via NATS: `maestra.show.command.*` and `maestra.osc.show.*`
   - Background scheduler evaluates cron entries every 60 seconds
+- **DMX Lighting**: Full Art-Net / DMX512 fixture control (see DMX Lighting System section below)
+  - Router: `services/fleet-manager/dmx_router.py`
+  - Playback engine: `services/fleet-manager/dmx_playback_engine.py`
+  - NATS state handler and entity sync in `services/fleet-manager/main.py`
 - API docs at http://localhost:8080/docs
 
 ### Dashboard (Next.js)
@@ -186,6 +190,26 @@ Located at `services/dashboard/`:
 - Next.js 14 with React 18
 - TailwindCSS, Recharts, Socket.IO, MQTT
 - Environment vars in `NEXT_PUBLIC_*` prefix
+
+**Responsive design system** (`services/dashboard/src/app/globals.css` + `tailwind.config.js`):
+- CSS custom properties define single-source-of-truth design tokens:
+  - `--sidebar-nav-width: 14rem` — left navigation sidebar width
+  - `--sidebar-dmx-width: 295px` — DMX Lighting right sidebar width
+  - `--z-nav-backdrop: 40`, `--z-overlay: 50` — z-index layers
+  - `--breakpoint-mobile: 768px` — documents the `md` Tailwind breakpoint
+- Tailwind `theme.extend.width` adds `w-sidebar-nav` and `w-sidebar-dmx` utilities backed by the CSS vars
+- `@layer components` defines shared classes:
+  - `.modal-backdrop` — `fixed inset-0 z-50` centered flex with `p-4` safe padding and `bg-black/60 backdrop-blur-sm`; pair with `.modal-panel max-w-sm` or `.modal-panel max-w-lg`
+  - `.modal-panel` — base modal frame (`w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl`); caller adds size and layout modifiers
+  - `.nav-overlay-backdrop` — mobile-only (`md:hidden`) nav backdrop at `z-40`
+
+**Mobile layout** (breakpoint `md` = 768px):
+- `AppShell`: mobile top bar (`md:hidden`) with hamburger button (opens slide-in nav), Maestra wordmark, and system health status dots on the right
+- `Sidebar`: fixed overlay on mobile (`translate-x` open/close, 300ms ease), static in flexbox on desktop; uses `w-sidebar-nav`
+- Nav links call `onClose()` to dismiss the drawer on mobile
+- System health dots in the top bar come from `useSystemHealth(30000)` + `useWebSocket()` called in AppShell
+- Dashboard page has a mobile toggle button (`md:hidden`) to switch between the dashboard summary view and the Live Activity feed full-screen view
+- DMX Lighting page: canvas is `hidden md:block` on mobile; DMX sidebar becomes full-width (`w-full md:w-sidebar-dmx`); toolbar labels condensed to icon-only on small screens; scale picker hidden; per-fixture Adjust button always visible (not hover-only)
 
 ### Message Envelope Convention
 
@@ -467,6 +491,98 @@ All 8 SDKs support streams:
 - **Arduino**: MQTT-only stream events (advertise, subscribe, heartbeat via pub/sub topics)
 - **Processing**: MQTT-based with `processing-mqtt` (Eclipse Paho), thread-safe queue for main-thread dispatch
 - **OpenFrameworks**: MQTT-based `ofxMaestra` addon with `ofxMQTT` (libmosquitto), main-thread callbacks via `ofEvent`
+
+## DMX Lighting System
+
+The DMX Lighting feature provides Art-Net/DMX512 fixture control with a full cue/sequence programming interface. It is configured entirely through the Dashboard UI or the Fleet Manager REST API — no YAML files.
+
+### Database Tables
+
+| Table | Migration | Purpose |
+|-------|-----------|---------|
+| `dmx_nodes` | init | Art-Net hardware nodes (IP, universes) |
+| `dmx_fixtures` | init | Fixture patch (node, universe, start channel, channel map, entity link) |
+| `dmx_groups` | 018 | Independent playback layers; fixtures, cues, and sequences belong to a group |
+| `dmx_cues` | init | Named snapshots of fixture states; optional `group_id` |
+| `dmx_sequences` | init | Ordered cue chains with transition/hold timing; optional `group_id` |
+| `dmx_cue_placements` | init | Many-to-many cue↔sequence with `transition_time` and `hold_duration` |
+| `dmx_fixture_snapshots` | init | Fixture state data stored per cue |
+
+### Playback Engine Architecture
+
+`DMXGroupEngine` (`dmx_playback_engine.py`) — one instance per group (and one ungrouped):
+- Ticks every 80ms; interpolates DMX values between cues during transitions
+- States: `stopped → playing → paused`; phases: `idle → transitioning → holding`
+- Supports `loop` (repeat sequence indefinitely) and `fadeout_ms` (fade dimmers to zero on completion)
+- `play(sequence_id, loop=False, fadeout_ms=None)` — starts playback; stores parameters
+- `_fadeout_ms_on_complete` — fires `_run_fade_out()` as a background task on non-looping completion
+
+`DMXEngineRegistry` — singleton dict in `dmx_router.py`:
+- Key `None` → ungrouped (legacy) engine
+- Key `"<group-uuid>"` → per-group engine
+- Groups run fully independently; playing a sequence on group A never affects group B
+- `GET /dmx/playback/status?group_id=all` returns all active engines in one request
+
+### Entity State Integration
+
+The `dmx-lighting` singleton entity (slug `dmx-lighting`, type `dmx_controller`) reflects the full catalog and enables external control from any Maestra client:
+
+```json
+{
+  "groups":   [{ "id": "uuid", "name": "Stage Left", "color": "#ef4444" }],
+  "cues":     [{ "id": "uuid", "name": "Warm Stage", "fade_duration": 2.5, "group_id": "uuid|null" }],
+  "sequences":[{ "id": "uuid", "name": "Opening", "cue_count": 4, "fade_out_duration": 3.0, "group_id": "uuid|null" }],
+  "active_cue_id": null,
+  "active_sequence_id": null,
+  "group_playback": {
+    "<group-uuid>": { "active_sequence_id": null, "active_cue_id": null }
+  }
+}
+```
+
+`_sync_dmx_lighting_entity()` in `dmx_router.py` — called after every CRUD operation; rebuilds the full entity state from the database and hydrates `group_playback` from the live engine registry.
+
+`_on_dmx_lighting_state()` in `main.py` — NATS handler for `maestra.entity.state.update.dmx-lighting`; routes state changes to the correct engine(s).
+
+### Sequence Control Parameters
+
+`active_sequence_id` (and the equivalent field inside each `group_playback` entry) accepts a plain string UUID **or** a control object:
+
+| Form | Behavior |
+|------|----------|
+| `"<uuid>"` | Play once; last DMX values hold when the final cue completes |
+| `{"id": "<uuid>", "loop": true}` | Repeat indefinitely |
+| `{"id": "<uuid>", "fadeout": 3.0}` | Fade dimmers to zero over N seconds on completion, then stop |
+
+`_parse_seq_control(value)` in `main.py` — handles `None`, string, and dict inputs uniformly; returns `(seq_id, loop, fadeout_ms)`.
+
+`POST /dmx/playback/play` accepts the same options via `loop` (bool) and `fadeout_ms` (float) fields.
+
+### Key Implementation Files
+
+| File | Purpose |
+|------|---------|
+| `services/fleet-manager/dmx_router.py` | All DMX REST endpoints + `DMXEngineRegistry` + `_sync_dmx_lighting_entity()` |
+| `services/fleet-manager/dmx_playback_engine.py` | `DMXGroupEngine` — tick loop, transitions, fade-out |
+| `services/fleet-manager/main.py` | `_on_dmx_lighting_state()` NATS handler, `_parse_seq_control()` |
+| `services/dmx-gateway/main.py` | Art-Net UDP sender; reads fixture config from Fleet Manager API |
+| `config/postgres/migrations/018_dmx_groups.sql` | Groups table + `group_id` FK columns on fixtures, cues, sequences |
+| `config/postgres/migrations/019_dmx_lighting_groups_state.sql` | Updates `dmx_controller` entity type schema with groups/group_playback |
+| `config/postgres/migrations/020_dmx_lighting_seq_control_schema.sql` | Documents `oneOf` string/object schema for `active_sequence_id` |
+| `services/dashboard/src/app/dmx/page.tsx` | DMX Lighting page — canvas, toolbar, all modal handlers |
+| `services/dashboard/src/components/dmx/DMXSidebar.tsx` | Right sidebar — 5 tabs: Nodes, Fixtures, Groups, Cues, Sequences |
+| `services/dashboard/src/components/dmx/DMXCanvas.tsx` | Drag-and-drop fixture layout canvas |
+| `services/dashboard/src/hooks/useSequencePlayback.ts` | Multi-group playback state; polls `?group_id=all`; exports `Map<groupId, status>` |
+
+### Dashboard DMX UI Patterns
+
+- **5-tab sidebar** (`DMXSidebar.tsx`): Nodes, Fixtures, Groups, Cues, Sequences — accordion-style with `gridTemplateRows` animation; active section remembered in `sessionStorage`
+- **Group context pills**: Cues and Sequences tabs each show a group filter pill bar; `cueGroupId` drives canvas highlight independently of `selectedGroupId` (Groups tab)
+- **Canvas group mode**: three visual states — in-group (bright ring), eligible (dashed), ineligible (dimmed); shift-click toggles fixture membership
+- **Green pulse indicators**: active sequence engines shown on group rows, context pills, Sequences tab header
+- **`useSequencePlayback` hook**: tracks `Map<string|null, SequencePlaybackStatus>` keyed by `group_id`; `activeGroupIds` useMemo set drives all visual indicators; polls every 150ms while any engine is active
+- **`onAdjustFixture` prop**: mobile-specific path to open the DMX channel modal for a specific fixture without requiring canvas selection
+- **DMX Adjust Modal** (`DMXChannelModal.tsx`): vertical channel sliders (`0–255`) for each channel in the fixture's channel map; when both `pan` and `tilt` channels are detected a segmented toggle in the header switches to **Pan/Tilt joystick mode** — a 2D drag pad (mouse + touch) with a Center button; both modes write through `handleChange` → `entitiesApi.updateState` with 50ms debounce; touch listeners added imperatively with `{ passive: false }` so drag doesn't scroll the page
 
 ## Configuration
 

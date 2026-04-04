@@ -127,7 +127,7 @@ function resolveSourceTarget(
   if (artnetMatch) {
     const universe = parseInt(artnetMatch[1])
     for (const [id, node] of nodeMap) {
-      if (node.type === 'artnet' && node.artnetUniverses?.includes(universe)) {
+      if (node.artnetUniverses?.includes(universe)) {
         return { source: 'gateway-dmx', target: id }
       }
     }
@@ -294,16 +294,27 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
         // API unavailable — degrade gracefully
       }
 
-      // Art-Net nodes: physical DMX hardware the DMX gateway sends to
+      // Art-Net nodes: physical DMX hardware the DMX gateway sends to.
+      // If the node has a device_id it's already in graphNodes as a device —
+      // enrich that node with universe info rather than adding a duplicate.
       try {
         const dmxNodes = await dmxApi.listNodes()
         dmxNodes.forEach((n: DMXNode) => {
+          const universes = n.universes.map(u => u.artnet_universe)
+          if (n.device_id) {
+            const existing = graphNodes.find(g => g.id === n.device_id)
+            if (existing) {
+              existing.artnetUniverses = universes
+              return
+            }
+          }
+          // No linked device — add as a standalone artnet node
           graphNodes.push({
             id: `artnet-${n.id}`,
             label: n.name,
             slug: n.id,
             type: 'artnet',
-            artnetUniverses: n.universes.map(u => u.artnet_universe),
+            artnetUniverses: universes,
             activity: 0,
           })
         })

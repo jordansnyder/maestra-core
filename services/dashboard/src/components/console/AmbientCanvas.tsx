@@ -27,6 +27,9 @@ const BACKGROUND = '#0a0a0f'
 const MAX_PARTICLES = 250
 const PARTICLE_LIFETIME = 1100 // ms
 const HEAT_DECAY = 0.35        // heat units/second — full decay in ~3s
+const DRIFT_OUT   = 15         // px/s outward when cold
+const DRIFT_IN    = 100        // px/s inward per unit of heat
+const DRIFT_MAX   = 1.65       // max driftRadius as multiple of baseRadius
 
 function rgba(r: number, g: number, b: number, a: number): string {
   return `rgba(${r},${g},${b},${a})`
@@ -45,6 +48,10 @@ interface AmbientNode {
   breathPhase: number
   heat: number        // 0–1, amplifies glow
   lastActivity: number
+  // Drift system (entity / device / artnet only)
+  baseAngle: number   // fixed angle from center set at layout time
+  baseRadius: number  // inner boundary — minimum distance from center
+  driftRadius: number // current distance; drifts out when cold, pulled in by heat
 }
 
 interface Particle {
@@ -198,10 +205,21 @@ export function AmbientCanvas() {
     const existing = new Map<string, AmbientNode>()
     for (const n of ambientNodesRef.current) existing.set(n.id, n)
 
-    const makeNode = (n: GraphNode, x: number, y: number, r: number): AmbientNode => {
+    const makeNode = (
+      n: GraphNode, x: number, y: number, r: number,
+      angle = 0, baseRadius = 0,
+    ): AmbientNode => {
       const ex = existing.get(n.id)
       if (ex) {
-        ex.x = x; ex.y = y; ex.radius = r
+        ex.radius = r
+        // Non-drifting nodes (bus, gateway): just update position
+        if (baseRadius === 0) { ex.x = x; ex.y = y }
+        // Drifting nodes: update base geometry; keep driftRadius if already further out
+        else {
+          ex.baseAngle = angle
+          ex.baseRadius = baseRadius
+          if (ex.driftRadius < baseRadius) ex.driftRadius = baseRadius
+        }
         return ex
       }
       return {
@@ -209,6 +227,7 @@ export function AmbientCanvas() {
         x, y, radius: r, targetRadius: r,
         breathPhase: Math.random() * Math.PI * 2,
         heat: 0, lastActivity: 0,
+        baseAngle: angle, baseRadius, driftRadius: baseRadius,
       }
     }
 
@@ -234,10 +253,11 @@ export function AmbientCanvas() {
     const outerR = Math.min(width, height) * 0.38
     rest.forEach((n, i) => {
       const angle = (i / Math.max(rest.length, 1)) * Math.PI * 2 - Math.PI / 2
+      // Pass angle + baseRadius so the render loop can drive drift position
       result.push(makeNode(n,
         cx + Math.cos(angle) * outerR,
         cy + Math.sin(angle) * outerR,
-        7,
+        7, angle, outerR,
       ))
     })
 
@@ -375,7 +395,7 @@ export function AmbientCanvas() {
       ctx.fillStyle = BACKGROUND
       ctx.fillRect(0, 0, w, h)
       const bgGrad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.6)
-      bgGrad.addColorStop(0, '#0b0b1e')
+      bgGrad.addColorStop(0, '#18183a')
       bgGrad.addColorStop(1, BACKGROUND)
       ctx.fillStyle = bgGrad
       ctx.fillRect(0, 0, w, h)
@@ -415,10 +435,25 @@ export function AmbientCanvas() {
         idleRingsRef.current = []
       }
 
+      const cx = w / 2
+      const cy = h / 2
+
       // Nodes
       for (const node of an) {
         // Heat decay
         node.heat = Math.max(0, node.heat - HEAT_DECAY * dt)
+
+        // Drift: entity / device / artnet nodes move outward when cold,
+        // pulled back toward their inner boundary (baseRadius) by heat.
+        if (node.baseRadius > 0) {
+          const net = DRIFT_OUT - DRIFT_IN * node.heat
+          node.driftRadius = Math.min(
+            node.baseRadius * DRIFT_MAX,
+            Math.max(node.baseRadius, node.driftRadius + net * dt),
+          )
+          node.x = cx + Math.cos(node.baseAngle) * node.driftRadius
+          node.y = cy + Math.sin(node.baseAngle) * node.driftRadius
+        }
 
         // Ease targetRadius back to base
         const baseR = node.radius

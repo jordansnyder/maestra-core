@@ -270,15 +270,10 @@ export function AmbientCanvas() {
         const busNode = an.find(n => n.type === 'bus')
         if (!busNode) continue
 
-        const color = PROTOCOL_COLORS[msg.protocol] ?? PROTOCOL_COLORS.internal
-
-        // Internal messages: ripple from bus only
-        if (msg.protocol === 'internal') {
-          spawnRipple(busNode, color)
-          continue
-        }
-
-        // Determine source gateway node
+        // Determine source gateway node.
+        // Entity state subjects (maestra.entity.state.*) are classified as 'internal'
+        // by detectProtocol, but resolveSourceTarget may have resolved a real gateway
+        // via the payload's source field — so always check msg.sourceNode first.
         const gatewayId: string | null =
           msg.sourceNode ??
           (msg.protocol === 'osc'  ? 'gateway-osc'  :
@@ -288,6 +283,12 @@ export function AmbientCanvas() {
 
         const gatewayNode = gatewayId ? an.find(n => n.id === gatewayId) : null
         const targetNode  = msg.targetNode ? an.find(n => n.id === msg.targetNode) : null
+
+        // Use the gateway's color so entity state routed via MQTT shows green,
+        // via OSC shows cyan, etc. Fall back to the protocol color.
+        const color: RGB =
+          (gatewayId && GATEWAY_COLORS[gatewayId]) ? GATEWAY_COLORS[gatewayId]
+          : PROTOCOL_COLORS[msg.protocol] ?? PROTOCOL_COLORS.internal
 
         if (gatewayNode) {
           // Two-hop: gateway → bus → entity (or ripple at bus)
@@ -302,7 +303,8 @@ export function AmbientCanvas() {
             }
           })
         } else {
-          spawnRipple(busNode, color)
+          const fallbackColor = PROTOCOL_COLORS[msg.protocol] ?? PROTOCOL_COLORS.internal
+          spawnRipple(busNode, fallbackColor)
         }
       }
     })

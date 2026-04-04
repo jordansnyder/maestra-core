@@ -5,9 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/maestra-core
-ExecStart=/home/pi/maestra-core/.venv/bin/python examples/potentiometer_4x.py --entity-slug aurora --api-url http://maestra.local:8080
+User=jordan
+WorkingDirectory=/home/jordan/Dev/maestra-core/examples
+ExecStart=/home/jordan/Dev/maestra-core/examples/.venv/bin/python examples/potentiometer_4x.py --entity-slug sigint --api-url http://192.168.128.115:8080
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1

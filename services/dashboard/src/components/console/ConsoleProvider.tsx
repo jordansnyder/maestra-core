@@ -22,7 +22,7 @@ const generateId = (): string => {
 
 // --- Types ---
 
-export type Protocol = 'osc' | 'mqtt' | 'ws' | 'internal'
+export type Protocol = 'osc' | 'mqtt' | 'ws' | 'dmx' | 'internal'
 
 export interface ConsoleMessage {
   id: string
@@ -70,6 +70,7 @@ function detectProtocol(subject: string): Protocol {
   if (subject.startsWith('maestra.osc.')) return 'osc'
   if (subject.startsWith('maestra.mqtt.')) return 'mqtt'
   if (subject.includes('websocket') || subject.startsWith('maestra.ws.')) return 'ws'
+  if (subject.startsWith('maestra.dmx.') || subject.startsWith('maestra.to_artnet.')) return 'dmx'
   return 'internal'
 }
 
@@ -120,6 +121,7 @@ function resolveSourceTarget(
   // Protocol-prefixed messages
   if (subject.startsWith('maestra.osc.')) return { source: 'gateway-osc', target: null }
   if (subject.startsWith('maestra.mqtt.')) return { source: 'gateway-mqtt', target: null }
+  if (subject.startsWith('maestra.dmx.') || subject.startsWith('maestra.to_artnet.')) return { source: 'gateway-dmx', target: null }
 
   return { source: null, target: null }
 }
@@ -205,7 +207,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   const [paused, setPausedState] = useState(false)
   const [filters, setFilters] = useState<ConsoleFilters>({
     subjectPattern: '',
-    protocols: new Set(['osc', 'mqtt', 'ws', 'internal'] as Protocol[]),
+    protocols: new Set(['osc', 'mqtt', 'ws', 'dmx', 'internal'] as Protocol[]),
     textSearch: '',
     hideHeartbeats: true,
   })
@@ -242,10 +244,11 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const fetchTopology = async () => {
       const graphNodes: GraphNode[] = [
-        { id: 'bus', label: 'NATS Bus', type: 'bus', activity: 0 },
-        { id: 'gateway-osc', label: 'OSC Gateway', type: 'gateway', activity: 0 },
-        { id: 'gateway-mqtt', label: 'MQTT Gateway', type: 'gateway', activity: 0 },
-        { id: 'gateway-ws', label: 'WebSocket', type: 'gateway', activity: 0 },
+        { id: 'bus',          label: 'NATS Bus',     type: 'bus',     activity: 0 },
+        { id: 'gateway-osc',  label: 'OSC',          type: 'gateway', activity: 0 },
+        { id: 'gateway-mqtt', label: 'MQTT',         type: 'gateway', activity: 0 },
+        { id: 'gateway-ws',   label: 'WebSocket',    type: 'gateway', activity: 0 },
+        { id: 'gateway-dmx',  label: 'DMX / Art-Net',type: 'gateway', activity: 0 },
       ]
       try {
         const devices = await api.listDevices()

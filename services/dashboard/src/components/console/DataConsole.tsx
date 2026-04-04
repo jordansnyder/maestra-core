@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { ConsoleProvider, useConsole } from './ConsoleProvider'
 import { ConsoleToolbar } from './ConsoleToolbar'
 import { MessageFeed } from './MessageFeed'
@@ -48,10 +48,29 @@ function ConsoleContent() {
   const [displayMode, setDisplayMode] = useState(mode)
   const [transition, setTransition] = useState<TransitionState>('idle')
   const [opacity, setOpacity] = useState(1)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await contentRef.current?.requestFullscreen()
+      } else {
+        await document.exitFullscreen()
+      }
+    } catch {
+      // Fullscreen not supported or denied
+    }
+  }, [])
+
+  useEffect(() => {
+    const onFSChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onFSChange)
+    return () => document.removeEventListener('fullscreenchange', onFSChange)
+  }, [])
 
   const handleModeChange = useCallback(() => {
     if (mode === displayMode) return
-    // Start transition
     setTransition('fading-out')
     setOpacity(0)
   }, [mode, displayMode])
@@ -69,7 +88,6 @@ function ConsoleContent() {
       return () => clearTimeout(timer)
     }
     if (transition === 'switching') {
-      // Next frame: start fading in
       requestAnimationFrame(() => {
         setTransition('fading-in')
         setOpacity(1)
@@ -94,8 +112,10 @@ function ConsoleContent() {
   }, [transition, mode])
 
   return (
-    <div className="flex flex-col h-full">
-      <ConsoleToolbar />
+    // relative: positions ambient toolbar's absolute overlay correctly
+    // bg-[#0a0a0f]: correct dark background when browser fullscreens this element
+    <div ref={contentRef} className="flex flex-col h-full relative bg-[#0a0a0f]">
+      <ConsoleToolbar isFullscreen={isFullscreen} onToggleFullscreen={toggleFullscreen} />
 
       <div
         className="flex-1 flex min-h-0 relative"

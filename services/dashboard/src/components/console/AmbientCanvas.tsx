@@ -249,7 +249,7 @@ export function AmbientCanvas() {
       ))
     })
 
-    const outerR = Math.min(width, height) * 0.38
+    const outerR = Math.min(width, height) * 0.32
     rest.forEach((n, i) => {
       const angle = (i / Math.max(rest.length, 1)) * Math.PI * 2 - Math.PI / 2
       // Pass angle + baseRadius so the render loop can drive drift position
@@ -439,7 +439,7 @@ export function AmbientCanvas() {
 
       // Outer drift boundary: keep nodes on screen with margin for labels.
       // Inner boundary (baseRadius) = Math.min(w,h)*0.38 (set at layout time).
-      const outerBoundaryR = Math.min(w, h) * 0.47
+      const outerBoundaryR = Math.min(w, h) * 0.43
 
       // Draw the two boundary rings (very faint — structural guides)
       const innerBoundaryR = an.find(n => n.baseRadius > 0)?.baseRadius

@@ -2,19 +2,26 @@
 
 import { useState, useEffect } from 'react'
 import { useConsole, type Protocol } from './ConsoleProvider'
-import { Pause, Play, Trash2, ChevronDown, ChevronUp, Search } from 'lucide-react'
+import { Pause, Play, Trash2, ChevronDown, ChevronUp, Search, Maximize2, Minimize2, Zap } from 'lucide-react'
 
 const PROTOCOL_COLORS: Record<Protocol, { bg: string; text: string; label: string }> = {
-  osc: { bg: 'bg-cyan-500/20', text: 'text-cyan-400', label: 'OSC' },
-  mqtt: { bg: 'bg-emerald-500/20', text: 'text-emerald-400', label: 'MQTT' },
-  ws: { bg: 'bg-violet-500/20', text: 'text-violet-400', label: 'WS' },
-  internal: { bg: 'bg-slate-500/20', text: 'text-slate-400', label: 'INT' },
+  osc:      { bg: 'bg-cyan-500/20',    text: 'text-cyan-400',    label: 'OSC'  },
+  mqtt:     { bg: 'bg-emerald-500/20', text: 'text-emerald-400', label: 'MQTT' },
+  ws:       { bg: 'bg-violet-500/20',  text: 'text-violet-400',  label: 'WS'   },
+  dmx:      { bg: 'bg-amber-500/20',   text: 'text-amber-400',   label: 'DMX'  },
+  internal: { bg: 'bg-slate-500/20',   text: 'text-slate-400',   label: 'INT'  },
 }
 
-export function ConsoleToolbar() {
+interface ConsoleToolbarProps {
+  isFullscreen?: boolean
+  onToggleFullscreen?: () => void
+}
+
+export function ConsoleToolbar({ isFullscreen = false, onToggleFullscreen }: ConsoleToolbarProps) {
   const {
     mode, setMode, filters, setFilters,
     paused, setPaused, stats, isConnected, clear,
+    simulate, setSimulate,
   } = useConsole()
 
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -40,7 +47,7 @@ export function ConsoleToolbar() {
 
   const isAmbient = mode === 'ambient'
 
-  // Ambient mode: compact floating toolbar
+  // Ambient mode: compact floating overlay
   if (isAmbient) {
     return (
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 h-10 bg-transparent text-slate-400/60 transition-opacity hover:opacity-100 opacity-60">
@@ -51,6 +58,13 @@ export function ConsoleToolbar() {
           <span>{stats.messagesPerSecond} msg/s</span>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSimulate(!simulate)}
+            title={simulate ? 'Stop simulation' : 'Simulate live data'}
+            className={`p-1 transition-colors ${simulate ? 'text-amber-400 hover:text-amber-300' : 'hover:text-white/80'}`}
+          >
+            <Zap className="w-3.5 h-3.5" fill={simulate ? 'currentColor' : 'none'} />
+          </button>
           <button
             onClick={() => setPaused(!paused)}
             className="p-1 hover:text-white/80 transition-colors"
@@ -63,6 +77,23 @@ export function ConsoleToolbar() {
           >
             Debug
           </button>
+          {onToggleFullscreen && (
+            <>
+              {isFullscreen && (
+                <span className="text-[10px] font-mono text-slate-600/70 select-none">ESC</span>
+              )}
+              <button
+                onClick={onToggleFullscreen}
+                className="p-1 hover:text-white/80 transition-colors"
+                title={isFullscreen ? 'Exit fullscreen (ESC)' : 'Fullscreen'}
+              >
+                {isFullscreen
+                  ? <Minimize2 className="w-3.5 h-3.5" />
+                  : <Maximize2 className="w-3.5 h-3.5" />
+                }
+              </button>
+            </>
+          )}
         </div>
       </div>
     )
@@ -124,13 +155,13 @@ export function ConsoleToolbar() {
 
         <div className="flex-1" />
 
-        {/* Mode toggle — visually isolated */}
+        {/* Mode toggle */}
         <div className="flex items-center gap-2 pl-3 border-l border-slate-600">
           {!hintDismissed && (
             <div className="relative">
               <div className="absolute bottom-full right-0 mb-2 w-48 p-2 text-xs bg-slate-700 rounded-lg shadow-lg border border-slate-600 text-slate-300">
                 <p><strong>Debug</strong> = message inspector</p>
-                <p><strong>Ambient</strong> = data art visualization</p>
+                <p><strong>Ambient</strong> = live data visualization</p>
                 <button onClick={dismissHint} className="mt-1 text-blue-400 hover:underline">Got it</button>
               </div>
             </div>

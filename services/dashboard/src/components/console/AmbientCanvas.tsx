@@ -3,37 +3,38 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
 import { useConsole, type GraphNode, type Protocol } from './ConsoleProvider'
 
-// --- Protocol colors (more saturated for ambient) ---
-const PARTICLE_COLORS: Record<Protocol, string> = {
-  osc: '#22d3ee',
-  mqtt: '#34d399',
-  ws: '#a78bfa',
-  internal: '#cbd5e1',
+// --- Color types & palettes ---
+
+type RGB = [number, number, number]
+
+const PROTOCOL_COLORS: Record<Protocol, RGB> = {
+  osc:      [34,  211, 238], // cyan-400
+  mqtt:     [52,  211, 153], // emerald-400
+  ws:       [167, 139, 250], // violet-400
+  dmx:      [251, 191,  36], // amber-400
+  internal: [148, 163, 184], // slate-400
 }
 
-const NODE_COLOR = 'rgba(148, 163, 184, 0.6)' // slate-400
-const BUS_COLOR = 'rgba(148, 163, 184, 0.3)'
+// Per-gateway node color (by node ID)
+const GATEWAY_COLORS: Record<string, RGB> = {
+  'gateway-osc':  [34,  211, 238],
+  'gateway-mqtt': [52,  211, 153],
+  'gateway-ws':   [167, 139, 250],
+  'gateway-dmx':  [251, 191,  36],
+}
+
 const BACKGROUND = '#0a0a0f'
+const MAX_PARTICLES = 250
+const PARTICLE_LIFETIME = 1100 // ms
+const HEAT_DECAY = 0.35        // heat units/second — full decay in ~3s
+const DRIFT_OUT   = 15         // px/s outward when cold
+const DRIFT_IN    = 220        // px/s inward per unit of heat (net inward when heat > 0.07)
 
-// --- Particle system ---
-interface Particle {
-  active: boolean
-  x: number
-  y: number
-  targetX: number
-  targetY: number
-  startX: number
-  startY: number
-  controlX: number
-  controlY: number
-  color: string
-  progress: number // 0 to 1
-  lifetime: number // ms
-  startTime: number
-  trail: Array<{ x: number; y: number }>
-  isRipple: boolean
-  rippleRadius: number
+function rgba(r: number, g: number, b: number, a: number): string {
+  return `rgba(${r},${g},${b},${a})`
 }
+
+// --- Node & Particle types ---
 
 interface AmbientNode {
   id: string
@@ -44,43 +45,90 @@ interface AmbientNode {
   radius: number
   targetRadius: number
   breathPhase: number
+  heat: number        // 0–1, amplifies glow
+  lastActivity: number
+  // Drift system (entity / device / artnet only)
+  baseAngle: number   // fixed angle from center set at layout time
+  baseRadius: number  // inner boundary — minimum distance from center
+  driftRadius: number // current distance; drifts out when cold, pulled in by heat
 }
 
-const MAX_PARTICLES = 200
-const PARTICLE_LIFETIME = 1500
+interface Particle {
+  active: boolean
+  startX: number; startY: number
+  targetX: number; targetY: number
+  controlX: number; controlY: number
+  x: number; y: number
+  color: RGB
+  size: number
+  lifetime: number
+  startTime: number
+  trail: Array<{ x: number; y: number }>
+  isRipple: boolean
+  rippleRadius: number
+  arrivedFired: boolean
+  onArrive: (() => void) | null
+}
+
+// Cool (blue) → violet → warm (orange) color ramp for the bus heat glow
+function coolToWarm(t: number): RGB {
+  // Two-segment interpolation so the midpoint passes through violet/purple
+  if (t < 0.5) {
+    const s = t / 0.5
+    return [
+      Math.round(25  + s * 95),   // 25  → 120
+      Math.round(55  - s * 35),   // 55  → 20
+      Math.round(190 - s * 30),   // 190 → 160
+    ]
+  }
+  const s = (t - 0.5) / 0.5
+  return [
+    Math.round(120 + s * 110),  // 120 → 230
+    Math.round(20  + s * 65),   // 20  → 85
+    Math.round(160 - s * 145),  // 160 → 15
+  ]
+}
+
+function makeParticle(): Particle {
+  return {
+    active: false,
+    startX: 0, startY: 0, targetX: 0, targetY: 0,
+    controlX: 0, controlY: 0, x: 0, y: 0,
+    color: [148, 163, 184],
+    size: 3,
+    lifetime: PARTICLE_LIFETIME,
+    startTime: 0,
+    trail: [],
+    isRipple: false,
+    rippleRadius: 0,
+    arrivedFired: false,
+    onArrive: null,
+  }
+}
+
+// --- Component ---
 
 export function AmbientCanvas() {
-  const { nodes, messages, subscribe, stats } = useConsole()
+  const { nodes, messages, subscribe, stats, dmxEntityMap } = useConsole()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animRef = useRef<number>(0)
   const particlesRef = useRef<Particle[]>([])
   const ambientNodesRef = useRef<AmbientNode[]>([])
-  const glowSpritesRef = useRef<Map<string, HTMLCanvasElement>>(new Map())
   const lastMsgCountRef = useRef(0)
   const samplingCounterRef = useRef(0)
+  const statsRef = useRef(stats)
+  const lastRenderTimeRef = useRef(0)
+  const idleRingsRef = useRef<Array<{ startTime: number; x: number; y: number }>>([])
+  // MPS history for bus heat calibration (one sample/second, 5-min rolling window)
+  const mpsHistoryRef    = useRef<number[]>([])
+  const lastSampleTimeRef = useRef(0)
+  const busHeatRef       = useRef(0)   // smoothed 0-1 used for glow
+  const busHeatTargetRef = useRef(0.5) // target derived from calibrated range
 
-  // Create glow sprite for a given color
-  const createGlowSprite = useCallback((color: string, radius: number): HTMLCanvasElement => {
-    const sprite = document.createElement('canvas')
-    const size = radius * 4
-    sprite.width = size
-    sprite.height = size
-    const ctx = sprite.getContext('2d')!
-    const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, radius * 1.5)
-    gradient.addColorStop(0, color)
-    // Parse color and create faded version
-    const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
-    const fadedColor = match
-      ? `rgba(${match[1]}, ${match[2]}, ${match[3]}, 0.15)`
-      : 'rgba(148, 163, 184, 0.15)'
-    gradient.addColorStop(0.5, fadedColor)
-    gradient.addColorStop(1, 'transparent')
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, size, size)
-    return sprite
-  }, [])
+  // Keep statsRef current so the render loop never reads stale values
+  useEffect(() => { statsRef.current = stats }, [stats])
 
-  // Track canvas dimensions via ResizeObserver
+  // Track canvas size for layout recalculation
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 })
   useEffect(() => {
     const canvas = canvasRef.current
@@ -91,89 +139,156 @@ export function AmbientCanvas() {
       }
     })
     observer.observe(canvas)
-    // Initial size
     setCanvasSize({ width: canvas.clientWidth || 800, height: canvas.clientHeight || 600 })
     return () => observer.disconnect()
   }, [])
 
-  // Layout nodes in radial pattern
+  // --- Particle pool ---
+
+  const acquireParticle = useCallback((): Particle => {
+    const pool = particlesRef.current
+    const free = pool.find(p => !p.active)
+    if (free) return free
+    if (pool.length < MAX_PARTICLES) {
+      const p = makeParticle()
+      pool.push(p)
+      return p
+    }
+    // FIFO: evict the oldest active particle
+    return pool.reduce((oldest, p) => p.startTime < oldest.startTime ? p : oldest)
+  }, [])
+
+  const spawnParticle = useCallback((
+    src: AmbientNode,
+    dst: AmbientNode,
+    color: RGB,
+    size: number,
+    onArrive: (() => void) | null,
+  ) => {
+    const p = acquireParticle()
+    const midX = (src.x + dst.x) / 2
+    const midY = (src.y + dst.y) / 2
+    const dx = dst.x - src.x
+    const dy = dst.y - src.y
+    const perpX = -dy * 0.25
+    const perpY = dx * 0.25
+
+    p.active = true
+    p.startX = src.x;    p.startY = src.y
+    p.targetX = dst.x;   p.targetY = dst.y
+    p.controlX = midX + perpX
+    p.controlY = midY + perpY
+    p.x = src.x;         p.y = src.y
+    p.color = color
+    p.size = size
+    p.lifetime = PARTICLE_LIFETIME
+    p.startTime = Date.now()
+    p.trail = []
+    p.isRipple = false
+    p.rippleRadius = 0
+    p.arrivedFired = false
+    p.onArrive = onArrive
+
+    src.heat = Math.min(1, src.heat + 0.35)
+    src.lastActivity = Date.now()
+  }, [acquireParticle])
+
+  const spawnRipple = useCallback((node: AmbientNode, color: RGB) => {
+    const p = acquireParticle()
+    p.active = true
+    p.startX = node.x;  p.startY = node.y
+    p.targetX = node.x; p.targetY = node.y
+    p.controlX = node.x; p.controlY = node.y
+    p.x = node.x;       p.y = node.y
+    p.color = color
+    p.size = 2
+    p.lifetime = PARTICLE_LIFETIME
+    p.startTime = Date.now()
+    p.trail = []
+    p.isRipple = true
+    p.rippleRadius = node.radius
+    p.arrivedFired = false
+    p.onArrive = null
+
+    node.heat = Math.min(1, node.heat + 0.2)
+    node.lastActivity = Date.now()
+  }, [acquireParticle])
+
+  // --- Node layout: preserve heat/activity across re-layouts ---
+
   useEffect(() => {
     if (nodes.length === 0) return
-
-    const width = canvasSize.width
-    const height = canvasSize.height
+    const { width, height } = canvasSize
     if (width < 10 || height < 10) return
-    const centerX = width / 2
-    const centerY = height / 2
 
-    const busNode = nodes.find(n => n.type === 'bus')
-    const otherNodes = nodes.filter(n => n.type !== 'bus')
+    const cx = width / 2
+    const cy = height / 2
 
-    const ambientNodes: AmbientNode[] = []
+    // Build a map so we can reuse existing node objects (preserving heat)
+    const existing = new Map<string, AmbientNode>()
+    for (const n of ambientNodesRef.current) existing.set(n.id, n)
 
-    // Bus at center
-    if (busNode) {
-      ambientNodes.push({
-        id: busNode.id,
-        label: busNode.label,
-        type: busNode.type,
-        x: centerX,
-        y: centerY,
-        radius: 30,
-        targetRadius: 30,
+    const makeNode = (
+      n: GraphNode, x: number, y: number, r: number,
+      angle = 0, baseRadius = 0,
+    ): AmbientNode => {
+      const ex = existing.get(n.id)
+      if (ex) {
+        ex.radius = r
+        // Non-drifting nodes (bus, gateway): just update position
+        if (baseRadius === 0) { ex.x = x; ex.y = y }
+        // Drifting nodes: update base geometry; keep driftRadius if already further out
+        else {
+          ex.baseAngle = angle
+          ex.baseRadius = baseRadius
+          if (ex.driftRadius < baseRadius) ex.driftRadius = baseRadius
+        }
+        return ex
+      }
+      return {
+        id: n.id, label: n.label, type: n.type,
+        x, y, radius: r, targetRadius: r,
         breathPhase: Math.random() * Math.PI * 2,
-      })
+        heat: 0, lastActivity: 0,
+        baseAngle: angle, baseRadius, driftRadius: baseRadius,
+      }
     }
 
-    // Other nodes in concentric rings
-    const gateways = otherNodes.filter(n => n.type === 'gateway')
-    const rest = otherNodes.filter(n => n.type !== 'gateway')
+    const busNode    = nodes.find(n => n.type === 'bus')
+    const gateways   = nodes.filter(n => n.type === 'gateway')
+    const rest       = nodes.filter(n => n.type !== 'bus' && n.type !== 'gateway')
+    const result: AmbientNode[] = []
 
-    // Inner ring: gateways
+    if (busNode) {
+      result.push(makeNode(busNode, cx, cy, 28))
+    }
+
+    const innerR = Math.min(width, height) * 0.22
     gateways.forEach((n, i) => {
       const angle = (i / Math.max(gateways.length, 1)) * Math.PI * 2 - Math.PI / 2
-      const ringRadius = Math.min(width, height) * 0.2
-      ambientNodes.push({
-        id: n.id,
-        label: n.label,
-        type: n.type,
-        x: centerX + Math.cos(angle) * ringRadius,
-        y: centerY + Math.sin(angle) * ringRadius,
-        radius: 12,
-        targetRadius: 12,
-        breathPhase: Math.random() * Math.PI * 2,
-      })
+      result.push(makeNode(n,
+        cx + Math.cos(angle) * innerR,
+        cy + Math.sin(angle) * innerR,
+        10,
+      ))
     })
 
-    // Outer ring: devices and entities
+    const outerR = Math.min(width, height) * 0.32
     rest.forEach((n, i) => {
       const angle = (i / Math.max(rest.length, 1)) * Math.PI * 2 - Math.PI / 2
-      const ringRadius = Math.min(width, height) * 0.35
-      ambientNodes.push({
-        id: n.id,
-        label: n.label,
-        type: n.type,
-        x: centerX + Math.cos(angle) * ringRadius,
-        y: centerY + Math.sin(angle) * ringRadius,
-        radius: 12,
-        targetRadius: 12,
-        breathPhase: Math.random() * Math.PI * 2,
-      })
+      // Pass angle + baseRadius so the render loop can drive drift position
+      result.push(makeNode(n,
+        cx + Math.cos(angle) * outerR,
+        cy + Math.sin(angle) * outerR,
+        7, angle, outerR,
+      ))
     })
 
-    ambientNodesRef.current = ambientNodes
+    ambientNodesRef.current = result
+  }, [nodes, canvasSize])
 
-    // Pre-render glow sprites
-    const sprites = new Map<string, HTMLCanvasElement>()
-    sprites.set('node', createGlowSprite(NODE_COLOR, 12))
-    sprites.set('bus', createGlowSprite(BUS_COLOR, 30))
-    Object.entries(PARTICLE_COLORS).forEach(([key, color]) => {
-      sprites.set(`particle-${key}`, createGlowSprite(color, 5))
-    })
-    glowSpritesRef.current = sprites
-  }, [nodes, canvasSize, createGlowSprite])
+  // --- Subscribe for particle spawning ---
 
-  // Subscribe to new messages for particle spawning
   useEffect(() => {
     return subscribe(() => {
       const msgs = messages.current
@@ -182,255 +297,393 @@ export function AmbientCanvas() {
       const newMsgs = msgs.slice(lastMsgCountRef.current)
       lastMsgCountRef.current = msgs.length
 
-      const rate = stats.messagesPerSecond
+      const rate = statsRef.current.messagesPerSecond
       const shouldSample = rate > 60
 
       for (const msg of newMsgs) {
         if (msg.isDivider || msg.isPauseSummary) continue
 
-        // Probabilistic sampling at high rates
         if (shouldSample) {
           samplingCounterRef.current++
           const skipRate = Math.max(1, Math.floor(rate / 60))
           if (samplingCounterRef.current % skipRate !== 0) continue
         }
 
-        // Find an inactive particle slot
-        let particle = particlesRef.current.find(p => !p.active)
-        if (!particle) {
-          if (particlesRef.current.length < MAX_PARTICLES) {
-            particle = {
-              active: false, x: 0, y: 0, targetX: 0, targetY: 0,
-              startX: 0, startY: 0, controlX: 0, controlY: 0,
-              color: '', progress: 0, lifetime: PARTICLE_LIFETIME,
-              startTime: 0, trail: [], isRipple: false, rippleRadius: 0,
-            }
-            particlesRef.current.push(particle)
-          } else {
-            // FIFO eviction
-            particle = particlesRef.current.reduce((oldest, p) =>
-              p.startTime < oldest.startTime ? p : oldest
-            )
+        const an = ambientNodesRef.current
+        const busNode = an.find(n => n.type === 'bus')
+        if (!busNode) continue
+
+        // Determine source gateway node.
+        // Entity state subjects (maestra.entity.state.*) are classified as 'internal'
+        // by detectProtocol, but resolveSourceTarget may have resolved a real gateway
+        // via the payload's source field — so always check msg.sourceNode first.
+        const gatewayId: string | null =
+          msg.sourceNode ??
+          (msg.protocol === 'osc'  ? 'gateway-osc'  :
+           msg.protocol === 'mqtt' ? 'gateway-mqtt' :
+           msg.protocol === 'ws'   ? 'gateway-ws'   :
+           msg.protocol === 'dmx'  ? 'gateway-dmx'  : null)
+
+        const gatewayNode = gatewayId ? an.find(n => n.id === gatewayId) : null
+        const targetNode  = msg.targetNode ? an.find(n => n.id === msg.targetNode) : null
+
+        // Use the gateway's color so entity state routed via MQTT shows green,
+        // via OSC shows cyan, etc. Fall back to the protocol color.
+        const color: RGB =
+          (gatewayId && GATEWAY_COLORS[gatewayId]) ? GATEWAY_COLORS[gatewayId]
+          : PROTOCOL_COLORS[msg.protocol] ?? PROTOCOL_COLORS.internal
+
+        const dmxColor = PROTOCOL_COLORS.dmx  // amber for Art-Net output
+
+        if (targetNode?.type === 'artnet') {
+          // Art-Net output: DMX gateway → Art-Net node directly (no bus middle hop)
+          // This represents the DMX gateway sending UDP directly to hardware.
+          const dmxGateway = an.find(n => n.id === 'gateway-dmx')
+          if (dmxGateway) {
+            spawnParticle(dmxGateway, targetNode, dmxColor, 3.5, () => {
+              spawnRipple(targetNode, dmxColor)
+            })
           }
-        }
+        } else if (gatewayNode) {
+          // Standard two-hop: gateway → bus → entity (or ripple at bus)
+          spawnParticle(gatewayNode, busNode, color, 3, () => {
+            busNode.heat = Math.min(1, busNode.heat + 0.08)
+            if (targetNode) {
+              spawnParticle(busNode, targetNode, color, 2.5, () => {
+                spawnRipple(targetNode, color)
 
-        const ambientNodes = ambientNodesRef.current
-        const sourceNode = msg.sourceNode ? ambientNodes.find(n => n.id === msg.sourceNode) : null
-        const targetNode = msg.targetNode ? ambientNodes.find(n => n.id === msg.targetNode) : null
-        const busNode = ambientNodes.find(n => n.type === 'bus')
-
-        if (sourceNode && targetNode) {
-          // Animate from source to target
-          const midX = (sourceNode.x + targetNode.x) / 2
-          const midY = (sourceNode.y + targetNode.y) / 2
-          const dx = targetNode.x - sourceNode.x
-          const dy = targetNode.y - sourceNode.y
-          const perpX = -dy * 0.3
-          const perpY = dx * 0.3
-
-          particle.active = true
-          particle.startX = sourceNode.x
-          particle.startY = sourceNode.y
-          particle.targetX = targetNode.x
-          particle.targetY = targetNode.y
-          particle.controlX = midX + perpX
-          particle.controlY = midY + perpY
-          particle.x = sourceNode.x
-          particle.y = sourceNode.y
-          particle.color = PARTICLE_COLORS[msg.protocol] || PARTICLE_COLORS.internal
-          particle.progress = 0
-          particle.startTime = Date.now()
-          particle.trail = []
-          particle.isRipple = false
-
-          // Pulse source node
-          sourceNode.targetRadius = 16
-        } else if (sourceNode) {
-          // Ripple from source
-          particle.active = true
-          particle.x = sourceNode.x
-          particle.y = sourceNode.y
-          particle.startX = sourceNode.x
-          particle.startY = sourceNode.y
-          particle.targetX = sourceNode.x
-          particle.targetY = sourceNode.y
-          particle.color = PARTICLE_COLORS[msg.protocol] || PARTICLE_COLORS.internal
-          particle.progress = 0
-          particle.startTime = Date.now()
-          particle.trail = []
-          particle.isRipple = true
-          particle.rippleRadius = sourceNode.radius
-
-          sourceNode.targetRadius = 16
-        } else if (busNode) {
-          // Ripple from bus
-          particle.active = true
-          particle.x = busNode.x
-          particle.y = busNode.y
-          particle.startX = busNode.x
-          particle.startY = busNode.y
-          particle.targetX = busNode.x
-          particle.targetY = busNode.y
-          particle.color = PARTICLE_COLORS[msg.protocol] || PARTICLE_COLORS.internal
-          particle.progress = 0
-          particle.startTime = Date.now()
-          particle.trail = []
-          particle.isRipple = true
-          particle.rippleRadius = 30
+                // If this entity has DMX fixtures, also show the output side:
+                // DMX gateway → Art-Net node fires after entity hop lands
+                const subjectSlug = msg.subject.match(/maestra\.entity\.state\.\w+\.(.+)/)?.[1]
+                if (subjectSlug) {
+                  const artnetIds = dmxEntityMap.current.get(subjectSlug) ?? []
+                  const dmxGateway = an.find(n => n.id === 'gateway-dmx')
+                  if (dmxGateway && artnetIds.length > 0) {
+                    for (const nodeId of artnetIds) {
+                      const artnetNode = an.find(n => n.id === nodeId)
+                      if (artnetNode) {
+                        spawnParticle(dmxGateway, artnetNode, dmxColor, 2.5, () => {
+                          spawnRipple(artnetNode, dmxColor)
+                        })
+                      }
+                    }
+                  }
+                }
+              })
+            } else {
+              spawnRipple(busNode, color)
+            }
+          })
+        } else {
+          const fallbackColor = PROTOCOL_COLORS[msg.protocol] ?? PROTOCOL_COLORS.internal
+          spawnRipple(busNode, fallbackColor)
         }
       }
     })
-  }, [subscribe, messages, stats.messagesPerSecond])
+  }, [subscribe, messages, spawnParticle, spawnRipple])
 
-  // Main animation loop
+  // --- Main render loop (empty deps — all state via refs) ---
+
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-
     const ctx = canvas.getContext('2d')!
     let mounted = true
 
     const resize = () => {
-      canvas.width = canvas.clientWidth * window.devicePixelRatio
-      canvas.height = canvas.clientHeight * window.devicePixelRatio
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+      const dpr = window.devicePixelRatio || 1
+      canvas.width  = canvas.clientWidth  * dpr
+      canvas.height = canvas.clientHeight * dpr
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     }
     resize()
     window.addEventListener('resize', resize)
 
-    const render = () => {
+    const render = (timestamp: number) => {
       if (!mounted) return
+
+      const dt = lastRenderTimeRef.current
+        ? Math.min((timestamp - lastRenderTimeRef.current) / 1000, 0.1)
+        : 0.016
+      lastRenderTimeRef.current = timestamp
+
       const now = Date.now()
       const w = canvas.clientWidth
       const h = canvas.clientHeight
+      const an = ambientNodesRef.current
+      const busNode = an.find(n => n.type === 'bus')
+      const mps = statsRef.current.messagesPerSecond
 
-      // Clear with background
+      // --- Bus heat calibration (1 sample/second, 5-min rolling window) ---
+      if (now - lastSampleTimeRef.current >= 1000) {
+        lastSampleTimeRef.current = now
+        mpsHistoryRef.current.push(mps)
+        if (mpsHistoryRef.current.length > 300) mpsHistoryRef.current.shift()
+
+        const hist = mpsHistoryRef.current
+        if (hist.length >= 3) {
+          const sorted = [...hist].sort((a, b) => a - b)
+          // Use 10th–90th percentile range to ignore brief outlier spikes/drops
+          const lo = sorted[Math.floor(sorted.length * 0.10)]
+          const hi = sorted[Math.floor(sorted.length * 0.90)]
+          const range = hi - lo
+          busHeatTargetRef.current = range < 0.5
+            ? 0.5 // not enough data yet — sit at midpoint
+            : Math.max(0, Math.min(1, (mps - lo) / range))
+        }
+      }
+      // Smooth toward target (~3s time constant)
+      busHeatRef.current += (busHeatTargetRef.current - busHeatRef.current) * Math.min(1, dt * 0.35)
+
+      // Background
       ctx.fillStyle = BACKGROUND
       ctx.fillRect(0, 0, w, h)
-
-      // Subtle radial gradient
-      const bgGrad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) / 2)
-      bgGrad.addColorStop(0, '#0a0a1a')
+      const bgGrad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.6)
+      bgGrad.addColorStop(0, '#18183a')
       bgGrad.addColorStop(1, BACKGROUND)
       ctx.fillStyle = bgGrad
       ctx.fillRect(0, 0, w, h)
 
-      // Draw nodes with breathing glow
-      const ambientNodes = ambientNodesRef.current
-      for (const node of ambientNodes) {
-        // Breathing animation
-        const breathOffset = Math.sin(now / 3000 * Math.PI * 2 + node.breathPhase) * 2
-        const currentRadius = node.radius + breathOffset
-
-        // Ease radius back to default
-        if (node.targetRadius > node.radius) {
-          node.targetRadius = node.radius + (node.targetRadius - node.radius) * 0.9
-          if (node.targetRadius - node.radius < 0.5) node.targetRadius = node.radius
-        }
-
-        const drawRadius = Math.max(currentRadius, node.targetRadius)
-
-        // Glow
-        if (node.type === 'bus') {
-          // Nebula glow for bus
-          for (let i = 3; i >= 0; i--) {
-            ctx.beginPath()
-            ctx.arc(node.x, node.y, drawRadius + i * 10, 0, Math.PI * 2)
-            ctx.fillStyle = `rgba(148, 163, 184, ${0.03 - i * 0.005})`
-            ctx.fill()
-          }
-          // Ring outline
+      // Topology lines: bus ↔ each gateway (always visible, heat-modulated)
+      if (busNode) {
+        for (const node of an) {
+          if (node.type !== 'gateway') continue
+          const [r, g, b] = GATEWAY_COLORS[node.id] ?? [148, 163, 184]
+          const lineAlpha = 0.07 + node.heat * 0.18
           ctx.beginPath()
-          ctx.arc(node.x, node.y, drawRadius, 0, Math.PI * 2)
-          ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)'
-          ctx.lineWidth = 1.5
+          ctx.moveTo(busNode.x, busNode.y)
+          ctx.lineTo(node.x, node.y)
+          ctx.strokeStyle = rgba(r, g, b, lineAlpha)
+          ctx.lineWidth = 1
           ctx.stroke()
-        } else {
-          // Solid glow for other nodes
-          const nodeGrad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, drawRadius * 2)
-          const baseColor = node.type === 'gateway' ? 'rgba(251, 146, 60,' : node.type === 'device' ? 'rgba(96, 165, 250,' : 'rgba(52, 211, 153,'
-          nodeGrad.addColorStop(0, baseColor + '0.8)')
-          nodeGrad.addColorStop(0.5, baseColor + '0.2)')
-          nodeGrad.addColorStop(1, baseColor + '0)')
-          ctx.beginPath()
-          ctx.arc(node.x, node.y, drawRadius * 2, 0, Math.PI * 2)
-          ctx.fillStyle = nodeGrad
-          ctx.fill()
-
-          // Core
-          ctx.beginPath()
-          ctx.arc(node.x, node.y, drawRadius, 0, Math.PI * 2)
-          ctx.fillStyle = baseColor + '0.6)'
-          ctx.fill()
         }
-
-        // Label
-        ctx.fillStyle = 'rgba(148, 163, 184, 0.5)'
-        ctx.font = '10px system-ui, sans-serif'
-        ctx.textAlign = 'center'
-        ctx.fillText(node.label, node.x, node.y + drawRadius + 14)
       }
 
-      // Draw particles
-      for (const particle of particlesRef.current) {
-        if (!particle.active) continue
 
-        const elapsed = now - particle.startTime
-        if (elapsed > PARTICLE_LIFETIME) {
-          particle.active = false
+      // Idle bus rings when message rate < 1 msg/s
+      if (mps < 1 && busNode) {
+        const lastRing = idleRingsRef.current[idleRingsRef.current.length - 1]
+        if (!lastRing || now - lastRing.startTime > 2000) {
+          idleRingsRef.current.push({ startTime: now, x: busNode.x, y: busNode.y })
+        }
+        idleRingsRef.current = idleRingsRef.current.filter(ring => now - ring.startTime < 4000)
+        for (const ring of idleRingsRef.current) {
+          const t = (now - ring.startTime) / 4000
+          ctx.beginPath()
+          ctx.arc(ring.x, ring.y, busNode.radius + t * 60, 0, Math.PI * 2)
+          ctx.strokeStyle = rgba(148, 163, 184, (1 - t) * 0.12)
+          ctx.lineWidth = 1
+          ctx.stroke()
+        }
+      } else if (mps >= 1) {
+        idleRingsRef.current = []
+      }
+
+      const cx = w / 2
+      const cy = h / 2
+
+      // Outer drift boundary: keep nodes on screen with margin for labels.
+      // Inner boundary (baseRadius) = Math.min(w,h)*0.38 (set at layout time).
+      const outerBoundaryR = Math.min(w, h) * 0.43
+
+      // Draw the two boundary rings (very faint — structural guides)
+      const innerBoundaryR = an.find(n => n.baseRadius > 0)?.baseRadius
+      if (innerBoundaryR) {
+        ctx.beginPath()
+        ctx.arc(cx, cy, innerBoundaryR, 0, Math.PI * 2)
+        ctx.strokeStyle = rgba(148, 163, 184, 0.06)
+        ctx.lineWidth = 1
+        ctx.stroke()
+
+        ctx.beginPath()
+        ctx.arc(cx, cy, outerBoundaryR, 0, Math.PI * 2)
+        ctx.strokeStyle = rgba(148, 163, 184, 0.06)
+        ctx.lineWidth = 1
+        ctx.stroke()
+      }
+
+      // --- Bus background heat glow (cool → warm based on calibrated MPS) ---
+      if (busNode) {
+        const bh = busHeatRef.current
+        const [gr, gg, gb] = coolToWarm(bh)
+        // Two concentric layers: large soft halo + tighter inner bloom
+        const haloR = 160 + bh * 90
+        const halo = ctx.createRadialGradient(busNode.x, busNode.y, 0, busNode.x, busNode.y, haloR)
+        halo.addColorStop(0,   rgba(gr, gg, gb, 0.14 + bh * 0.10))
+        halo.addColorStop(0.45, rgba(gr, gg, gb, 0.05 + bh * 0.05))
+        halo.addColorStop(1,   rgba(gr, gg, gb, 0))
+        ctx.beginPath()
+        ctx.arc(busNode.x, busNode.y, haloR, 0, Math.PI * 2)
+        ctx.fillStyle = halo
+        ctx.fill()
+
+        const bloomR = 60 + bh * 30
+        const bloom = ctx.createRadialGradient(busNode.x, busNode.y, 0, busNode.x, busNode.y, bloomR)
+        bloom.addColorStop(0,  rgba(gr, gg, gb, 0.10 + bh * 0.12))
+        bloom.addColorStop(1,  rgba(gr, gg, gb, 0))
+        ctx.beginPath()
+        ctx.arc(busNode.x, busNode.y, bloomR, 0, Math.PI * 2)
+        ctx.fillStyle = bloom
+        ctx.fill()
+      }
+
+      // Nodes
+      for (const node of an) {
+        // Heat decay
+        node.heat = Math.max(0, node.heat - HEAT_DECAY * dt)
+
+        // Drift: entity / device / artnet nodes move outward when cold,
+        // pulled back toward their inner boundary (baseRadius) by heat.
+        // Clamped strictly between baseRadius and outerBoundaryR.
+        if (node.baseRadius > 0) {
+          const net = DRIFT_OUT - DRIFT_IN * node.heat
+          node.driftRadius = Math.min(
+            outerBoundaryR,
+            Math.max(node.baseRadius, node.driftRadius + net * dt),
+          )
+          node.x = cx + Math.cos(node.baseAngle) * node.driftRadius
+          node.y = cy + Math.sin(node.baseAngle) * node.driftRadius
+        }
+
+        // Ease targetRadius back to base
+        const baseR = node.radius
+        if (node.targetRadius > baseR) {
+          node.targetRadius = Math.max(baseR, node.targetRadius - (node.targetRadius - baseR) * Math.min(1, dt * 8))
+        } else {
+          node.targetRadius = baseR
+        }
+
+        const breathOffset = Math.sin(now / 3000 * Math.PI * 2 + node.breathPhase) * 1.5
+        const drawR = node.targetRadius + breathOffset + node.heat * 4
+
+        if (node.type === 'bus') {
+          // Multi-layer nebula glow
+          for (let i = 3; i >= 0; i--) {
+            ctx.beginPath()
+            ctx.arc(node.x, node.y, drawR + i * 11 + node.heat * 8, 0, Math.PI * 2)
+            ctx.fillStyle = rgba(148, 163, 184, (0.022 + node.heat * 0.018) / (i + 1))
+            ctx.fill()
+          }
+          ctx.beginPath()
+          ctx.arc(node.x, node.y, drawR, 0, Math.PI * 2)
+          ctx.strokeStyle = rgba(148, 163, 184, 0.35 + node.heat * 0.45)
+          ctx.lineWidth = 1.5
+          ctx.stroke()
+          // Center dot
+          ctx.beginPath()
+          ctx.arc(node.x, node.y, 4, 0, Math.PI * 2)
+          ctx.fillStyle = rgba(148, 163, 184, 0.65 + node.heat * 0.35)
+          ctx.fill()
+
+        } else if (node.type === 'gateway') {
+          const [r, g, b] = GATEWAY_COLORS[node.id] ?? [148, 163, 184]
+          // Heat glow
+          if (node.heat > 0.04) {
+            const glowGrad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, drawR * 4)
+            glowGrad.addColorStop(0, rgba(r, g, b, node.heat * 0.45))
+            glowGrad.addColorStop(1, rgba(r, g, b, 0))
+            ctx.beginPath()
+            ctx.arc(node.x, node.y, drawR * 4, 0, Math.PI * 2)
+            ctx.fillStyle = glowGrad
+            ctx.fill()
+          }
+          ctx.beginPath()
+          ctx.arc(node.x, node.y, drawR, 0, Math.PI * 2)
+          ctx.fillStyle = rgba(r, g, b, 0.5 + node.heat * 0.35)
+          ctx.fill()
+          ctx.strokeStyle = rgba(r, g, b, 0.85 + node.heat * 0.15)
+          ctx.lineWidth = 1
+          ctx.stroke()
+
+        } else {
+          // Device / Art-Net node (blue) or entity (green)
+          const [r, g, b]: RGB = (node.type === 'device' || node.type === 'artnet') ? [96, 165, 250] : [52, 211, 153]
+          if (node.heat > 0.08) {
+            const glowGrad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, drawR * 3.5)
+            glowGrad.addColorStop(0, rgba(r, g, b, node.heat * 0.4))
+            glowGrad.addColorStop(1, rgba(r, g, b, 0))
+            ctx.beginPath()
+            ctx.arc(node.x, node.y, drawR * 3.5, 0, Math.PI * 2)
+            ctx.fillStyle = glowGrad
+            ctx.fill()
+          }
+          ctx.beginPath()
+          ctx.arc(node.x, node.y, drawR, 0, Math.PI * 2)
+          ctx.fillStyle = rgba(r, g, b, 0.4 + node.heat * 0.45)
+          ctx.fill()
+        }
+
+        // Labels: always visible — bus/gateway bright, others dim when cold
+        const labelAlpha =
+          node.type === 'bus'     ? 0.6 + node.heat * 0.35 :
+          node.type === 'gateway' ? 0.55 + node.heat * 0.4 :
+          /* entity / device / artnet */ 0.28 + node.heat * 0.65
+        ctx.fillStyle = rgba(148, 163, 184, labelAlpha)
+        ctx.font = `${node.type === 'bus' ? 11 : 9}px system-ui, sans-serif`
+        ctx.textAlign = 'center'
+        ctx.fillText(node.label, node.x, node.y + drawR + 13)
+      }
+
+      // Particles
+      for (const p of particlesRef.current) {
+        if (!p.active) continue
+
+        const elapsed = now - p.startTime
+
+        // Fire onArrive just before the particle reaches the target (~92% of lifetime)
+        if (!p.arrivedFired && elapsed >= p.lifetime * 0.92) {
+          p.arrivedFired = true
+          p.onArrive?.()
+        }
+
+        if (elapsed >= p.lifetime) {
+          p.active = false
           continue
         }
 
-        const t = elapsed / PARTICLE_LIFETIME
-        const easeOut = 1 - Math.pow(1 - t, 3)
+        const t = elapsed / p.lifetime
+        const [r, g, b] = p.color
 
-        if (particle.isRipple) {
-          // Expanding ripple
-          const radius = particle.rippleRadius + easeOut * 80
-          const opacity = (1 - t) * 0.4
+        if (p.isRipple) {
+          const radius  = p.rippleRadius + t * 55
           ctx.beginPath()
-          ctx.arc(particle.x, particle.y, radius, 0, Math.PI * 2)
-          ctx.strokeStyle = particle.color
+          ctx.arc(p.x, p.y, radius, 0, Math.PI * 2)
+          ctx.strokeStyle = rgba(r, g, b, (1 - t) * 0.5)
           ctx.lineWidth = 1
-          ctx.globalAlpha = opacity
           ctx.stroke()
-          ctx.globalAlpha = 1
         } else {
-          // Bezier curve particle
-          particle.progress = easeOut
-          const p = particle.progress
-          const invP = 1 - p
-          const newX = invP * invP * particle.startX + 2 * invP * p * particle.controlX + p * p * particle.targetX
-          const newY = invP * invP * particle.startY + 2 * invP * p * particle.controlY + p * p * particle.targetY
+          // Ease-out quadratic Bezier
+          const ease = 1 - Math.pow(1 - t, 2.5)
+          const inv  = 1 - ease
+          const nx = inv * inv * p.startX + 2 * inv * ease * p.controlX + ease * ease * p.targetX
+          const ny = inv * inv * p.startY + 2 * inv * ease * p.controlY + ease * ease * p.targetY
 
-          // Store trail
-          particle.trail.push({ x: newX, y: newY })
-          if (particle.trail.length > 5) particle.trail.shift()
+          p.trail.push({ x: nx, y: ny })
+          if (p.trail.length > 6) p.trail.shift()
+          p.x = nx; p.y = ny
 
-          particle.x = newX
-          particle.y = newY
-
-          // Draw trail
-          const trailOpacities = [0.05, 0.15, 0.3, 0.6, 1.0]
-          for (let i = 0; i < particle.trail.length; i++) {
-            const tp = particle.trail[i]
-            const opacity = trailOpacities[Math.min(i, trailOpacities.length - 1)] * (1 - t * 0.5)
+          const trailAlphas = [0.04, 0.1, 0.22, 0.42, 0.65, 1.0]
+          for (let i = 0; i < p.trail.length; i++) {
+            const tp = p.trail[i]
+            const a  = trailAlphas[Math.min(i, trailAlphas.length - 1)] * (1 - t * 0.4)
+            const ts = p.size * (0.45 + (i / p.trail.length) * 0.55)
             ctx.beginPath()
-            ctx.arc(tp.x, tp.y, 3 + (i / particle.trail.length) * 2, 0, Math.PI * 2)
-            ctx.fillStyle = particle.color
-            ctx.globalAlpha = opacity
+            ctx.arc(tp.x, tp.y, ts, 0, Math.PI * 2)
+            ctx.fillStyle = rgba(r, g, b, a)
             ctx.fill()
           }
-          ctx.globalAlpha = 1
         }
       }
 
-      // Minimal HUD
-      ctx.fillStyle = 'rgba(148, 163, 184, 0.4)'
+      // HUD
+      ctx.fillStyle = rgba(148, 163, 184, 0.28)
       ctx.font = '10px ui-monospace, monospace'
       ctx.textAlign = 'left'
-      const time = new Date().toLocaleTimeString('en-US', { hour12: false })
-      ctx.fillText(`${time}`, 16, h - 16)
+      ctx.fillText(new Date().toLocaleTimeString('en-US', { hour12: false }), 16, h - 16)
+      if (mps > 0) {
+        ctx.textAlign = 'right'
+        ctx.fillText(`${mps} msg/s`, w - 16, h - 16)
+      }
 
       animRef.current = requestAnimationFrame(render)
     }
@@ -442,22 +695,16 @@ export function AmbientCanvas() {
       cancelAnimationFrame(animRef.current)
       window.removeEventListener('resize', resize)
     }
-  }, [])
+  }, []) // empty — all mutable state is accessed via refs
 
-  // Empty state text
   const isEmpty = messages.current.length === 0
 
   return (
     <div className="relative flex-1 bg-[#0a0a0f]">
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0 w-full h-full"
-      />
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       {isEmpty && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-sm font-mono text-slate-600/30">
-            Waiting for messages...
-          </span>
+          <span className="text-sm font-mono text-slate-600/30">Waiting for messages...</span>
         </div>
       )}
     </div>

@@ -8,16 +8,18 @@ import Link from 'next/link'
 
 // --- Protocol badge colors ---
 const BADGE_STYLES: Record<Protocol, string> = {
-  osc: 'bg-cyan-500/20 text-cyan-400',
-  mqtt: 'bg-emerald-500/20 text-emerald-400',
-  ws: 'bg-violet-500/20 text-violet-400',
+  osc:      'bg-cyan-500/20 text-cyan-400',
+  mqtt:     'bg-emerald-500/20 text-emerald-400',
+  ws:       'bg-violet-500/20 text-violet-400',
+  dmx:      'bg-amber-500/20 text-amber-400',
   internal: 'bg-slate-500/20 text-slate-400',
 }
 
 const BADGE_LABELS: Record<Protocol, string> = {
-  osc: 'OSC',
-  mqtt: 'MQTT',
-  ws: 'WS',
+  osc:      'OSC',
+  mqtt:     'MQTT',
+  ws:       'WS',
+  dmx:      'DMX',
   internal: 'INT',
 }
 

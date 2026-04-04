@@ -4,7 +4,8 @@ import React, { createContext, useContext, useCallback, useEffect, useRef, useSt
 import { useWebSocket } from '@/hooks/useWebSocket'
 import type { WebSocketMessage } from '@/types'
 import type { Device } from '@/types'
-import { api } from '@/lib/api'
+import { api, dmxApi } from '@/lib/api'
+import type { DMXNode, DMXFixture } from '@/lib/types'
 
 // crypto.randomUUID() requires a secure context (HTTPS or localhost).
 // Fall back to a manual implementation for plain HTTP access.
@@ -22,7 +23,7 @@ const generateId = (): string => {
 
 // --- Types ---
 
-export type Protocol = 'osc' | 'mqtt' | 'ws' | 'internal'
+export type Protocol = 'osc' | 'mqtt' | 'ws' | 'dmx' | 'internal'
 
 export interface ConsoleMessage {
   id: string
@@ -42,7 +43,9 @@ export interface ConsoleMessage {
 export interface GraphNode {
   id: string
   label: string
-  type: 'device' | 'entity' | 'gateway' | 'bus'
+  slug?: string            // entity/device slug used in NATS subjects
+  type: 'device' | 'entity' | 'gateway' | 'bus' | 'artnet'
+  artnetUniverses?: number[] // Art-Net universe numbers this node handles
   x?: number
   y?: number
   activity: number
@@ -70,6 +73,7 @@ function detectProtocol(subject: string): Protocol {
   if (subject.startsWith('maestra.osc.')) return 'osc'
   if (subject.startsWith('maestra.mqtt.')) return 'mqtt'
   if (subject.includes('websocket') || subject.startsWith('maestra.ws.')) return 'ws'
+  if (subject.startsWith('maestra.dmx.') || subject.startsWith('maestra.to_artnet.')) return 'dmx'
   return 'internal'
 }
 
@@ -98,7 +102,7 @@ function resolveSourceTarget(
     // Find target entity by slug
     let targetId: string | null = null
     for (const [id, node] of nodeMap) {
-      if (node.label === slug || id === slug) {
+      if (node.slug === slug || node.label === slug || id === slug) {
         targetId = id
         break
       }
@@ -111,15 +115,29 @@ function resolveSourceTarget(
   if (broadcastMatch) {
     const slug = broadcastMatch[2]
     for (const [id, node] of nodeMap) {
-      if (node.label === slug || id === slug) {
+      if (node.slug === slug || node.label === slug || id === slug) {
         return { source: id, target: null }
       }
     }
   }
 
+  // Direct Art-Net universe output: maestra.to_artnet.universe.N
+  // Flow: something publishes this → DMX gateway subscribes → sends Art-Net UDP to node
+  const artnetMatch = subject.match(/maestra\.to_artnet\.universe\.(\d+)/)
+  if (artnetMatch) {
+    const universe = parseInt(artnetMatch[1])
+    for (const [id, node] of nodeMap) {
+      if (node.artnetUniverses?.includes(universe)) {
+        return { source: 'gateway-dmx', target: id }
+      }
+    }
+    return { source: 'gateway-dmx', target: null }
+  }
+
   // Protocol-prefixed messages
   if (subject.startsWith('maestra.osc.')) return { source: 'gateway-osc', target: null }
   if (subject.startsWith('maestra.mqtt.')) return { source: 'gateway-mqtt', target: null }
+  if (subject.startsWith('maestra.dmx.')) return { source: 'gateway-dmx', target: null }
 
   return { source: null, target: null }
 }
@@ -176,6 +194,10 @@ interface ConsoleContextValue {
   stats: ConsoleStats
   isConnected: boolean
   nodes: GraphNode[]
+  simulate: boolean
+  setSimulate: (v: boolean) => void
+  // entity_slug → artnet node graph IDs (for DMX output visualisation)
+  dmxEntityMap: React.MutableRefObject<Map<string, string[]>>
   // Actions
   clear: () => void
   subscribe: (cb: () => void) => () => void
@@ -202,10 +224,11 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   const wasConnectedRef = useRef(true)
 
   const [mode, setMode] = useState<ConsoleMode>('debug')
+  const [simulate, setSimulate] = useState(false)
   const [paused, setPausedState] = useState(false)
   const [filters, setFilters] = useState<ConsoleFilters>({
     subjectPattern: '',
-    protocols: new Set(['osc', 'mqtt', 'ws', 'internal'] as Protocol[]),
+    protocols: new Set(['osc', 'mqtt', 'ws', 'dmx', 'internal'] as Protocol[]),
     textSearch: '',
     hideHeartbeats: true,
   })
@@ -242,10 +265,11 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const fetchTopology = async () => {
       const graphNodes: GraphNode[] = [
-        { id: 'bus', label: 'NATS Bus', type: 'bus', activity: 0 },
-        { id: 'gateway-osc', label: 'OSC Gateway', type: 'gateway', activity: 0 },
-        { id: 'gateway-mqtt', label: 'MQTT Gateway', type: 'gateway', activity: 0 },
-        { id: 'gateway-ws', label: 'WebSocket', type: 'gateway', activity: 0 },
+        { id: 'bus',          label: 'NATS Bus',     type: 'bus',     activity: 0 },
+        { id: 'gateway-osc',  label: 'OSC',          type: 'gateway', activity: 0 },
+        { id: 'gateway-mqtt', label: 'MQTT',         type: 'gateway', activity: 0 },
+        { id: 'gateway-ws',   label: 'WebSocket',    type: 'gateway', activity: 0 },
+        { id: 'gateway-dmx',  label: 'DMX / Art-Net',type: 'gateway', activity: 0 },
       ]
       try {
         const devices = await api.listDevices()
@@ -261,6 +285,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
           graphNodes.push({
             id: e.id,
             label: e.name || e.slug || e.id,
+            slug: e.slug,
             type: 'entity',
             activity: 0,
           })
@@ -268,6 +293,53 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // API unavailable — degrade gracefully
       }
+
+      // Art-Net nodes: physical DMX hardware the DMX gateway sends to.
+      // If the node has a device_id it's already in graphNodes as a device —
+      // enrich that node with universe info rather than adding a duplicate.
+      try {
+        const dmxNodes = await dmxApi.listNodes()
+        dmxNodes.forEach((n: DMXNode) => {
+          const universes = n.universes.map(u => u.artnet_universe)
+          if (n.device_id) {
+            const existing = graphNodes.find(g => g.id === n.device_id)
+            if (existing) {
+              existing.artnetUniverses = universes
+              return
+            }
+          }
+          // No linked device — add as a standalone artnet node
+          graphNodes.push({
+            id: `artnet-${n.id}`,
+            label: n.name,
+            slug: n.id,
+            type: 'artnet',
+            artnetUniverses: universes,
+            activity: 0,
+          })
+        })
+      } catch {
+        // DMX not configured — degrade gracefully
+      }
+
+      // Build entity_slug → artnet_node_ids map for secondary DMX output animations
+      try {
+        const fixtures = await dmxApi.listFixtures()
+        const entitySlugToNodes = new Map<string, Set<string>>()
+        fixtures.forEach((f: DMXFixture) => {
+          if (f.entity_slug && f.node_id) {
+            const key = f.entity_slug
+            if (!entitySlugToNodes.has(key)) entitySlugToNodes.set(key, new Set())
+            entitySlugToNodes.get(key)!.add(`artnet-${f.node_id}`)
+          }
+        })
+        const map = new Map<string, string[]>()
+        entitySlugToNodes.forEach((ids, slug) => map.set(slug, Array.from(ids)))
+        dmxEntityMapRef.current = map
+      } catch {
+        // Fixtures unavailable — degrade gracefully
+      }
+
       setNodes(graphNodes)
     }
     fetchTopology()
@@ -277,6 +349,8 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
 
   // Build node map for resolution
   const nodeMapRef = useRef(new Map<string, GraphNode>())
+  // entity_slug → artnet node IDs (for secondary DMX output particles)
+  const dmxEntityMapRef = useRef(new Map<string, string[]>())
   useEffect(() => {
     const map = new Map<string, GraphNode>()
     nodes.forEach(n => map.set(n.id, n))
@@ -404,6 +478,78 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     notify()
   }, [notify])
 
+  // Simulation: inject fake messages to demo the ambient visualization
+  useEffect(() => {
+    if (!simulate) return
+
+    const TEMPLATES: Array<() => { subject: string; payload: Record<string, unknown> }> = [
+      () => ({ subject: 'maestra.osc.venue.stage.dimmer',   payload: { value: +Math.random().toFixed(3) } }),
+      () => ({ subject: 'maestra.osc.venue.stage.color',    payload: { r: +Math.random().toFixed(2), g: +Math.random().toFixed(2), b: +Math.random().toFixed(2) } }),
+      () => ({ subject: 'maestra.osc.performer.position',   payload: { x: +Math.random().toFixed(3), y: +Math.random().toFixed(3) } }),
+      () => ({ subject: 'maestra.mqtt.maestra.devices.sensor.temperature', payload: { temperature: +(20 + Math.random() * 10).toFixed(1), unit: 'C' } }),
+      () => ({ subject: 'maestra.mqtt.maestra.devices.controller.button', payload: { id: Math.floor(Math.random() * 8) + 1, state: Math.random() > 0.5 ? 'pressed' : 'released' } }),
+      () => ({ subject: 'maestra.mqtt.maestra.devices.sensor.humidity',    payload: { humidity: +(40 + Math.random() * 30).toFixed(1) } }),
+      () => ({ subject: 'maestra.ws.client.interaction',    payload: { x: +Math.random().toFixed(3), y: +Math.random().toFixed(3), type: 'touch' } }),
+      () => ({ subject: 'maestra.ws.client.event',          payload: { event: ['click', 'hover', 'scroll'][Math.floor(Math.random() * 3)] } }),
+      () => ({ subject: 'maestra.dmx.fixture.wash_l1',  payload: { value: Math.floor(Math.random() * 255) } }),
+      () => ({ subject: 'maestra.dmx.fixture.spot_c',   payload: { pan: Math.floor(Math.random() * 255), tilt: Math.floor(Math.random() * 255) } }),
+    ]
+
+    // Art-Net output: use real node universes if available, else fall back to universe 1
+    const artnetNodes = nodes.filter(n => n.type === 'artnet')
+    if (artnetNodes.length > 0) {
+      artnetNodes.forEach(n => {
+        const universes = n.artnetUniverses?.length ? n.artnetUniverses : [1]
+        universes.forEach(u => {
+          TEMPLATES.push(() => ({
+            subject: `maestra.to_artnet.universe.${u}`,
+            payload: { channel: Math.floor(Math.random() * 512) + 1, value: Math.floor(Math.random() * 255) },
+          }))
+        })
+      })
+    } else {
+      // No nodes configured yet — simulate generic universe output
+      TEMPLATES.push(() => ({
+        subject: `maestra.to_artnet.universe.${Math.ceil(Math.random() * 4)}`,
+        payload: { channel: Math.floor(Math.random() * 512) + 1, value: Math.floor(Math.random() * 255) },
+      }))
+    }
+
+    // Target all real entities using their slug (the actual NATS subject key)
+    const entityNodes = nodes.filter(n => n.type === 'entity' && (n.slug || n.label))
+    entityNodes.forEach(entity => {
+      const subjectSlug = entity.slug || entity.label
+      const sources = ['osc', 'mqtt', 'ws']
+      TEMPLATES.push(() => ({
+        subject: `maestra.entity.state.update.${subjectSlug}`,
+        payload: {
+          state: { brightness: +Math.random().toFixed(2), active: Math.random() > 0.3 },
+          source: sources[Math.floor(Math.random() * sources.length)],
+        },
+      }))
+    })
+
+    const interval = setInterval(() => {
+      const count = Math.floor(Math.random() * 3) + 1
+      for (let i = 0; i < count; i++) {
+        const { subject, payload } = TEMPLATES[Math.floor(Math.random() * TEMPLATES.length)]()
+        const protocol = detectProtocol(subject)
+        const { source, target } = resolveSourceTarget(subject, payload, nodeMapRef.current)
+        addMessage({
+          id: generateId(),
+          timestamp: new Date().toISOString(),
+          subject,
+          protocol,
+          payload,
+          sourceNode: source,
+          targetNode: target,
+        })
+      }
+    }, 180)
+
+    return () => clearInterval(interval)
+  }, [simulate, nodes, addMessage])
+
   // Stats update interval
   useEffect(() => {
     const interval = setInterval(() => {
@@ -430,6 +576,9 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
         stats,
         isConnected,
         nodes,
+        simulate,
+        setSimulate,
+        dmxEntityMap: dmxEntityMapRef,
         clear,
         subscribe,
       }}

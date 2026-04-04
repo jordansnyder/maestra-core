@@ -148,15 +148,36 @@ async def on_entity_state(msg):
     if _paused and data.get('source') != DASHBOARD_SOURCE:
         return
 
-    entity_path = data.get('entity_path') or data.get('path')
+    # Fleet Manager publishes "path" (LTREE) + "entity_slug"; direct NATS clients
+    # may use "entity_path". Fall back to slug so fixtures with null LTREE paths
+    # (e.g. entities created before the trigger existed) still resolve.
+    entity_path = data.get('entity_path') or data.get('path') or data.get('entity_slug')
     # Fleet Manager publishes 'current_state'; direct NATS clients use 'state'
     state = data.get('current_state') or data.get('state') or {}
 
-    if not entity_path or not state or mapper is None:
+    if not entity_path:
+        logger.debug(
+            "Skipping entity state message: no resolvable path "
+            f"(slug={data.get('entity_slug')}, type={data.get('entity_type')})"
+        )
+        return
+
+    if not state:
+        logger.debug(f"Skipping entity state message: empty state for {entity_path}")
+        return
+
+    if mapper is None:
+        logger.warning("ChannelMapper not initialised yet — dropping entity state update")
         return
 
     updates = mapper.resolve(entity_path, state)
     if not updates:
+        # Only log at DEBUG — most state changes are for non-DMX entities
+        logger.debug(
+            f"No DMX channel updates for entity path '{entity_path}' "
+            f"(keys={list(state.keys())}). "
+            f"Known fixture paths: {mapper.fixture_paths()}"
+        )
         return
 
     for node_id, universe_updates in updates.items():

@@ -84,6 +84,20 @@ class ChannelMapper:
             self._index.setdefault(fixture.entity_path, []).append((fixture, node))
 
         logger.info(f"ChannelMapper initialized with {len(self._index)} entity path(s)")
+        if self._index:
+            for path, fixtures_nodes in self._index.items():
+                for fx, node in fixtures_nodes:
+                    logger.info(
+                        f"  '{path}' → fixture '{fx.name}' "
+                        f"({len(fx.channel_map)} channels: {sorted(fx.channel_map.keys())})"
+                    )
+        else:
+            unlinked = [f.name for f in config.fixtures if not f.entity_path]
+            if unlinked:
+                logger.warning(
+                    f"No entity-linked fixtures found. Unlinked fixtures: {unlinked}. "
+                    "Assign an entity to each fixture via the dashboard to enable entity→DMX routing."
+                )
 
     def resolve(
         self,
@@ -108,10 +122,13 @@ class ChannelMapper:
         updates: dict[str, dict[int, dict[int, int]]] = {}
 
         for fixture, node in entries:
+            fixture_channel_keys = set(fixture.channel_map.keys())
+            fixture_matched = False
             for var_name, value in state.items():
                 mapping = fixture.channel_map.get(var_name)
                 if mapping is None:
                     continue
+                fixture_matched = True
 
                 absolute_channel = fixture.start_channel + mapping.offset - 1
                 dmx_value = _resolve_channel_value(value, mapping)
@@ -125,6 +142,14 @@ class ChannelMapper:
                     f"{entity_path}.{var_name}={value} "
                     f"→ {node.ip_address} artnet_u={artnet_universe} "
                     f"ch={absolute_channel} dmx={dmx_value}"
+                )
+
+            if not fixture_matched and fixture_channel_keys:
+                logger.warning(
+                    f"Entity '{entity_path}' matched fixture '{fixture.name}' but no state keys "
+                    f"matched its channel map. "
+                    f"State keys: {sorted(state.keys())} | "
+                    f"Channel map keys: {sorted(fixture_channel_keys)}"
                 )
 
         return updates

@@ -28,7 +28,7 @@
 
 // ---- Network mode ----
 // Uncomment to use WiFi with hardcoded config (skips auto-discovery)
-#define USE_WIFI
+//#define USE_WIFI
 
 #include <WiFi.h>
 #ifndef USE_WIFI
@@ -50,9 +50,6 @@ const char* WIFI_PASSWORD = "bath-chapel-locusts";
 const char* MAESTRA_HOST = "192.168.128.115";
 const int   API_PORT     = 8080;
 const int   MQTT_PORT    = 1883;
-
-// Skip auto-provisioning and use this slug directly (WiFi dev mode only)
-const char* FALLBACK_ENTITY_SLUG = "jts-artist-info";
 
 // ---- Display constants ----
 
@@ -339,12 +336,6 @@ bool discoverAndProvision() {
   // Resolve Maestra host (mDNS → fallback)
   if (!discoverMaestraHost()) return false;
 
-#ifdef USE_WIFI
-  // WiFi dev mode: skip provisioning, use hardcoded entity slug
-  strncpy(resolvedEntitySlug, FALLBACK_ENTITY_SLUG, sizeof(resolvedEntitySlug));
-  return true;
-#else
-
   // Step 1: Check if device already has config (re-provisioning after reboot)
   showStatus("Checking config...", macAddress);
   {
@@ -457,7 +448,6 @@ bool discoverAndProvision() {
     showStatus("Approval timeout", "Reboot to retry");
     return false;
   }
-#endif
 }
 
 // ---- Setup & Loop ----

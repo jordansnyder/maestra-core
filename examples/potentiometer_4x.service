@@ -1,0 +1,16 @@
+[Unit]
+Description=Maestra 4x Potentiometer Bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/maestra-core
+ExecStart=/home/pi/maestra-core/.venv/bin/python examples/potentiometer_4x.py --entity-slug aurora --api-url http://maestra.local:8080
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

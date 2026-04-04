@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useConsole, type Protocol } from './ConsoleProvider'
-import { Pause, Play, Trash2, ChevronDown, ChevronUp, Search, Maximize2, Minimize2 } from 'lucide-react'
+import { Pause, Play, Trash2, ChevronDown, ChevronUp, Search, Maximize2, Minimize2, Zap } from 'lucide-react'
 
 const PROTOCOL_COLORS: Record<Protocol, { bg: string; text: string; label: string }> = {
   osc:      { bg: 'bg-cyan-500/20',    text: 'text-cyan-400',    label: 'OSC'  },
@@ -21,6 +21,7 @@ export function ConsoleToolbar({ isFullscreen = false, onToggleFullscreen }: Con
   const {
     mode, setMode, filters, setFilters,
     paused, setPaused, stats, isConnected, clear,
+    simulate, setSimulate,
   } = useConsole()
 
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -57,6 +58,13 @@ export function ConsoleToolbar({ isFullscreen = false, onToggleFullscreen }: Con
           <span>{stats.messagesPerSecond} msg/s</span>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSimulate(!simulate)}
+            title={simulate ? 'Stop simulation' : 'Simulate live data'}
+            className={`p-1 transition-colors ${simulate ? 'text-amber-400 hover:text-amber-300' : 'hover:text-white/80'}`}
+          >
+            <Zap className="w-3.5 h-3.5" fill={simulate ? 'currentColor' : 'none'} />
+          </button>
           <button
             onClick={() => setPaused(!paused)}
             className="p-1 hover:text-white/80 transition-colors"

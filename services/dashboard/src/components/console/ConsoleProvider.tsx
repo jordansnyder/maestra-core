@@ -178,6 +178,8 @@ interface ConsoleContextValue {
   stats: ConsoleStats
   isConnected: boolean
   nodes: GraphNode[]
+  simulate: boolean
+  setSimulate: (v: boolean) => void
   // Actions
   clear: () => void
   subscribe: (cb: () => void) => () => void
@@ -204,6 +206,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   const wasConnectedRef = useRef(true)
 
   const [mode, setMode] = useState<ConsoleMode>('debug')
+  const [simulate, setSimulate] = useState(false)
   const [paused, setPausedState] = useState(false)
   const [filters, setFilters] = useState<ConsoleFilters>({
     subjectPattern: '',
@@ -407,6 +410,54 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     notify()
   }, [notify])
 
+  // Simulation: inject fake messages to demo the ambient visualization
+  useEffect(() => {
+    if (!simulate) return
+
+    const TEMPLATES: Array<() => { subject: string; payload: Record<string, unknown> }> = [
+      () => ({ subject: 'maestra.osc.venue.stage.dimmer',   payload: { value: +Math.random().toFixed(3) } }),
+      () => ({ subject: 'maestra.osc.venue.stage.color',    payload: { r: +Math.random().toFixed(2), g: +Math.random().toFixed(2), b: +Math.random().toFixed(2) } }),
+      () => ({ subject: 'maestra.osc.performer.position',   payload: { x: +Math.random().toFixed(3), y: +Math.random().toFixed(3) } }),
+      () => ({ subject: 'maestra.mqtt.maestra.devices.sensor.temperature', payload: { temperature: +(20 + Math.random() * 10).toFixed(1), unit: 'C' } }),
+      () => ({ subject: 'maestra.mqtt.maestra.devices.controller.button', payload: { id: Math.floor(Math.random() * 8) + 1, state: Math.random() > 0.5 ? 'pressed' : 'released' } }),
+      () => ({ subject: 'maestra.mqtt.maestra.devices.sensor.humidity',    payload: { humidity: +(40 + Math.random() * 30).toFixed(1) } }),
+      () => ({ subject: 'maestra.ws.client.interaction',    payload: { x: +Math.random().toFixed(3), y: +Math.random().toFixed(3), type: 'touch' } }),
+      () => ({ subject: 'maestra.ws.client.event',          payload: { event: ['click', 'hover', 'scroll'][Math.floor(Math.random() * 3)] } }),
+      () => ({ subject: 'maestra.dmx.fixture.wash_l1',      payload: { value: Math.floor(Math.random() * 255) } }),
+      () => ({ subject: 'maestra.to_artnet.universe.1',     payload: { channel: Math.floor(Math.random() * 512) + 1, value: Math.floor(Math.random() * 255) } }),
+      () => ({ subject: 'maestra.dmx.fixture.spot_c',       payload: { pan: Math.floor(Math.random() * 255), tilt: Math.floor(Math.random() * 255) } }),
+    ]
+
+    // Also target real entity nodes if available
+    const entityNodes = nodes.filter(n => n.type === 'entity').slice(0, 6)
+    entityNodes.forEach(entity => {
+      TEMPLATES.push(() => ({
+        subject: `maestra.entity.state.update.${entity.label}`,
+        payload: { state: { brightness: +Math.random().toFixed(2), active: Math.random() > 0.3 }, source: 'mqtt' },
+      }))
+    })
+
+    const interval = setInterval(() => {
+      const count = Math.floor(Math.random() * 3) + 1
+      for (let i = 0; i < count; i++) {
+        const { subject, payload } = TEMPLATES[Math.floor(Math.random() * TEMPLATES.length)]()
+        const protocol = detectProtocol(subject)
+        const { source, target } = resolveSourceTarget(subject, payload, nodeMapRef.current)
+        addMessage({
+          id: generateId(),
+          timestamp: new Date().toISOString(),
+          subject,
+          protocol,
+          payload,
+          sourceNode: source,
+          targetNode: target,
+        })
+      }
+    }, 180)
+
+    return () => clearInterval(interval)
+  }, [simulate, nodes, addMessage])
+
   // Stats update interval
   useEffect(() => {
     const interval = setInterval(() => {
@@ -433,6 +484,8 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
         stats,
         isConnected,
         nodes,
+        simulate,
+        setSimulate,
         clear,
         subscribe,
       }}

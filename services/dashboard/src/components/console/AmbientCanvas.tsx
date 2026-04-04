@@ -28,8 +28,7 @@ const MAX_PARTICLES = 250
 const PARTICLE_LIFETIME = 1100 // ms
 const HEAT_DECAY = 0.35        // heat units/second — full decay in ~3s
 const DRIFT_OUT   = 15         // px/s outward when cold
-const DRIFT_IN    = 100        // px/s inward per unit of heat
-const DRIFT_MAX   = 1.65       // max driftRadius as multiple of baseRadius
+const DRIFT_IN    = 220        // px/s inward per unit of heat (net inward when heat > 0.07)
 
 function rgba(r: number, g: number, b: number, a: number): string {
   return `rgba(${r},${g},${b},${a})`
@@ -438,6 +437,26 @@ export function AmbientCanvas() {
       const cx = w / 2
       const cy = h / 2
 
+      // Outer drift boundary: keep nodes on screen with margin for labels.
+      // Inner boundary (baseRadius) = Math.min(w,h)*0.38 (set at layout time).
+      const outerBoundaryR = Math.min(w, h) * 0.47
+
+      // Draw the two boundary rings (very faint — structural guides)
+      const innerBoundaryR = an.find(n => n.baseRadius > 0)?.baseRadius
+      if (innerBoundaryR) {
+        ctx.beginPath()
+        ctx.arc(cx, cy, innerBoundaryR, 0, Math.PI * 2)
+        ctx.strokeStyle = rgba(148, 163, 184, 0.06)
+        ctx.lineWidth = 1
+        ctx.stroke()
+
+        ctx.beginPath()
+        ctx.arc(cx, cy, outerBoundaryR, 0, Math.PI * 2)
+        ctx.strokeStyle = rgba(148, 163, 184, 0.06)
+        ctx.lineWidth = 1
+        ctx.stroke()
+      }
+
       // Nodes
       for (const node of an) {
         // Heat decay
@@ -445,10 +464,11 @@ export function AmbientCanvas() {
 
         // Drift: entity / device / artnet nodes move outward when cold,
         // pulled back toward their inner boundary (baseRadius) by heat.
+        // Clamped strictly between baseRadius and outerBoundaryR.
         if (node.baseRadius > 0) {
           const net = DRIFT_OUT - DRIFT_IN * node.heat
           node.driftRadius = Math.min(
-            node.baseRadius * DRIFT_MAX,
+            outerBoundaryR,
             Math.max(node.baseRadius, node.driftRadius + net * dt),
           )
           node.x = cx + Math.cos(node.baseAngle) * node.driftRadius

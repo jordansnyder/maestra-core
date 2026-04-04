@@ -84,7 +84,7 @@ function makeParticle(): Particle {
 // --- Component ---
 
 export function AmbientCanvas() {
-  const { nodes, messages, subscribe, stats } = useConsole()
+  const { nodes, messages, subscribe, stats, dmxEntityMap } = useConsole()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animRef = useRef<number>(0)
   const particlesRef = useRef<Particle[]>([])
@@ -290,13 +290,42 @@ export function AmbientCanvas() {
           (gatewayId && GATEWAY_COLORS[gatewayId]) ? GATEWAY_COLORS[gatewayId]
           : PROTOCOL_COLORS[msg.protocol] ?? PROTOCOL_COLORS.internal
 
-        if (gatewayNode) {
-          // Two-hop: gateway → bus → entity (or ripple at bus)
+        const dmxColor = PROTOCOL_COLORS.dmx  // amber for Art-Net output
+
+        if (targetNode?.type === 'artnet') {
+          // Art-Net output: DMX gateway → Art-Net node directly (no bus middle hop)
+          // This represents the DMX gateway sending UDP directly to hardware.
+          const dmxGateway = an.find(n => n.id === 'gateway-dmx')
+          if (dmxGateway) {
+            spawnParticle(dmxGateway, targetNode, dmxColor, 3.5, () => {
+              spawnRipple(targetNode, dmxColor)
+            })
+          }
+        } else if (gatewayNode) {
+          // Standard two-hop: gateway → bus → entity (or ripple at bus)
           spawnParticle(gatewayNode, busNode, color, 3, () => {
             busNode.heat = Math.min(1, busNode.heat + 0.08)
             if (targetNode) {
               spawnParticle(busNode, targetNode, color, 2.5, () => {
                 spawnRipple(targetNode, color)
+
+                // If this entity has DMX fixtures, also show the output side:
+                // DMX gateway → Art-Net node fires after entity hop lands
+                const subjectSlug = msg.subject.match(/maestra\.entity\.state\.\w+\.(.+)/)?.[1]
+                if (subjectSlug) {
+                  const artnetIds = dmxEntityMap.current.get(subjectSlug) ?? []
+                  const dmxGateway = an.find(n => n.id === 'gateway-dmx')
+                  if (dmxGateway && artnetIds.length > 0) {
+                    for (const nodeId of artnetIds) {
+                      const artnetNode = an.find(n => n.id === nodeId)
+                      if (artnetNode) {
+                        spawnParticle(dmxGateway, artnetNode, dmxColor, 2.5, () => {
+                          spawnRipple(artnetNode, dmxColor)
+                        })
+                      }
+                    }
+                  }
+                }
               })
             } else {
               spawnRipple(busNode, color)
@@ -363,6 +392,23 @@ export function AmbientCanvas() {
           ctx.strokeStyle = rgba(r, g, b, lineAlpha)
           ctx.lineWidth = 1
           ctx.stroke()
+        }
+      }
+
+      // Topology lines: DMX gateway ↔ each Art-Net node (output path)
+      const dmxGateway = an.find(n => n.id === 'gateway-dmx')
+      if (dmxGateway) {
+        for (const node of an) {
+          if (node.type !== 'artnet') continue
+          const lineAlpha = 0.05 + node.heat * 0.2
+          ctx.beginPath()
+          ctx.moveTo(dmxGateway.x, dmxGateway.y)
+          ctx.lineTo(node.x, node.y)
+          ctx.strokeStyle = rgba(251, 191, 36, lineAlpha)
+          ctx.lineWidth = 1
+          ctx.setLineDash([3, 5]) // dashed to distinguish from bus lines
+          ctx.stroke()
+          ctx.setLineDash([])
         }
       }
 
@@ -440,6 +486,38 @@ export function AmbientCanvas() {
           ctx.lineWidth = 1
           ctx.stroke()
 
+        } else if (node.type === 'artnet') {
+          // Art-Net hardware node: amber diamond shape, distinct from round entity nodes
+          const [r, g, b]: RGB = [251, 191, 36] // amber-400
+          if (node.heat > 0.04) {
+            const glowGrad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, drawR * 4)
+            glowGrad.addColorStop(0, rgba(r, g, b, node.heat * 0.5))
+            glowGrad.addColorStop(1, rgba(r, g, b, 0))
+            ctx.beginPath()
+            ctx.arc(node.x, node.y, drawR * 4, 0, Math.PI * 2)
+            ctx.fillStyle = glowGrad
+            ctx.fill()
+          }
+          // Diamond (rotated square)
+          ctx.save()
+          ctx.translate(node.x, node.y)
+          ctx.rotate(Math.PI / 4)
+          ctx.beginPath()
+          ctx.rect(-drawR * 0.75, -drawR * 0.75, drawR * 1.5, drawR * 1.5)
+          ctx.fillStyle = rgba(r, g, b, 0.25 + node.heat * 0.4)
+          ctx.fill()
+          ctx.strokeStyle = rgba(r, g, b, 0.75 + node.heat * 0.25)
+          ctx.lineWidth = 1
+          ctx.stroke()
+          ctx.restore()
+          // IP address as sub-label
+          if (node.slug) {
+            ctx.fillStyle = rgba(r, g, b, 0.2 + node.heat * 0.3)
+            ctx.font = '7px ui-monospace, monospace'
+            ctx.textAlign = 'center'
+            ctx.fillText(node.slug, node.x, node.y + drawR + 22)
+          }
+
         } else {
           // Device (blue) or entity (green)
           const [r, g, b]: RGB = node.type === 'device' ? [96, 165, 250] : [52, 211, 153]
@@ -458,10 +536,11 @@ export function AmbientCanvas() {
           ctx.fill()
         }
 
-        // Labels: always visible — bus/gateway bright, entities/devices dim when cold
+        // Labels: always visible — bus/gateway bright, others dim when cold
         const labelAlpha =
           node.type === 'bus'     ? 0.6 + node.heat * 0.35 :
           node.type === 'gateway' ? 0.55 + node.heat * 0.4 :
+          node.type === 'artnet'  ? 0.45 + node.heat * 0.5 :
           /* entity / device */     0.28 + node.heat * 0.65
         ctx.fillStyle = rgba(148, 163, 184, labelAlpha)
         ctx.font = `${node.type === 'bus' ? 11 : 9}px system-ui, sans-serif`

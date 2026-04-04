@@ -4,7 +4,8 @@ import React, { createContext, useContext, useCallback, useEffect, useRef, useSt
 import { useWebSocket } from '@/hooks/useWebSocket'
 import type { WebSocketMessage } from '@/types'
 import type { Device } from '@/types'
-import { api } from '@/lib/api'
+import { api, dmxApi } from '@/lib/api'
+import type { DMXNode, DMXFixture } from '@/lib/types'
 
 // crypto.randomUUID() requires a secure context (HTTPS or localhost).
 // Fall back to a manual implementation for plain HTTP access.
@@ -42,8 +43,9 @@ export interface ConsoleMessage {
 export interface GraphNode {
   id: string
   label: string
-  slug?: string   // entity/device slug used in NATS subjects
-  type: 'device' | 'entity' | 'gateway' | 'bus'
+  slug?: string            // entity/device slug used in NATS subjects
+  type: 'device' | 'entity' | 'gateway' | 'bus' | 'artnet'
+  artnetUniverses?: number[] // Art-Net universe numbers this node handles
   x?: number
   y?: number
   activity: number
@@ -119,10 +121,23 @@ function resolveSourceTarget(
     }
   }
 
+  // Direct Art-Net universe output: maestra.to_artnet.universe.N
+  // Flow: something publishes this → DMX gateway subscribes → sends Art-Net UDP to node
+  const artnetMatch = subject.match(/maestra\.to_artnet\.universe\.(\d+)/)
+  if (artnetMatch) {
+    const universe = parseInt(artnetMatch[1])
+    for (const [id, node] of nodeMap) {
+      if (node.type === 'artnet' && node.artnetUniverses?.includes(universe)) {
+        return { source: 'gateway-dmx', target: id }
+      }
+    }
+    return { source: 'gateway-dmx', target: null }
+  }
+
   // Protocol-prefixed messages
   if (subject.startsWith('maestra.osc.')) return { source: 'gateway-osc', target: null }
   if (subject.startsWith('maestra.mqtt.')) return { source: 'gateway-mqtt', target: null }
-  if (subject.startsWith('maestra.dmx.') || subject.startsWith('maestra.to_artnet.')) return { source: 'gateway-dmx', target: null }
+  if (subject.startsWith('maestra.dmx.')) return { source: 'gateway-dmx', target: null }
 
   return { source: null, target: null }
 }
@@ -181,6 +196,8 @@ interface ConsoleContextValue {
   nodes: GraphNode[]
   simulate: boolean
   setSimulate: (v: boolean) => void
+  // entity_slug → artnet node graph IDs (for DMX output visualisation)
+  dmxEntityMap: React.MutableRefObject<Map<string, string[]>>
   // Actions
   clear: () => void
   subscribe: (cb: () => void) => () => void
@@ -276,6 +293,42 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // API unavailable — degrade gracefully
       }
+
+      // Art-Net nodes: physical DMX hardware the DMX gateway sends to
+      try {
+        const dmxNodes = await dmxApi.listNodes()
+        dmxNodes.forEach((n: DMXNode) => {
+          graphNodes.push({
+            id: `artnet-${n.id}`,
+            label: n.name,
+            slug: n.id,
+            type: 'artnet',
+            artnetUniverses: n.universes.map(u => u.artnet_universe),
+            activity: 0,
+          })
+        })
+      } catch {
+        // DMX not configured — degrade gracefully
+      }
+
+      // Build entity_slug → artnet_node_ids map for secondary DMX output animations
+      try {
+        const fixtures = await dmxApi.listFixtures()
+        const entitySlugToNodes = new Map<string, Set<string>>()
+        fixtures.forEach((f: DMXFixture) => {
+          if (f.entity_slug && f.node_id) {
+            const key = f.entity_slug
+            if (!entitySlugToNodes.has(key)) entitySlugToNodes.set(key, new Set())
+            entitySlugToNodes.get(key)!.add(`artnet-${f.node_id}`)
+          }
+        })
+        const map = new Map<string, string[]>()
+        entitySlugToNodes.forEach((ids, slug) => map.set(slug, Array.from(ids)))
+        dmxEntityMapRef.current = map
+      } catch {
+        // Fixtures unavailable — degrade gracefully
+      }
+
       setNodes(graphNodes)
     }
     fetchTopology()
@@ -285,6 +338,8 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
 
   // Build node map for resolution
   const nodeMapRef = useRef(new Map<string, GraphNode>())
+  // entity_slug → artnet node IDs (for secondary DMX output particles)
+  const dmxEntityMapRef = useRef(new Map<string, string[]>())
   useEffect(() => {
     const map = new Map<string, GraphNode>()
     nodes.forEach(n => map.set(n.id, n))
@@ -425,10 +480,29 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       () => ({ subject: 'maestra.mqtt.maestra.devices.sensor.humidity',    payload: { humidity: +(40 + Math.random() * 30).toFixed(1) } }),
       () => ({ subject: 'maestra.ws.client.interaction',    payload: { x: +Math.random().toFixed(3), y: +Math.random().toFixed(3), type: 'touch' } }),
       () => ({ subject: 'maestra.ws.client.event',          payload: { event: ['click', 'hover', 'scroll'][Math.floor(Math.random() * 3)] } }),
-      () => ({ subject: 'maestra.dmx.fixture.wash_l1',      payload: { value: Math.floor(Math.random() * 255) } }),
-      () => ({ subject: 'maestra.to_artnet.universe.1',     payload: { channel: Math.floor(Math.random() * 512) + 1, value: Math.floor(Math.random() * 255) } }),
-      () => ({ subject: 'maestra.dmx.fixture.spot_c',       payload: { pan: Math.floor(Math.random() * 255), tilt: Math.floor(Math.random() * 255) } }),
+      () => ({ subject: 'maestra.dmx.fixture.wash_l1',  payload: { value: Math.floor(Math.random() * 255) } }),
+      () => ({ subject: 'maestra.dmx.fixture.spot_c',   payload: { pan: Math.floor(Math.random() * 255), tilt: Math.floor(Math.random() * 255) } }),
     ]
+
+    // Art-Net output: use real node universes if available, else fall back to universe 1
+    const artnetNodes = nodes.filter(n => n.type === 'artnet')
+    if (artnetNodes.length > 0) {
+      artnetNodes.forEach(n => {
+        const universes = n.artnetUniverses?.length ? n.artnetUniverses : [1]
+        universes.forEach(u => {
+          TEMPLATES.push(() => ({
+            subject: `maestra.to_artnet.universe.${u}`,
+            payload: { channel: Math.floor(Math.random() * 512) + 1, value: Math.floor(Math.random() * 255) },
+          }))
+        })
+      })
+    } else {
+      // No nodes configured yet — simulate generic universe output
+      TEMPLATES.push(() => ({
+        subject: `maestra.to_artnet.universe.${Math.ceil(Math.random() * 4)}`,
+        payload: { channel: Math.floor(Math.random() * 512) + 1, value: Math.floor(Math.random() * 255) },
+      }))
+    }
 
     // Target all real entities using their slug (the actual NATS subject key)
     const entityNodes = nodes.filter(n => n.type === 'entity' && (n.slug || n.label))
@@ -493,6 +567,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
         nodes,
         simulate,
         setSimulate,
+        dmxEntityMap: dmxEntityMapRef,
         clear,
         subscribe,
       }}

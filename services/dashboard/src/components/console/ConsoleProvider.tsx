@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react'
-import { useWebSocket } from '@/hooks/useWebSocket'
+import { subscribeToWsMessages, subscribeToWsConnection } from '@/hooks/useWebSocket'
 import type { WebSocketMessage } from '@/types'
 import type { Device } from '@/types'
 import { api, dmxApi } from '@/lib/api'
@@ -214,13 +214,12 @@ export function useConsole() {
 // --- Provider ---
 
 export function ConsoleProvider({ children }: { children: React.ReactNode }) {
-  const { isConnected, lastMessage } = useWebSocket(true)
+  const [isConnected, setIsConnected] = useState(false)
   const messagesRef = useRef<ConsoleMessage[]>([])
   const listenersRef = useRef<Set<() => void>>(new Set())
   const statsRef = useRef(new StatsTracker())
   const pausedRef = useRef(false)
   const pauseCountRef = useRef(0)
-  const lastMsgRef = useRef<WebSocketMessage | null>(null)
   const wasConnectedRef = useRef(true)
 
   const [mode, setMode] = useState<ConsoleMode>('debug')
@@ -239,6 +238,14 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     atCapacity: false,
   })
   const [nodes, setNodes] = useState<GraphNode[]>([])
+
+  // Keep a ref to filters so the direct WS callback never captures stale values
+  const filtersRef = useRef<ConsoleFilters>({
+    subjectPattern: '',
+    protocols: new Set(['osc', 'mqtt', 'ws', 'dmx', 'internal'] as Protocol[]),
+    textSearch: '',
+    hideHeartbeats: true,
+  })
 
   // Subscription pattern for buffer changes
   const subscribe = useCallback((cb: () => void) => {
@@ -357,98 +364,98 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     nodeMapRef.current = map
   }, [nodes])
 
-  // Process incoming WebSocket messages
+  // Keep filtersRef in sync so the direct WS callback always reads current values
+  useEffect(() => { filtersRef.current = filters }, [filters])
+
+  // Process incoming WebSocket messages via direct callback — bypasses React
+  // state so incoming messages never trigger a re-render of this provider tree.
   useEffect(() => {
-    if (!lastMessage || lastMessage === lastMsgRef.current) return
-    lastMsgRef.current = lastMessage
+    return subscribeToWsMessages((lastMessage: WebSocketMessage) => {
+      // Filter out gateway control messages
+      if (lastMessage.type === 'error' || lastMessage.type === 'welcome' ||
+          lastMessage.type === 'ack'   || lastMessage.type === 'pong') return
 
-    // Filter out gateway error messages (subscribe errors etc)
-    if (lastMessage.type === 'error' || lastMessage.type === 'welcome' ||
-        lastMessage.type === 'ack' || lastMessage.type === 'pong') return
+      if (lastMessage.type !== 'message' || !lastMessage.subject) return
 
-    if (lastMessage.type !== 'message' || !lastMessage.subject) return
+      const subject = lastMessage.subject
 
-    const subject = lastMessage.subject
-
-    // Heartbeat filtering
-    if (subject.includes('heartbeat')) {
-      // Still count in stats even if filtered
-      statsRef.current.add()
-      if (filters.hideHeartbeats) return
-    }
-
-    // Truncate large payloads
-    let payload = lastMessage.data
-    let truncated = false
-    if (payload) {
-      const serialized = JSON.stringify(payload)
-      if (serialized.length > MAX_PAYLOAD_SIZE) {
-        // Don't re-parse truncated JSON (it's invalid) — keep original object
-        // but flag it as truncated for the UI
-        truncated = true
+      // Heartbeat filtering
+      if (subject.includes('heartbeat')) {
+        statsRef.current.add()
+        if (filtersRef.current.hideHeartbeats) return
       }
-    }
 
-    const protocol = detectProtocol(subject)
-    const { source, target } = resolveSourceTarget(
-      subject,
-      payload as Record<string, unknown> | null,
-      nodeMapRef.current
-    )
-
-    const msg: ConsoleMessage = {
-      id: generateId(),
-      timestamp: lastMessage.timestamp || new Date().toISOString(),
-      subject,
-      protocol,
-      payload,
-      sourceNode: source,
-      targetNode: target,
-      truncated,
-    }
-
-    if (pausedRef.current) {
-      pauseCountRef.current++
-      // Still buffer when paused (counts toward capacity)
-      messagesRef.current.push(msg)
-      if (messagesRef.current.length > BUFFER_GROW_LIMIT) {
-        messagesRef.current = messagesRef.current.slice(-MAX_BUFFER_SIZE)
+      // Truncate large payloads
+      const payload = lastMessage.data
+      let truncated = false
+      if (payload) {
+        const serialized = JSON.stringify(payload)
+        if (serialized.length > MAX_PAYLOAD_SIZE) truncated = true
       }
-      return
-    }
 
-    addMessage(msg)
-  }, [lastMessage, addMessage, filters.hideHeartbeats])
+      const protocol = detectProtocol(subject)
+      const { source, target } = resolveSourceTarget(
+        subject,
+        payload as Record<string, unknown> | null,
+        nodeMapRef.current
+      )
 
-  // Connection state tracking for divider rows
+      const msg: ConsoleMessage = {
+        id: generateId(),
+        timestamp: lastMessage.timestamp || new Date().toISOString(),
+        subject,
+        protocol,
+        payload,
+        sourceNode: source,
+        targetNode: target,
+        truncated,
+      }
+
+      if (pausedRef.current) {
+        pauseCountRef.current++
+        messagesRef.current.push(msg)
+        if (messagesRef.current.length > BUFFER_GROW_LIMIT) {
+          messagesRef.current = messagesRef.current.slice(-MAX_BUFFER_SIZE)
+        }
+        return
+      }
+
+      addMessage(msg)
+    })
+  }, [addMessage])
+
+  // Track connection state changes for divider rows (via direct callback)
   useEffect(() => {
-    if (isConnected && !wasConnectedRef.current) {
-      addMessage({
-        id: generateId(),
-        timestamp: new Date().toISOString(),
-        subject: '',
-        protocol: 'internal',
-        payload: null,
-        sourceNode: null,
-        targetNode: null,
-        isDivider: true,
-        dividerText: 'Reconnected',
-      })
-    } else if (!isConnected && wasConnectedRef.current) {
-      addMessage({
-        id: generateId(),
-        timestamp: new Date().toISOString(),
-        subject: '',
-        protocol: 'internal',
-        payload: null,
-        sourceNode: null,
-        targetNode: null,
-        isDivider: true,
-        dividerText: 'Connection lost',
-      })
-    }
-    wasConnectedRef.current = isConnected
-  }, [isConnected, addMessage])
+    return subscribeToWsConnection((connected: boolean) => {
+      setIsConnected(connected)
+      if (connected && !wasConnectedRef.current) {
+        addMessage({
+          id: generateId(),
+          timestamp: new Date().toISOString(),
+          subject: '',
+          protocol: 'internal',
+          payload: null,
+          sourceNode: null,
+          targetNode: null,
+          isDivider: true,
+          dividerText: 'Reconnected',
+        })
+      } else if (!connected && wasConnectedRef.current) {
+        addMessage({
+          id: generateId(),
+          timestamp: new Date().toISOString(),
+          subject: '',
+          protocol: 'internal',
+          payload: null,
+          sourceNode: null,
+          targetNode: null,
+          isDivider: true,
+          dividerText: 'Connection lost',
+        })
+      }
+      wasConnectedRef.current = connected
+    })
+  }, [addMessage])
 
   // Pause/unpause handler
   const setPaused = useCallback((value: boolean) => {

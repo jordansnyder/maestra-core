@@ -211,6 +211,62 @@ Located at `services/dashboard/`:
 - Dashboard page has a mobile toggle button (`md:hidden`) to switch between the dashboard summary view and the Live Activity feed full-screen view
 - DMX Lighting page: canvas is `hidden md:block` on mobile; DMX sidebar becomes full-width (`w-full md:w-sidebar-dmx`); toolbar labels condensed to icon-only on small screens; scale picker hidden; per-fixture Adjust button always visible (not hover-only)
 
+**Console Visualization** (Console → Ambient tab):
+
+Key files:
+- `services/dashboard/src/components/console/ConsoleProvider.tsx` - context provider; owns topology, message buffer, filters, simulate toggle, dmxEntityMap
+- `services/dashboard/src/components/console/AmbientCanvas.tsx` - Canvas 2D render loop; particle system, drift, heat glow
+- `services/dashboard/src/components/console/ConsoleToolbar.tsx` - toolbar with fullscreen + simulate toggles
+- `services/dashboard/src/components/console/DataConsole.tsx` - root component; manages fullscreen state, mode transitions
+
+**Topology build (ConsoleProvider)**:
+- On mount (and every 30s), fetches `api.listDevices()`, `api.listEntities()`, `dmxApi.listNodes()`, `dmxApi.listFixtures()`
+- Builds `GraphNode[]` with types: `bus`, `gateway`, `entity`, `device`, `artnet`
+- DMX nodes with a `device_id` are merged into the existing device node (adds `artnetUniverses` field) rather than creating a duplicate
+- `dmxEntityMapRef`: entity_slug → artnet node IDs (built from fixtures); used to spawn secondary DMX output particles when entity state updates arrive for DMX-linked entities
+- All nodes keyed by ID in `nodeMapRef` for O(1) routing lookups
+
+**Protocol detection (`detectProtocol`)**:
+- `maestra.osc.*` → `osc`
+- `maestra.mqtt.*` → `mqtt`
+- `maestra.ws.*` → `ws`
+- `maestra.dmx.*` / `maestra.to_artnet.*` → `dmx`
+- Everything else (including `maestra.entity.state.*`) → `internal`
+
+**Source/target resolution (`resolveSourceTarget`)**:
+- `maestra.entity.state.update.<slug>` / `set.<slug>`: looks up gateway from `payload.source`, finds entity by `node.slug === slug` (primary match, falls back to label and id)
+- `maestra.entity.state.<type>.<slug>` broadcasts: resolved entity becomes source
+- `maestra.to_artnet.universe.N`: source = `gateway-dmx`, target = node with matching `artnetUniverses` (any node type)
+- Protocol-prefixed subjects map to their gateway node
+
+**Particle routing**:
+- `maestra.to_artnet.universe.N` (target.type === `artnet`): direct DMX gateway → Art-Net node (no bus hop - represents raw UDP output)
+- All other messages with a resolved gateway: two-hop - gateway → bus (hop 1), then on arrive: bus → entity/device (hop 2), ripple on land
+- Entity state updates for DMX-linked entities spawn a secondary DMX gateway → Art-Net node particle after the entity hop lands (uses `dmxEntityMap`)
+- Particle color uses `GATEWAY_COLORS[gatewayId]` so the same entity state looks green when routed via MQTT, cyan via OSC, etc.
+
+**Activity-based drift**:
+- Entity, device, and artnet nodes have `baseAngle`, `baseRadius`, `driftRadius` fields
+- Inner boundary: `Math.min(w,h) * 0.32` (set at layout); outer boundary: `Math.min(w,h) * 0.43` (computed per frame)
+- Cold nodes drift outward at 15 px/s; active nodes pulled inward at 220 px/s × heat
+- Two faint boundary rings drawn as structural guides
+
+**Bus heat glow (calibrated MPS)**:
+- Samples `messagesPerSecond` once per second into a 300-sample (5-min) rolling window
+- Uses 10th-90th percentile range so it adapts to both low- and high-traffic scenarios
+- Color ramps from cool blue → violet → warm orange via `coolToWarm(t)` function
+- ~3s smoothing time constant; rendered as two concentric radial gradients behind the bus node
+
+**Simulate mode**:
+- Toggle via lightning bolt button in ambient toolbar
+- Injects ~10 msg/s across all protocols using real entity slugs and real Art-Net universe numbers from configured nodes
+- All messages flow through normal ConsoleProvider buffer (stats, filters, debug feed all respond)
+
+**Fullscreen**:
+- Native browser Fullscreen API on the `ConsoleContent` div (`contentRef.current.requestFullscreen()`)
+- `fullscreenchange` event listener keeps `isFullscreen` state in sync
+- ESC exits; Minimize2/Maximize2 icons toggle in toolbar
+
 ### Message Envelope Convention
 
 All inter-service messages include:

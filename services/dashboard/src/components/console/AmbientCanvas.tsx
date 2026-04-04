@@ -114,7 +114,12 @@ export function AmbientCanvas() {
   const animRef = useRef<number>(0)
   const particlesRef = useRef<Particle[]>([])
   const ambientNodesRef = useRef<AmbientNode[]>([])
-  const lastMsgCountRef = useRef(0)
+  const nodeByIdRef = useRef<Map<string, AmbientNode>>(new Map())
+  const busNodeRef = useRef<AmbientNode | null>(null)
+  const innerBoundaryRRef = useRef(0)
+  // null = uninitialized; initialize lazily to current buffer length on first notify
+  // to avoid replaying accumulated messages when switching to ambient mode.
+  const lastMsgCountRef = useRef<number | null>(null)
   const samplingCounterRef = useRef(0)
   const statsRef = useRef(stats)
   const lastRenderTimeRef = useRef(0)
@@ -285,6 +290,18 @@ export function AmbientCanvas() {
     })
 
     ambientNodesRef.current = result
+
+    // Rebuild O(1) lookup map and cache bus node
+    const map = new Map<string, AmbientNode>()
+    let bus: AmbientNode | null = null
+    for (const n of result) {
+      map.set(n.id, n)
+      if (n.type === 'bus') bus = n
+    }
+    nodeByIdRef.current = map
+    busNodeRef.current = bus
+    // Cache inner boundary radius (first drifting node's baseRadius)
+    innerBoundaryRRef.current = result.find(n => n.baseRadius > 0)?.baseRadius ?? 0
   }, [nodes, canvasSize])
 
   // --- Subscribe for particle spawning ---
@@ -292,6 +309,21 @@ export function AmbientCanvas() {
   useEffect(() => {
     return subscribe(() => {
       const msgs = messages.current
+
+      // Lazy init: skip any messages already in the buffer when we first mount
+      // (avoids a particle flood when switching from debug to ambient mode).
+      if (lastMsgCountRef.current === null) {
+        lastMsgCountRef.current = msgs.length
+        return
+      }
+
+      // Buffer trim guard: when the amortized slice resets msgs.length to
+      // MAX_BUFFER_SIZE (1000), our counter would be stale at 2000+.
+      // Clamp so we don't skip all new messages.
+      if (msgs.length < lastMsgCountRef.current) {
+        lastMsgCountRef.current = msgs.length
+      }
+
       if (msgs.length <= lastMsgCountRef.current) return
 
       const newMsgs = msgs.slice(lastMsgCountRef.current)
@@ -299,6 +331,11 @@ export function AmbientCanvas() {
 
       const rate = statsRef.current.messagesPerSecond
       const shouldSample = rate > 60
+
+      const busNode = busNodeRef.current
+      if (!busNode) return
+
+      const byId = nodeByIdRef.current
 
       for (const msg of newMsgs) {
         if (msg.isDivider || msg.isPauseSummary) continue
@@ -308,10 +345,6 @@ export function AmbientCanvas() {
           const skipRate = Math.max(1, Math.floor(rate / 60))
           if (samplingCounterRef.current % skipRate !== 0) continue
         }
-
-        const an = ambientNodesRef.current
-        const busNode = an.find(n => n.type === 'bus')
-        if (!busNode) continue
 
         // Determine source gateway node.
         // Entity state subjects (maestra.entity.state.*) are classified as 'internal'
@@ -324,8 +357,8 @@ export function AmbientCanvas() {
            msg.protocol === 'ws'   ? 'gateway-ws'   :
            msg.protocol === 'dmx'  ? 'gateway-dmx'  : null)
 
-        const gatewayNode = gatewayId ? an.find(n => n.id === gatewayId) : null
-        const targetNode  = msg.targetNode ? an.find(n => n.id === msg.targetNode) : null
+        const gatewayNode = gatewayId ? byId.get(gatewayId) ?? null : null
+        const targetNode  = msg.targetNode ? byId.get(msg.targetNode) ?? null : null
 
         // Use the gateway's color so entity state routed via MQTT shows green,
         // via OSC shows cyan, etc. Fall back to the protocol color.
@@ -337,8 +370,7 @@ export function AmbientCanvas() {
 
         if (targetNode?.type === 'artnet') {
           // Art-Net output: DMX gateway → Art-Net node directly (no bus middle hop)
-          // This represents the DMX gateway sending UDP directly to hardware.
-          const dmxGateway = an.find(n => n.id === 'gateway-dmx')
+          const dmxGateway = byId.get('gateway-dmx') ?? null
           if (dmxGateway) {
             spawnParticle(dmxGateway, targetNode, dmxColor, 3.5, () => {
               spawnRipple(targetNode, dmxColor)
@@ -357,10 +389,10 @@ export function AmbientCanvas() {
                 const subjectSlug = msg.subject.match(/maestra\.entity\.state\.\w+\.(.+)/)?.[1]
                 if (subjectSlug) {
                   const artnetIds = dmxEntityMap.current.get(subjectSlug) ?? []
-                  const dmxGateway = an.find(n => n.id === 'gateway-dmx')
+                  const dmxGateway = byId.get('gateway-dmx') ?? null
                   if (dmxGateway && artnetIds.length > 0) {
                     for (const nodeId of artnetIds) {
-                      const artnetNode = an.find(n => n.id === nodeId)
+                      const artnetNode = byId.get(nodeId) ?? null
                       if (artnetNode) {
                         spawnParticle(dmxGateway, artnetNode, dmxColor, 2.5, () => {
                           spawnRipple(artnetNode, dmxColor)
@@ -411,7 +443,7 @@ export function AmbientCanvas() {
       const w = canvas.clientWidth
       const h = canvas.clientHeight
       const an = ambientNodesRef.current
-      const busNode = an.find(n => n.type === 'bus')
+      const busNode = busNodeRef.current
       const mps = statsRef.current.messagesPerSecond
 
       // --- Bus heat calibration (1 sample/second, 5-min rolling window) ---
@@ -487,7 +519,7 @@ export function AmbientCanvas() {
       const outerBoundaryR = Math.min(w, h) * 0.43
 
       // Draw the two boundary rings (very faint — structural guides)
-      const innerBoundaryR = an.find(n => n.baseRadius > 0)?.baseRadius
+      const innerBoundaryR = innerBoundaryRRef.current || undefined
       if (innerBoundaryR) {
         ctx.beginPath()
         ctx.arc(cx, cy, innerBoundaryR, 0, Math.PI * 2)

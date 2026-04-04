@@ -395,22 +395,6 @@ export function AmbientCanvas() {
         }
       }
 
-      // Topology lines: DMX gateway ↔ each Art-Net node (output path)
-      const dmxGateway = an.find(n => n.id === 'gateway-dmx')
-      if (dmxGateway) {
-        for (const node of an) {
-          if (node.type !== 'artnet') continue
-          const lineAlpha = 0.05 + node.heat * 0.2
-          ctx.beginPath()
-          ctx.moveTo(dmxGateway.x, dmxGateway.y)
-          ctx.lineTo(node.x, node.y)
-          ctx.strokeStyle = rgba(251, 191, 36, lineAlpha)
-          ctx.lineWidth = 1
-          ctx.setLineDash([3, 5]) // dashed to distinguish from bus lines
-          ctx.stroke()
-          ctx.setLineDash([])
-        }
-      }
 
       // Idle bus rings when message rate < 1 msg/s
       if (mps < 1 && busNode) {
@@ -486,41 +470,9 @@ export function AmbientCanvas() {
           ctx.lineWidth = 1
           ctx.stroke()
 
-        } else if (node.type === 'artnet') {
-          // Art-Net hardware node: amber diamond shape, distinct from round entity nodes
-          const [r, g, b]: RGB = [251, 191, 36] // amber-400
-          if (node.heat > 0.04) {
-            const glowGrad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, drawR * 4)
-            glowGrad.addColorStop(0, rgba(r, g, b, node.heat * 0.5))
-            glowGrad.addColorStop(1, rgba(r, g, b, 0))
-            ctx.beginPath()
-            ctx.arc(node.x, node.y, drawR * 4, 0, Math.PI * 2)
-            ctx.fillStyle = glowGrad
-            ctx.fill()
-          }
-          // Diamond (rotated square)
-          ctx.save()
-          ctx.translate(node.x, node.y)
-          ctx.rotate(Math.PI / 4)
-          ctx.beginPath()
-          ctx.rect(-drawR * 0.75, -drawR * 0.75, drawR * 1.5, drawR * 1.5)
-          ctx.fillStyle = rgba(r, g, b, 0.25 + node.heat * 0.4)
-          ctx.fill()
-          ctx.strokeStyle = rgba(r, g, b, 0.75 + node.heat * 0.25)
-          ctx.lineWidth = 1
-          ctx.stroke()
-          ctx.restore()
-          // IP address as sub-label
-          if (node.slug) {
-            ctx.fillStyle = rgba(r, g, b, 0.2 + node.heat * 0.3)
-            ctx.font = '7px ui-monospace, monospace'
-            ctx.textAlign = 'center'
-            ctx.fillText(node.slug, node.x, node.y + drawR + 22)
-          }
-
         } else {
-          // Device (blue) or entity (green)
-          const [r, g, b]: RGB = node.type === 'device' ? [96, 165, 250] : [52, 211, 153]
+          // Device / Art-Net node (blue) or entity (green)
+          const [r, g, b]: RGB = (node.type === 'device' || node.type === 'artnet') ? [96, 165, 250] : [52, 211, 153]
           if (node.heat > 0.08) {
             const glowGrad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, drawR * 3.5)
             glowGrad.addColorStop(0, rgba(r, g, b, node.heat * 0.4))
@@ -540,8 +492,7 @@ export function AmbientCanvas() {
         const labelAlpha =
           node.type === 'bus'     ? 0.6 + node.heat * 0.35 :
           node.type === 'gateway' ? 0.55 + node.heat * 0.4 :
-          node.type === 'artnet'  ? 0.45 + node.heat * 0.5 :
-          /* entity / device */     0.28 + node.heat * 0.65
+          /* entity / device / artnet */ 0.28 + node.heat * 0.65
         ctx.fillStyle = rgba(148, 163, 184, labelAlpha)
         ctx.font = `${node.type === 'bus' ? 11 : 9}px system-ui, sans-serif`
         ctx.textAlign = 'center'

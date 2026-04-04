@@ -70,6 +70,25 @@ interface Particle {
   onArrive: (() => void) | null
 }
 
+// Cool (blue) → violet → warm (orange) color ramp for the bus heat glow
+function coolToWarm(t: number): RGB {
+  // Two-segment interpolation so the midpoint passes through violet/purple
+  if (t < 0.5) {
+    const s = t / 0.5
+    return [
+      Math.round(25  + s * 95),   // 25  → 120
+      Math.round(55  - s * 35),   // 55  → 20
+      Math.round(190 - s * 30),   // 190 → 160
+    ]
+  }
+  const s = (t - 0.5) / 0.5
+  return [
+    Math.round(120 + s * 110),  // 120 → 230
+    Math.round(20  + s * 65),   // 20  → 85
+    Math.round(160 - s * 145),  // 160 → 15
+  ]
+}
+
 function makeParticle(): Particle {
   return {
     active: false,
@@ -100,6 +119,11 @@ export function AmbientCanvas() {
   const statsRef = useRef(stats)
   const lastRenderTimeRef = useRef(0)
   const idleRingsRef = useRef<Array<{ startTime: number; x: number; y: number }>>([])
+  // MPS history for bus heat calibration (one sample/second, 5-min rolling window)
+  const mpsHistoryRef    = useRef<number[]>([])
+  const lastSampleTimeRef = useRef(0)
+  const busHeatRef       = useRef(0)   // smoothed 0-1 used for glow
+  const busHeatTargetRef = useRef(0.5) // target derived from calibrated range
 
   // Keep statsRef current so the render loop never reads stale values
   useEffect(() => { statsRef.current = stats }, [stats])
@@ -390,6 +414,27 @@ export function AmbientCanvas() {
       const busNode = an.find(n => n.type === 'bus')
       const mps = statsRef.current.messagesPerSecond
 
+      // --- Bus heat calibration (1 sample/second, 5-min rolling window) ---
+      if (now - lastSampleTimeRef.current >= 1000) {
+        lastSampleTimeRef.current = now
+        mpsHistoryRef.current.push(mps)
+        if (mpsHistoryRef.current.length > 300) mpsHistoryRef.current.shift()
+
+        const hist = mpsHistoryRef.current
+        if (hist.length >= 3) {
+          const sorted = [...hist].sort((a, b) => a - b)
+          // Use 10th–90th percentile range to ignore brief outlier spikes/drops
+          const lo = sorted[Math.floor(sorted.length * 0.10)]
+          const hi = sorted[Math.floor(sorted.length * 0.90)]
+          const range = hi - lo
+          busHeatTargetRef.current = range < 0.5
+            ? 0.5 // not enough data yet — sit at midpoint
+            : Math.max(0, Math.min(1, (mps - lo) / range))
+        }
+      }
+      // Smooth toward target (~3s time constant)
+      busHeatRef.current += (busHeatTargetRef.current - busHeatRef.current) * Math.min(1, dt * 0.35)
+
       // Background
       ctx.fillStyle = BACKGROUND
       ctx.fillRect(0, 0, w, h)
@@ -455,6 +500,31 @@ export function AmbientCanvas() {
         ctx.strokeStyle = rgba(148, 163, 184, 0.06)
         ctx.lineWidth = 1
         ctx.stroke()
+      }
+
+      // --- Bus background heat glow (cool → warm based on calibrated MPS) ---
+      if (busNode) {
+        const bh = busHeatRef.current
+        const [gr, gg, gb] = coolToWarm(bh)
+        // Two concentric layers: large soft halo + tighter inner bloom
+        const haloR = 160 + bh * 90
+        const halo = ctx.createRadialGradient(busNode.x, busNode.y, 0, busNode.x, busNode.y, haloR)
+        halo.addColorStop(0,   rgba(gr, gg, gb, 0.14 + bh * 0.10))
+        halo.addColorStop(0.45, rgba(gr, gg, gb, 0.05 + bh * 0.05))
+        halo.addColorStop(1,   rgba(gr, gg, gb, 0))
+        ctx.beginPath()
+        ctx.arc(busNode.x, busNode.y, haloR, 0, Math.PI * 2)
+        ctx.fillStyle = halo
+        ctx.fill()
+
+        const bloomR = 60 + bh * 30
+        const bloom = ctx.createRadialGradient(busNode.x, busNode.y, 0, busNode.x, busNode.y, bloomR)
+        bloom.addColorStop(0,  rgba(gr, gg, gb, 0.10 + bh * 0.12))
+        bloom.addColorStop(1,  rgba(gr, gg, gb, 0))
+        ctx.beginPath()
+        ctx.arc(busNode.x, busNode.y, bloomR, 0, Math.PI * 2)
+        ctx.fillStyle = bloom
+        ctx.fill()
       }
 
       // Nodes

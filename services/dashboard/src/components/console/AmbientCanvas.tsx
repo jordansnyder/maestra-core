@@ -456,17 +456,15 @@ export function AmbientCanvas() {
           ctx.fill()
         }
 
-        // Labels: always for bus/gateway; fade in for entities/devices based on heat
-        const isFixed = node.type === 'bus' || node.type === 'gateway'
-        const labelAlpha = isFixed
-          ? 0.5 + node.heat * 0.4
-          : Math.min(1, node.heat * 2.5)
-        if (labelAlpha > 0.02) {
-          ctx.fillStyle = rgba(148, 163, 184, labelAlpha)
-          ctx.font = `${node.type === 'bus' ? 11 : 9}px system-ui, sans-serif`
-          ctx.textAlign = 'center'
-          ctx.fillText(node.label, node.x, node.y + drawR + 13)
-        }
+        // Labels: always visible — bus/gateway bright, entities/devices dim when cold
+        const labelAlpha =
+          node.type === 'bus'     ? 0.6 + node.heat * 0.35 :
+          node.type === 'gateway' ? 0.55 + node.heat * 0.4 :
+          /* entity / device */     0.28 + node.heat * 0.65
+        ctx.fillStyle = rgba(148, 163, 184, labelAlpha)
+        ctx.font = `${node.type === 'bus' ? 11 : 9}px system-ui, sans-serif`
+        ctx.textAlign = 'center'
+        ctx.fillText(node.label, node.x, node.y + drawR + 13)
       }
 
       // Particles

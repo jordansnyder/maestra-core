@@ -42,6 +42,7 @@ export interface ConsoleMessage {
 export interface GraphNode {
   id: string
   label: string
+  slug?: string   // entity/device slug used in NATS subjects
   type: 'device' | 'entity' | 'gateway' | 'bus'
   x?: number
   y?: number
@@ -99,7 +100,7 @@ function resolveSourceTarget(
     // Find target entity by slug
     let targetId: string | null = null
     for (const [id, node] of nodeMap) {
-      if (node.label === slug || id === slug) {
+      if (node.slug === slug || node.label === slug || id === slug) {
         targetId = id
         break
       }
@@ -112,7 +113,7 @@ function resolveSourceTarget(
   if (broadcastMatch) {
     const slug = broadcastMatch[2]
     for (const [id, node] of nodeMap) {
-      if (node.label === slug || id === slug) {
+      if (node.slug === slug || node.label === slug || id === slug) {
         return { source: id, target: null }
       }
     }
@@ -267,6 +268,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
           graphNodes.push({
             id: e.id,
             label: e.name || e.slug || e.id,
+            slug: e.slug,
             type: 'entity',
             activity: 0,
           })
@@ -428,12 +430,17 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       () => ({ subject: 'maestra.dmx.fixture.spot_c',       payload: { pan: Math.floor(Math.random() * 255), tilt: Math.floor(Math.random() * 255) } }),
     ]
 
-    // Also target real entity nodes if available
-    const entityNodes = nodes.filter(n => n.type === 'entity').slice(0, 6)
+    // Target all real entities using their slug (the actual NATS subject key)
+    const entityNodes = nodes.filter(n => n.type === 'entity' && (n.slug || n.label))
     entityNodes.forEach(entity => {
+      const subjectSlug = entity.slug || entity.label
+      const sources = ['osc', 'mqtt', 'ws']
       TEMPLATES.push(() => ({
-        subject: `maestra.entity.state.update.${entity.label}`,
-        payload: { state: { brightness: +Math.random().toFixed(2), active: Math.random() > 0.3 }, source: 'mqtt' },
+        subject: `maestra.entity.state.update.${subjectSlug}`,
+        payload: {
+          state: { brightness: +Math.random().toFixed(2), active: Math.random() > 0.3 },
+          source: sources[Math.floor(Math.random() * sources.length)],
+        },
       }))
     })
 

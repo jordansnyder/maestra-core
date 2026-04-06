@@ -128,6 +128,10 @@ class DMXGroupEngine:
         # Cache: entity_id (str) → {slug, entity_type, path}
         self._entity_info: dict = {}
 
+        # Status publishing throttle (publish at most every 100ms)
+        self._last_status_publish: float = 0.0
+        self._status_publish_interval: float = 0.1  # 100ms = 10 Hz
+
     # ── Status ────────────────────────────────────────────────────────────────
 
     @property
@@ -145,6 +149,29 @@ class DMXGroupEngine:
             "interval_ms": round(self._send_interval * 1000),
             "fadeout_ms_on_complete": self._fadeout_ms_on_complete,
         }
+
+    async def publish_status(self, force: bool = False) -> None:
+        """Publish playback status to NATS for dashboard push updates.
+
+        Throttled to at most 10 Hz unless force=True (used on state transitions).
+        """
+        now = asyncio.get_event_loop().time()
+        if not force and (now - self._last_status_publish) < self._status_publish_interval:
+            return
+        self._last_status_publish = now
+
+        try:
+            nc = state_manager.nc
+            if nc and not nc.is_closed:
+                from datetime import datetime
+                payload = json.dumps({
+                    "type": "playback_status",
+                    "engines": [self.status],
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                }).encode()
+                await nc.publish("maestra.dmx.playback.status", payload)
+        except Exception as e:
+            logger.debug(f"Status publish failed: {e}")
 
     async def load_settings(self) -> None:
         """Load persisted settings from DB (called once at startup)."""
@@ -227,6 +254,7 @@ class DMXGroupEngine:
             active_cue_id=None,
         )
         self._task = asyncio.create_task(self._tick_loop())
+        await self.publish_status(force=True)
         return True
 
     async def pause(self):
@@ -241,6 +269,7 @@ class DMXGroupEngine:
         self._task = None
         self._paused_elapsed += asyncio.get_event_loop().time() - self._phase_start
         self._play_state = 'paused'
+        await self.publish_status(force=True)
 
     async def resume(self):
         if self._play_state != 'paused':
@@ -248,6 +277,7 @@ class DMXGroupEngine:
         self._play_state = 'playing'
         self._phase_start = asyncio.get_event_loop().time()
         self._task = asyncio.create_task(self._tick_loop())
+        await self.publish_status(force=True)
 
     async def stop(self):
         await self._cancel_tasks()
@@ -265,6 +295,7 @@ class DMXGroupEngine:
                 active_sequence_id=None,
                 active_cue_id=None,
             )
+        await self.publish_status(force=True)
 
     async def toggle_loop(self) -> bool:
         self._loop = not self._loop
@@ -348,6 +379,7 @@ class DMXGroupEngine:
         try:
             while self._play_state == 'playing':
                 await self._tick()
+                await self.publish_status()  # throttled to 10 Hz
                 await asyncio.sleep(self._send_interval)
         except asyncio.CancelledError:
             pass

@@ -7,6 +7,7 @@ Supports entity state updates via reserved OSC addresses and configurable mappin
 import asyncio
 import os
 import json
+import logging
 import re
 from datetime import datetime
 from pythonosc import dispatcher, osc_server, udp_client
@@ -14,6 +15,12 @@ from pythonosc.osc_server import AsyncIOOSCUDPServer
 import nats
 from nats.aio.client import Client as NATS
 import aiohttp
+
+logging.basicConfig(
+    level=os.getenv('LOG_LEVEL', 'INFO').upper(),
+    format='%(asctime)s %(levelname)s %(name)s: %(message)s',
+)
+logger = logging.getLogger('osc-gateway')
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -52,23 +59,23 @@ async def fetch_mappings_from_api():
         async with aiohttp.ClientSession() as session:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
                 if resp.status != 200:
-                    print(f"⚠️  Fleet Manager returned {resp.status} for OSC mappings")
+                    logger.warning("Fleet Manager returned %s for OSC mappings", resp.status)
                     return False
                 entries = await resp.json()
                 osc_mappings = {e['osc_address']: e for e in entries}
-                print(f"📋 Loaded {len(osc_mappings)} OSC mapping(s) from Fleet Manager API")
+                logger.info("Loaded %d OSC mapping(s) from Fleet Manager API", len(osc_mappings))
                 return True
     except Exception as e:
-        print(f"⚠️  Failed to fetch OSC mappings from API: {e}")
+        logger.warning("Failed to fetch OSC mappings from API: %s", e)
         return False
 
 
 async def reload_handler(msg):
     """Handle a hot-reload signal on maestra.config.osc.reload."""
-    print("🔄 Received OSC mappings reload signal")
+    logger.info("Received OSC mappings reload signal")
     success = await fetch_mappings_from_api()
     if not success:
-        print("⚠️  Reload failed — mappings unchanged")
+        logger.warning("Reload failed - mappings unchanged")
 
 
 def _load_mappings_from_file():
@@ -76,7 +83,7 @@ def _load_mappings_from_file():
     global osc_mappings
 
     if not os.path.exists(MAPPINGS_PATH):
-        print(f"📋 No OSC mappings file at {MAPPINGS_PATH} (optional)")
+        logger.info("No OSC mappings file at %s (optional)", MAPPINGS_PATH)
         return
 
     try:
@@ -87,9 +94,9 @@ def _load_mappings_from_file():
             addr = entry.get('osc_address')
             if addr:
                 osc_mappings[addr] = entry
-        print(f"📋 Loaded {len(osc_mappings)} OSC address mapping(s) from file")
+        logger.info("Loaded %d OSC address mapping(s) from file", len(osc_mappings))
     except Exception as e:
-        print(f"⚠️  Error loading OSC mappings from file: {e}")
+        logger.warning("Error loading OSC mappings from file: %s", e)
 
 
 async def load_osc_mappings():
@@ -101,15 +108,15 @@ async def load_osc_mappings():
     """
     delays = [2, 4, 8]
     for attempt, delay in enumerate(delays, start=1):
-        print(f"📋 Fetching OSC mappings from API (attempt {attempt}/{len(delays)})…")
+        logger.info("Fetching OSC mappings from API (attempt %d/%d)...", attempt, len(delays))
         success = await fetch_mappings_from_api()
         if success:
             return
         if attempt < len(delays):
-            print(f"   Retrying in {delay}s…")
+            logger.info("Retrying in %ds...", delay)
             await asyncio.sleep(delay)
 
-    print("📋 All API attempts failed — falling back to local mappings file")
+    logger.info("All API attempts failed - falling back to local mappings file")
     _load_mappings_from_file()
 
 
@@ -153,7 +160,7 @@ def build_entity_state_from_reserved(parts: list, args: list):
     slug = parts[3]
 
     if not _SLUG_RE.match(slug):
-        print(f"⚠️  Invalid entity slug in OSC address: {slug}")
+        logger.warning("Invalid entity slug in OSC address: %s", slug)
         return None
 
     # Format A: single-key shorthand  /entity/update/<slug>/<key>[/<subkey>...]
@@ -185,7 +192,7 @@ def build_entity_state_from_reserved(parts: list, args: list):
         if state:
             return operation, slug, {"state": state, "source": "osc"}
 
-    print(f"⚠️  Entity OSC address recognized but args format unrecognized: {args}")
+    logger.warning("Entity OSC address recognized but args format unrecognized: %s", args)
     return None
 
 
@@ -257,8 +264,8 @@ def build_entity_state_from_mapping(address: str, args: list):
         # Multiple non-kv args → list
         return operation, slug, {"state": {"values": list(args)}, "source": "osc"}
 
-    print(f"⚠️  Mapping for {address} matched but no valid payload — "
-          f"state_key={state_key!r}, state_keys={state_keys!r}, args={args}")
+    logger.warning("Mapping for %s matched but no valid payload - "
+                    "state_key=%r, state_keys=%r, args=%s", address, state_key, state_keys, args)
     return None
 
 
@@ -287,10 +294,10 @@ async def _osc_handler_async(address: str, *args):
     2. Check for configured address mappings
     3. Always publish to maestra.osc.* for backward compatibility
     """
-    print(f"📨 OSC received: {address} {args}")
+    logger.debug("OSC received: %s %s", address, args)
 
     if nc is None:
-        print("⚠️  NATS not connected, skipping message")
+        logger.warning("NATS not connected, skipping message")
         return
 
     # --- Entity state: reserved address ---
@@ -301,9 +308,9 @@ async def _osc_handler_async(address: str, *args):
         entity_subject = f"maestra.entity.state.{operation}.{slug}"
         try:
             await nc.publish(entity_subject, json.dumps(payload).encode())
-            print(f"✅ Entity state {operation} → {entity_subject}")
+            logger.debug("Entity state %s -> %s", operation, entity_subject)
         except Exception as e:
-            print(f"❌ Error publishing entity state: {e}")
+            logger.error("Error publishing entity state: %s", e)
 
     # --- Entity state: address mapping ---
     if not entity_result and osc_mappings:
@@ -313,9 +320,9 @@ async def _osc_handler_async(address: str, *args):
             entity_subject = f"maestra.entity.state.{operation}.{slug}"
             try:
                 await nc.publish(entity_subject, json.dumps(payload).encode())
-                print(f"✅ Mapped entity state {operation} → {entity_subject}")
+                logger.debug("Mapped entity state %s -> %s", operation, entity_subject)
             except Exception as e:
-                print(f"❌ Error publishing mapped entity state: {e}")
+                logger.error("Error publishing mapped entity state: %s", e)
 
     # --- Always publish to maestra.osc.* (existing behavior) ---
     message = {
@@ -328,9 +335,9 @@ async def _osc_handler_async(address: str, *args):
 
     try:
         await nc.publish(nats_subject, json.dumps(message).encode())
-        print(f"✅ Published to NATS: {nats_subject}")
+        logger.debug("Published to NATS: %s", nats_subject)
     except Exception as e:
-        print(f"❌ Error publishing to NATS: {e}")
+        logger.error("Error publishing to NATS: %s", e)
 
 
 def osc_handler(address: str, *args):
@@ -343,7 +350,7 @@ def osc_handler(address: str, *args):
         loop = asyncio.get_running_loop()
         loop.create_task(_osc_handler_async(address, *args))
     except Exception as e:
-        print(f"❌ Error scheduling OSC handler: {e}")
+        logger.error("Error scheduling OSC handler: %s", e)
 
 
 # ---------------------------------------------------------------------------
@@ -358,7 +365,7 @@ async def nats_to_osc_handler(msg):
     subject = msg.subject
     data = json.loads(msg.data.decode())
 
-    print(f"📨 NATS received: {subject}")
+    logger.debug("NATS received: %s", subject)
 
     osc_address = data.get('address', '/')
     osc_values = data.get('values', [])
@@ -367,14 +374,14 @@ async def nats_to_osc_handler(msg):
     if osc_client:
         try:
             osc_client.send_message(osc_address, osc_values)
-            print(f"✅ Sent OSC to {osc_target}: {osc_address} {osc_values}")
+            logger.debug("Sent OSC to %s: %s %s", osc_target, osc_address, osc_values)
         except Exception as e:
-            print(f"❌ Error sending OSC: {e}")
+            logger.error("Error sending OSC: %s", e)
 
 
 async def entity_state_to_osc_handler(msg):
     """
-    Handle entity state broadcasts (maestra.entity.state.>) and send as OSC
+    Handle entity state broadcasts (maestra.entity.state.*.*) and send as OSC
     to all configured OSC_TARGETS.
     """
     if not osc_target_clients:
@@ -403,7 +410,7 @@ async def entity_state_to_osc_handler(msg):
                 try:
                     client.send_message(osc_address, [value])
                 except Exception as e:
-                    print(f"❌ Error sending OSC state key: {e}")
+                    logger.error("Error sending OSC state key: %s", e)
 
     # Send full-state message
     full_address = f"/entity/state/{entity_type}/{slug}"
@@ -412,7 +419,7 @@ async def entity_state_to_osc_handler(msg):
         try:
             client.send_message(full_address, [full_payload])
         except Exception as e:
-            print(f"❌ Error sending OSC full state: {e}")
+            logger.error("Error sending OSC full state: %s", e)
 
 
 # ---------------------------------------------------------------------------
@@ -423,7 +430,7 @@ async def connect_nats():
     """Connect to NATS message bus"""
     global nc
     nc = await nats.connect(NATS_URL)
-    print(f"✅ Connected to NATS at {NATS_URL}")
+    logger.info("Connected to NATS at %s", NATS_URL)
 
 
 async def init_osc_server():
@@ -438,7 +445,7 @@ async def init_osc_server():
     )
 
     transport, protocol = await server.create_serve_endpoint()
-    print(f"🎛️  OSC Server listening on 0.0.0.0:{OSC_IN_PORT}")
+    logger.info("OSC Server listening on 0.0.0.0:%d", OSC_IN_PORT)
     return transport
 
 
@@ -446,7 +453,7 @@ async def init_osc_client():
     """Initialize OSC client for sending messages (maestra.to_osc.*)"""
     global osc_client
     osc_client = udp_client.SimpleUDPClient("127.0.0.1", OSC_OUT_PORT)
-    print(f"📡 OSC Client ready to send on port {OSC_OUT_PORT}")
+    logger.info("OSC Client ready to send on port %d", OSC_OUT_PORT)
 
 
 def init_osc_targets():
@@ -470,12 +477,12 @@ def init_osc_targets():
                 port = OSC_OUT_PORT
             client = udp_client.SimpleUDPClient(ip, port)
             osc_target_clients.append(client)
-            print(f"📡 OSC target added: {ip}:{port}")
+            logger.info("OSC target added: %s:%d", ip, port)
         except Exception as e:
-            print(f"⚠️  Invalid OSC target '{entry}': {e}")
+            logger.warning("Invalid OSC target '%s': %s", entry, e)
 
     if osc_target_clients:
-        print(f"📡 {len(osc_target_clients)} OSC target(s) configured for entity state broadcasts")
+        logger.info("%d OSC target(s) configured for entity state broadcasts", len(osc_target_clients))
 
 
 async def subscribe_nats_to_osc():
@@ -485,18 +492,20 @@ async def subscribe_nats_to_osc():
 
     # Existing: explicit outbound via maestra.to_osc.*
     await nc.subscribe("maestra.to_osc.*", cb=nats_to_osc_handler)
-    print("📡 Subscribed to NATS: maestra.to_osc.*")
+    logger.info("Subscribed to NATS: maestra.to_osc.*")
 
     # Entity state broadcasts → OSC targets (only if targets are configured)
+    # Use *.* to match typed broadcasts (e.g. maestra.entity.state.light.my-entity)
+    # but NOT command subjects (e.g. maestra.entity.state.update.my-entity)
     if osc_target_clients:
-        await nc.subscribe("maestra.entity.state.>", cb=entity_state_to_osc_handler)
-        print("📡 Subscribed to NATS: maestra.entity.state.> (outbound to OSC targets)")
+        await nc.subscribe("maestra.entity.state.*.*", cb=entity_state_to_osc_handler)
+        logger.info("Subscribed to NATS: maestra.entity.state.*.* (outbound to OSC targets)")
 
 
 async def main():
     """Main gateway loop"""
 
-    print("🚀 Starting Maestra OSC Gateway...")
+    logger.info("Starting Maestra OSC Gateway...")
 
     # Load optional address mappings (tries Fleet Manager API first, then file)
     await load_osc_mappings()
@@ -509,7 +518,7 @@ async def main():
 
     # Subscribe to hot-reload signal for OSC mappings
     await nc.subscribe("maestra.config.osc.reload", cb=reload_handler)
-    print("📡 Subscribed to NATS: maestra.config.osc.reload (hot-reload)")
+    logger.info("Subscribed to NATS: maestra.config.osc.reload (hot-reload)")
 
     # Initialize OSC client for maestra.to_osc.* outbound
     await init_osc_client()
@@ -520,31 +529,31 @@ async def main():
     # Start OSC server
     transport = await init_osc_server()
 
-    print("\n✅ OSC Gateway ready!")
-    print(f"   Receiving OSC on UDP port {OSC_IN_PORT}")
-    print(f"   Sending OSC on UDP port {OSC_OUT_PORT}")
-    print(f"   Connected to NATS at {NATS_URL}")
+    logger.info("OSC Gateway ready!")
+    logger.info("  Receiving OSC on UDP port %d", OSC_IN_PORT)
+    logger.info("  Sending OSC on UDP port %d", OSC_OUT_PORT)
+    logger.info("  Connected to NATS at %s", NATS_URL)
 
     if osc_mappings:
-        print(f"   {len(osc_mappings)} address mapping(s) loaded")
+        logger.info("  %d address mapping(s) loaded", len(osc_mappings))
 
     if osc_target_clients:
-        print(f"   {len(osc_target_clients)} outbound target(s) for entity state")
+        logger.info("  %d outbound target(s) for entity state", len(osc_target_clients))
 
-    print("\n📚 Entity State via OSC:")
-    print("   /entity/update/<slug>/<key> <value>    → update entity state")
-    print("   /entity/set/<slug>/<key> <value>        → replace entity state")
-    print("   /entity/update/<slug> key val key val   → multi-key update")
+    logger.info("Entity State via OSC:")
+    logger.info("  /entity/update/<slug>/<key> <value>    -> update entity state")
+    logger.info("  /entity/set/<slug>/<key> <value>        -> replace entity state")
+    logger.info("  /entity/update/<slug> key val key val   -> multi-key update")
 
-    print("\n📚 Generic OSC:")
-    print(f"   TouchDesigner: Send OSC to this gateway's IP on port {OSC_IN_PORT}")
-    print(f"   Max/MSP: [udpsend] to this gateway's IP on port {OSC_IN_PORT}")
+    logger.info("Generic OSC:")
+    logger.info("  TouchDesigner: Send OSC to this gateway's IP on port %d", OSC_IN_PORT)
+    logger.info("  Max/MSP: [udpsend] to this gateway's IP on port %d", OSC_IN_PORT)
 
     # Keep running
     try:
         await asyncio.Event().wait()
     except KeyboardInterrupt:
-        print("\n👋 Shutting down OSC Gateway...")
+        logger.info("Shutting down OSC Gateway...")
     finally:
         transport.close()
         if nc:

@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { DMXSequence } from '@/lib/types'
 import { playbackApi } from '@/lib/api'
+import { subscribeToWsMessages } from '@/hooks/useWebSocket'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,12 +51,19 @@ function parseStatus(s: RawEngineStatus): SequencePlaybackStatus {
   }
 }
 
+// Fallback polling interval when WebSocket push is unavailable
+const POLL_FALLBACK_INTERVAL = 500
+// Time without a WS push message before falling back to polling
+const WS_TIMEOUT_MS = 5000
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useSequencePlayback() {
   // Key: group_id string | null (null = ungrouped/legacy engine)
   const [statusMap, setStatusMap] = useState<Map<string | null, SequencePlaybackStatus>>(new Map())
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const lastWsPushRef = useRef<number>(0)
+  const wsActiveRef = useRef<boolean>(false)
 
   /** Set of group IDs (including null for ungrouped) that have non-stopped playback. */
   const activeGroupIds = useMemo<Set<string | null>>(() => {
@@ -82,7 +90,16 @@ export function useSequencePlayback() {
 
   const startPolling = useCallback(() => {
     if (pollRef.current !== null) return
+    // If WebSocket push is active and recent, don't start polling
+    if (wsActiveRef.current && Date.now() - lastWsPushRef.current < WS_TIMEOUT_MS) {
+      return
+    }
     pollRef.current = setInterval(async () => {
+      // Stop polling if WS push has taken over
+      if (wsActiveRef.current && Date.now() - lastWsPushRef.current < WS_TIMEOUT_MS) {
+        stopPolling()
+        return
+      }
       try {
         const result = await playbackApi.getAllStatuses()
         const next = new Map<string | null, SequencePlaybackStatus>()
@@ -97,8 +114,53 @@ export function useSequencePlayback() {
       } catch {
         // silently ignore transient poll errors
       }
-    }, 150)
+    }, POLL_FALLBACK_INTERVAL)
   }, [stopPolling])
+
+  // Subscribe to WebSocket push messages for playback status
+  useEffect(() => {
+    const unsub = subscribeToWsMessages((msg) => {
+      if (msg.subject !== 'maestra.dmx.playback.status') return
+      const data = msg.data
+      if (!data || data.type !== 'playback_status' || !Array.isArray(data.engines)) return
+
+      lastWsPushRef.current = Date.now()
+      wsActiveRef.current = true
+
+      const next = new Map<string | null, SequencePlaybackStatus>()
+      for (const engine of data.engines) {
+        next.set(engine.group_id ?? null, parseStatus(engine))
+      }
+      setStatusMap(next)
+
+      // If WS push is active, stop polling
+      stopPolling()
+
+      // Check if all engines idle
+      const allIdle = data.engines.every(
+        (e: RawEngineStatus) => e.play_state === 'stopped' && e.phase === 'idle',
+      )
+      if (allIdle) {
+        wsActiveRef.current = false
+      }
+    })
+
+    return unsub
+  }, [stopPolling])
+
+  // Fallback: if WS push stops arriving while engines are active, restart polling
+  useEffect(() => {
+    if (activeGroupIds.size === 0) return
+
+    const check = setInterval(() => {
+      if (!wsActiveRef.current || Date.now() - lastWsPushRef.current > WS_TIMEOUT_MS) {
+        wsActiveRef.current = false
+        startPolling()
+      }
+    }, WS_TIMEOUT_MS)
+
+    return () => clearInterval(check)
+  }, [activeGroupIds.size, startPolling])
 
   const play = useCallback(
     async (sequence: DMXSequence) => {
@@ -117,7 +179,8 @@ export function useSequencePlayback() {
         })
         return next
       })
-      startPolling()
+      // WS push should arrive shortly; start polling as fallback
+      if (!wsActiveRef.current) startPolling()
     },
     [startPolling],
   )
@@ -141,7 +204,7 @@ export function useSequencePlayback() {
         next.set(groupId, { ...cur, playState: 'playing' })
         return next
       })
-      startPolling()
+      if (!wsActiveRef.current) startPolling()
     },
     [startPolling],
   )
@@ -153,7 +216,6 @@ export function useSequencePlayback() {
       next.set(groupId, { ...INITIAL_STATUS })
       return next
     })
-    // Polling will naturally stop once all engines report idle
   }, [])
 
   const toggleLoop = useCallback(async (groupId: string | null) => {

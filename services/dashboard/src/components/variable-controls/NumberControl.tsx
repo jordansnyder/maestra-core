@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import type { VariableDefinition } from '@/lib/types'
 
 interface NumberControlProps {
@@ -18,6 +19,21 @@ export function NumberControl({ variable, value, onChange, disabled, compact }: 
   const unit = config.unit as string | undefined
 
   const numValue = typeof value === 'number' ? value : (variable.defaultValue as number) ?? 0
+  const [localValue, setLocalValue] = useState(String(numValue))
+
+  useEffect(() => {
+    setLocalValue(String(numValue))
+  }, [numValue])
+
+  const commit = () => {
+    const parsed = parseFloat(localValue)
+    if (!isNaN(parsed) && parsed !== numValue) onChange(parsed)
+    else setLocalValue(String(numValue))
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') commit()
+  }
 
   if (compact) {
     const decrement = () => {
@@ -38,12 +54,15 @@ export function NumberControl({ variable, value, onChange, disabled, compact }: 
           -
         </button>
         <input
-          type="number"
-          value={numValue}
+          type="text"
+          inputMode="numeric"
+          value={localValue}
           min={min}
           max={max}
           step={step}
-          onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+          onChange={(e) => setLocalValue(e.target.value)}
+          onBlur={commit}
+          onKeyDown={handleKeyDown}
           disabled={disabled}
           className="w-20 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs font-mono text-center focus:outline-none focus:border-blue-500 disabled:opacity-50"
         />
@@ -79,12 +98,12 @@ export function NumberControl({ variable, value, onChange, disabled, compact }: 
         -
       </button>
       <input
-        type="number"
-        value={numValue}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        type="text"
+        inputMode="numeric"
+        value={localValue}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={handleKeyDown}
         disabled={disabled}
         className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-center font-mono text-lg focus:outline-none focus:border-blue-500 disabled:opacity-50"
       />

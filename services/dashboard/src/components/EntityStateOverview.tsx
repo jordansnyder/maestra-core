@@ -32,13 +32,6 @@ const TYPE_COLORS: Record<string, string> = {
   object: 'bg-slate-500/20 text-slate-300',
 }
 
-function humanizeKey(key: string): string {
-  return key
-    .replace(/_/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
 function inferType(value: unknown): VariableType {
   if (typeof value === 'boolean') return 'boolean'
   if (typeof value === 'number') return 'number'
@@ -134,8 +127,8 @@ export function EntityStateOverview({ entity, onStateChange }: EntityStateOvervi
   }
 
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-      <div className="flex items-center justify-between mb-5">
+    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 sm:p-6">
+      <div className="flex items-center justify-between mb-4 sm:mb-5">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold">State</h2>
           <span className="text-xs text-slate-500">
@@ -153,7 +146,7 @@ export function EntityStateOverview({ entity, onStateChange }: EntityStateOvervi
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="divide-y divide-slate-700/50">
         {stateEntries.map(([key, value]) => {
           const variable = getVariableForKey(key, value)
           const isUpdating = updating === key
@@ -162,23 +155,38 @@ export function EntityStateOverview({ entity, onStateChange }: EntityStateOvervi
           return (
             <div
               key={key}
-              className={`p-4 bg-slate-900/50 rounded-lg border border-slate-700/50 ${
-                isUpdating ? 'ring-2 ring-blue-500/50' : ''
-              } ${wide ? 'sm:col-span-2 lg:col-span-3' : ''}`}
+              className={`${isUpdating ? 'bg-blue-500/5' : ''}`}
             >
-              <div className="flex items-center gap-2 mb-3">
-                <span className="font-medium text-sm">{humanizeKey(key)}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${TYPE_COLORS[variable.type] || 'bg-slate-700 text-slate-400'}`}>
-                  {variable.type}
-                </span>
-                {isUpdating && (
-                  <span className="text-xs text-blue-400 animate-pulse">saving...</span>
-                )}
-              </div>
-              {variable.description && (
-                <p className="text-xs text-slate-500 mb-2">{variable.description}</p>
+              {wide ? (
+                <div className="px-4 py-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-mono text-sm text-slate-200">{key}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${TYPE_COLORS[variable.type] || 'bg-slate-700 text-slate-400'}`}>
+                      {variable.type}
+                    </span>
+                    {isUpdating && (
+                      <span className="text-xs text-blue-400 animate-pulse">saving...</span>
+                    )}
+                  </div>
+                  {variable.description && (
+                    <p className="text-xs text-slate-500 mb-2">{variable.description}</p>
+                  )}
+                  {renderControl(variable, value, key)}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 h-[44px]">
+                  <span className="font-mono text-sm text-slate-200 truncate w-28 sm:w-44 shrink-0" title={key}>{key}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono shrink-0 ${TYPE_COLORS[variable.type] || 'bg-slate-700 text-slate-400'}`}>
+                    {variable.type}
+                  </span>
+                  <div className="flex-1 flex items-center min-w-0">
+                    {renderControl(variable, value, key)}
+                  </div>
+                  {isUpdating && (
+                    <span className="text-xs text-blue-400 animate-pulse shrink-0">saving...</span>
+                  )}
+                </div>
               )}
-              {renderControl(variable, value, key)}
             </div>
           )
         })}

@@ -20,17 +20,42 @@ export function NumberControl({ variable, value, onChange, disabled, compact }: 
   const numValue = typeof value === 'number' ? value : (variable.defaultValue as number) ?? 0
 
   if (compact) {
+    const decrement = () => {
+      const newValue = numValue - step
+      if (min === undefined || newValue >= min) onChange(newValue)
+    }
+    const increment = () => {
+      const newValue = numValue + step
+      if (max === undefined || newValue <= max) onChange(newValue)
+    }
     return (
-      <input
-        type="number"
-        value={numValue}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        disabled={disabled}
-        className="w-20 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs font-mono text-center focus:outline-none focus:border-blue-500 disabled:opacity-50"
-      />
+      <div className="flex items-center gap-1">
+        <button
+          onClick={decrement}
+          disabled={disabled || (min !== undefined && numValue <= min)}
+          className="w-6 h-6 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded text-xs font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+        >
+          -
+        </button>
+        <input
+          type="number"
+          value={numValue}
+          min={min}
+          max={max}
+          step={step}
+          onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+          disabled={disabled}
+          className="w-20 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs font-mono text-center focus:outline-none focus:border-blue-500 disabled:opacity-50"
+        />
+        <button
+          onClick={increment}
+          disabled={disabled || (max !== undefined && numValue >= max)}
+          className="w-6 h-6 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded text-xs font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+        >
+          +
+        </button>
+        {unit && <span className="text-slate-500 text-xs ml-1">{unit}</span>}
+      </div>
     )
   }
 

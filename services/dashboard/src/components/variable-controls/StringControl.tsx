@@ -37,7 +37,7 @@ export function StringControl({ variable, value, onChange, disabled, compact }: 
         maxLength={maxLength}
         disabled={disabled}
         placeholder={variable.description || '...'}
-        className="w-32 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs focus:outline-none focus:border-blue-500 disabled:opacity-50"
+        className="flex-1 min-w-0 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs focus:outline-none focus:border-blue-500 disabled:opacity-50"
       />
     )
   }

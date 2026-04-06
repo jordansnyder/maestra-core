@@ -255,7 +255,7 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
   const { lastMessage, subscribe, isConnected } = useWebSocket()
 
   useEffect(() => {
-    if (isConnected) subscribe('maestra.entity.state')
+    if (isConnected) subscribe('maestra.entity.state.>')
   }, [isConnected, subscribe])
 
   useEffect(() => {

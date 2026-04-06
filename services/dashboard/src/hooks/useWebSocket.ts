@@ -91,7 +91,13 @@ class WsManager {
     }
 
     this.ws.onerror = () => {
-      console.error('WebSocket error')
+      // Connection errors are expected on initial page load if the gateway
+      // isn't ready yet. The onclose handler will schedule a reconnect.
+      if (!this.connected) {
+        console.debug('WebSocket connection failed (will retry)')
+      } else {
+        console.error('WebSocket error')
+      }
     }
 
     this.ws.onclose = () => {

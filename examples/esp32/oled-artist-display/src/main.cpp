@@ -541,12 +541,13 @@ void loop() {
       maestra.subscribeEntity(resolvedEntitySlug);
       Serial.println("Reconnected");
 
+      // Always return immediately after reconnect so loop() can service
+      // MQTT keepalives. The MQTT subscription will deliver current state.
+      // Only fetch via HTTP on initial boot (in setup), never on reconnect.
       if (artistName[0] != '\0') {
         displayDirty = true;
-      } else {
-        fetchEntityState();
       }
-      return;  // Don't delay — let loop() run keepalives immediately
+      return;
     }
     delay(5000);  // Only delay on failed reconnect
     return;

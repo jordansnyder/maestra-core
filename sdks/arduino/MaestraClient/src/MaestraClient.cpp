@@ -117,6 +117,7 @@ bool MaestraClient::connect() {
     _mqtt.setServer(_broker, _port);
     _mqtt.setCallback(mqttCallback);
     _mqtt.setBufferSize(MAESTRA_JSON_BUFFER_SIZE);
+    _mqtt.setKeepAlive(60);  // 60s keepalive (default 15s is too aggressive for IoT)
 
     bool connected;
     if (_hasCredentials) {

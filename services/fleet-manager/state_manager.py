@@ -17,6 +17,12 @@ import nats
 from nats.aio.client import Client as NATS
 import paho.mqtt.client as mqtt
 
+from redis_client import (
+    get_cached_entity_metadata,
+    cache_entity_metadata,
+    invalidate_entity_state_cache
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -211,25 +217,27 @@ class StateManager:
             return
 
         try:
-            # Check entity cache first
-            cached = self._entity_cache.get(slug)
-
             async with async_session_maker() as db:
-                if cached:
-                    # Cache hit: only read current state from DB (skip join)
+                # Try Redis cache first (faster than in-memory for distributed systems)
+                cached_meta = await get_cached_entity_metadata(slug)
+
+                if cached_meta:
+                    # Redis cache hit: use cached metadata
+                    entity_type_name = cached_meta["entity_type"]
+                    entity_path = cached_meta["entity_path"]
+                    entity_metadata = cached_meta["entity_metadata"]
+                    device_id = cached_meta["device_id"]
+
+                    # Only read current state from DB (skip join, use entity_id)
                     result = await db.execute(
-                        select(EntityDB).where(EntityDB.id == cached.entity_id)
+                        select(EntityDB).where(EntityDB.id == UUID(cached_meta["entity_id"]))
                     )
                     db_entity = result.scalar_one_or_none()
                     if not db_entity:
                         # Entity was deleted; invalidate cache
-                        self._entity_cache.pop(slug, None)
-                        logger.warning(f"State update: cached entity '{slug}' no longer exists")
+                        await invalidate_entity_state_cache(slug)
+                        logger.warning(f"State update: entity '{slug}' no longer exists")
                         return
-                    entity_type_name = cached.entity_type
-                    entity_path = cached.entity_path
-                    entity_metadata = cached.entity_metadata
-                    device_id = cached.device_id
                 else:
                     # Cache miss: full lookup with join
                     result = await db.execute(
@@ -249,13 +257,14 @@ class StateManager:
                     entity_metadata = db_entity.entity_metadata
                     device_id = db_entity.device_id
 
-                    # Populate cache
-                    self._entity_cache[slug] = EntityCacheEntry(
+                    # Populate Redis cache for future lookups
+                    await cache_entity_metadata(
+                        slug=slug,
                         entity_id=db_entity.id,
                         entity_type=entity_type_name,
                         entity_path=entity_path,
                         entity_metadata=entity_metadata,
-                        device_id=device_id,
+                        device_id=device_id
                     )
 
                 previous_state = db_entity.state or {}

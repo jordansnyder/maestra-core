@@ -13,6 +13,7 @@ from datetime import datetime
 import re
 import json
 import logging
+import asyncio
 
 from database import get_db, EntityDB, EntityTypeDB
 from models import (
@@ -26,6 +27,12 @@ from models import (
 )
 from state_manager import state_manager
 from analytics_router import get_verbosity_for_entity
+from redis_client import (
+    get_cached_entity_state,
+    invalidate_entity_state_cache,
+    cache_entity_metadata,
+    get_cached_entity_metadata
+)
 
 logger = logging.getLogger(__name__)
 
@@ -372,6 +379,19 @@ async def create_entity(
     await db.refresh(db_entity)
 
     response = entity_db_to_response(db_entity, entity_type)
+
+    # Cache the new entity state in Redis
+    await cache_entity_state(slug, initial_state)
+
+    # Cache entity metadata for fast slug lookups
+    await cache_entity_metadata(
+        slug=slug,
+        entity_id=db_entity.id,
+        entity_type=entity_type.name,
+        entity_path=db_entity.path,
+        entity_metadata=db_entity.entity_metadata,
+        device_id=db_entity.device_id
+    )
 
     # Broadcast lifecycle event
     await state_manager.broadcast_entity_lifecycle(
@@ -871,6 +891,9 @@ async def update_entity(
 
     response = entity_db_to_response(db_entity, entity_type)
 
+    # Invalidate entity state cache (metadata changed)
+    await invalidate_entity_state_cache(db_entity.slug)
+
     # Broadcast lifecycle event
     await state_manager.broadcast_entity_lifecycle(
         "updated",
@@ -922,6 +945,9 @@ async def delete_entity(
     # Delete the entity itself
     await db.execute(delete(EntityDB).where(EntityDB.id == entity_id))
     await db.commit()
+
+    # Invalidate cache for deleted entity
+    await invalidate_entity_state_cache(db_entity.slug)
 
     # Broadcast lifecycle event
     await state_manager.broadcast_entity_lifecycle(
@@ -1118,13 +1144,41 @@ async def get_state(
     paths: Optional[List[str]] = Query(None, description="JSON paths to return"),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get entity state"""
+    """Get entity state with Redis caching"""
     result = await db.execute(select(EntityDB).where(EntityDB.id == entity_id))
     entity = result.scalar_one_or_none()
 
     if not entity:
         raise HTTPException(status_code=404, detail="Entity not found")
 
+    # Try Redis cache first (by slug lookup)
+    slug = entity.slug
+    cached_state = await get_cached_entity_state(slug)
+    if cached_state is not None:
+        state = cached_state
+        # Still apply path filtering if requested
+        if paths:
+            filtered_state = {}
+            for path in paths:
+                keys = path.split('.')
+                value = state
+                for key in keys:
+                    if isinstance(value, dict) and key in value:
+                        value = value[key]
+                    else:
+                        value = None
+                        break
+                if value is not None:
+                    filtered_state[path] = value
+            state = filtered_state
+        return StateResponse(
+            entity_id=entity.id,
+            entity_slug=entity.slug,
+            state=state,
+            state_updated_at=entity.state_updated_at or datetime.utcnow()
+        )
+
+    # Cache miss: use database state
     state = entity.state or {}
 
     # Filter to specific paths if requested
@@ -1157,7 +1211,7 @@ async def update_state(
     update: StateUpdate,
     db: AsyncSession = Depends(get_db)
 ):
-    """Partial state update - merges with existing state"""
+    """Partial state update - merges with existing state with Redis caching"""
     result = await db.execute(
         select(EntityDB, EntityTypeDB)
         .join(EntityTypeDB, EntityDB.entity_type_id == EntityTypeDB.id)
@@ -1197,6 +1251,9 @@ async def update_state(
         source=update.source, device_id=db_entity.device_id
     )
 
+    # Cache updated state in Redis (slightly reduced TTL to ensure freshness)
+    await cache_entity_state(db_entity.slug, new_state)
+
     # Broadcast state change event with metadata for validation
     await state_manager.broadcast_state_change(
         entity_id=db_entity.id,
@@ -1223,7 +1280,7 @@ async def set_state(
     state_set: StateSet,
     db: AsyncSession = Depends(get_db)
 ):
-    """Replace entire entity state"""
+    """Replace entire entity state with Redis caching"""
     result = await db.execute(
         select(EntityDB, EntityTypeDB)
         .join(EntityTypeDB, EntityDB.entity_type_id == EntityTypeDB.id)
@@ -1251,6 +1308,9 @@ async def set_state(
         db_entity.path, previous_state, new_state,
         source=state_set.source, device_id=db_entity.device_id
     )
+
+    # Cache updated state in Redis (slightly reduced TTL to ensure freshness)
+    await cache_entity_state(db_entity.slug, new_state)
 
     # Broadcast state change event with metadata for validation
     await state_manager.broadcast_state_change(
@@ -1296,7 +1356,7 @@ async def bulk_update_state(
     source: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Update state for multiple entities by slug"""
+    """Update state for multiple entities by slug with Redis caching"""
     results = {}
 
     for slug, state_update in updates.items():
@@ -1333,6 +1393,9 @@ async def bulk_update_state(
                 db_entity.path, previous_state, new_state,
                 source=source, device_id=db_entity.device_id
             )
+
+            # Cache updated state in Redis (async, non-blocking)
+            asyncio.create_task(cache_entity_state(db_entity.slug, new_state))
 
             # Broadcast with metadata for validation
             await state_manager.broadcast_state_change(

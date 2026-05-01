@@ -33,17 +33,23 @@ class WsManager {
   /** Increment ref-count; opens the connection when first caller mounts. */
   ref() {
     this.refCount++
-    if (this.refCount === 1) this._connect()
+    console.log('[WsManager] ref() called, refCount:', this.refCount)
+    if (this.refCount === 1) {
+      console.log('[WsManager] First caller, initiating connection')
+      this._connect()
+    }
   }
 
   /** Decrement ref-count; closes the connection when last caller unmounts. */
   unref() {
     this.refCount = Math.max(0, this.refCount - 1)
+    console.log('[WsManager] unref() called, refCount:', this.refCount)
     if (this.refCount === 0) {
       if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
       this.ws?.close()
       this.ws = null
       this.connected = false
+      console.log('[WsManager] Last caller, connection closed')
     }
   }
 
@@ -55,38 +61,55 @@ class WsManager {
 
   /** Subscribe to incoming messages. Returns an unsubscribe function. */
   onMessage(cb: MsgListener): () => void {
+    console.log('[WsManager] onMessage() called, msgListeners count:', this.msgListeners.size + 1)
     this.msgListeners.add(cb)
-    return () => this.msgListeners.delete(cb)
+    return () => {
+      this.msgListeners.delete(cb)
+      console.log('[WsManager] onMessage() cleanup, msgListeners count:', this.msgListeners.size)
+    }
   }
 
   /** Subscribe to connection state changes. Returns an unsubscribe function. */
   onConnectionChange(cb: ConnListener): () => void {
+    console.log('[WsManager] onConnectionChange() called, connListeners count:', this.connListeners.size + 1)
     this.connListeners.add(cb)
-    return () => this.connListeners.delete(cb)
+    return () => {
+      this.connListeners.delete(cb)
+      console.log('[WsManager] onConnectionChange() cleanup, connListeners count:', this.connListeners.size)
+    }
   }
 
   private _connect() {
     if (this.ws?.readyState === WebSocket.OPEN ||
-        this.ws?.readyState === WebSocket.CONNECTING) return
+        this.ws?.readyState === WebSocket.CONNECTING) {
+      console.log('[WsManager] Already connecting or connected, skipping')
+      return
+    }
 
+    console.log('[WsManager] Creating new WebSocket connection to:', this.url)
     try {
       this.ws = new WebSocket(this.url)
-    } catch {
+      console.log('[WsManager] WebSocket instance created')
+    } catch (err) {
+      console.error('[WsManager] Failed to create WebSocket:', err)
       return
     }
 
     this.ws.onopen = () => {
-      console.log('WebSocket connected')
+      console.log('[WsManager] WebSocket connected')
       this.connected = true
+      console.log('[WsManager] Notifying', this.connListeners.size, 'connection listeners')
       this.connListeners.forEach(cb => cb(true))
     }
 
     this.ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data) as WebSocketMessage
+        console.log('[WsManager] Received message, type:', msg.type, 'subject:', msg.subject)
+        console.log('[WsManager] Notifying', this.msgListeners.size, 'message listeners')
         this.msgListeners.forEach(cb => cb(msg))
       } catch (err) {
-        console.error('Failed to parse WebSocket message:', err)
+        console.error('[WsManager] Failed to parse WebSocket message:', err)
       }
     }
 
@@ -94,19 +117,22 @@ class WsManager {
       // Connection errors are expected on initial page load if the gateway
       // isn't ready yet. The onclose handler will schedule a reconnect.
       if (!this.connected) {
-        console.debug('WebSocket connection failed (will retry)')
+        console.debug('[WsManager] WebSocket connection failed (will retry)')
       } else {
-        console.error('WebSocket error')
+        console.error('[WsManager] WebSocket error')
       }
     }
 
     this.ws.onclose = () => {
-      console.log('WebSocket disconnected')
+      console.log('[WsManager] WebSocket disconnected')
       this.connected = false
+      console.log('[WsManager] Notifying', this.connListeners.size, 'connection listeners')
       this.connListeners.forEach(cb => cb(false))
       if (this.refCount > 0) {
-        console.log('Attempting to reconnect...')
+        console.log('[WsManager] refCount > 0, scheduling reconnect in 5s')
         this.reconnectTimer = setTimeout(() => this._connect(), 5000)
+      } else {
+        console.log('[WsManager] refCount === 0, not reconnecting')
       }
     }
   }
@@ -177,9 +203,23 @@ export function useWebSocket(autoConnect = true) {
  * Returns an unsubscribe function suitable for use as a useEffect cleanup.
  */
 export function subscribeToWsMessages(cb: MsgListener): () => void {
-  return wsManager?.onMessage(cb) ?? (() => {})
+  if (!wsManager) {
+    console.warn('[subscribeToWsMessages] wsManager is null (SSR or not on browser)')
+    return () => {}
+  }
+  console.log('[subscribeToWsMessages] Called from caller')
+  const unsub = wsManager.onMessage(cb)
+  console.log('[subscribeToWsMessages] Returning unsubscribe function')
+  return unsub
 }
 
 export function subscribeToWsConnection(cb: ConnListener): () => void {
-  return wsManager?.onConnectionChange(cb) ?? (() => {})
+  if (!wsManager) {
+    console.warn('[subscribeToWsConnection] wsManager is null (SSR or not on browser)')
+    return () => {}
+  }
+  console.log('[subscribeToWsConnection] Called from caller')
+  const unsub = wsManager.onConnectionChange(cb)
+  console.log('[subscribeToWsConnection] Returning unsubscribe function')
+  return unsub
 }

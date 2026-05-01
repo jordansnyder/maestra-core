@@ -370,12 +370,20 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   // Process incoming WebSocket messages via direct callback — bypasses React
   // state so incoming messages never trigger a re-render of this provider tree.
   useEffect(() => {
-    return subscribeToWsMessages((lastMessage: WebSocketMessage) => {
+    const unsubscribe = subscribeToWsMessages((lastMessage: WebSocketMessage) => {
+      console.log('[ConsoleProvider] Received message from subscription:', lastMessage.type, lastMessage.subject)
+
       // Filter out gateway control messages
       if (lastMessage.type === 'error' || lastMessage.type === 'welcome' ||
-          lastMessage.type === 'ack'   || lastMessage.type === 'pong') return
+          lastMessage.type === 'ack'   || lastMessage.type === 'pong') {
+        console.log('[ConsoleProvider] Filtering out control message:', lastMessage.type)
+        return
+      }
 
-      if (lastMessage.type !== 'message' || !lastMessage.subject) return
+      if (lastMessage.type !== 'message' || !lastMessage.subject) {
+        console.log('[ConsoleProvider] Filtering non-message or no subject')
+        return
+      }
 
       const subject = lastMessage.subject
 
@@ -426,7 +434,9 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
 
   // Track connection state changes for divider rows (via direct callback)
   useEffect(() => {
-    return subscribeToWsConnection((connected: boolean) => {
+    console.log('[ConsoleProvider] Setting up connection subscription')
+    const unsubscribe = subscribeToWsConnection((connected: boolean) => {
+      console.log('[ConsoleProvider] Connection state changed:', connected)
       setIsConnected(connected)
       if (connected && !wasConnectedRef.current) {
         addMessage({

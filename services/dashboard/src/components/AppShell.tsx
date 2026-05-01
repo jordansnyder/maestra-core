@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Sidebar } from './Sidebar'
 import { useOnboarding } from '@/hooks/useOnboarding'
 import { useSystemHealth } from '@/hooks/useSystemHealth'
@@ -29,7 +29,19 @@ const SERVICE_ICONS: Record<string, React.ComponentType<{ className?: string }>>
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const { services } = useSystemHealth(30000)
-  const { isConnected: wsConnected } = useWebSocket()
+  const wsResult = useWebSocket()
+  const { isConnected: wsConnected, lastMessage, error } = wsResult
+
+  // DEBUG: Log WebSocket connection state changes
+  useEffect(() => {
+    console.log('[AppShell] useWebSocket called, isConnected:', wsConnected, 'error:', error)
+  }, [wsConnected, error])
+
+  useEffect(() => {
+    if (lastMessage) {
+      console.log('[AppShell] Received message, type:', lastMessage.type, 'subject:', lastMessage.subject)
+    }
+  }, [lastMessage])
 
   return (
     <div className="flex h-screen bg-slate-900 text-white overflow-hidden">

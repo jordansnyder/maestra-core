@@ -17,7 +17,7 @@ The **Entities** page shows every entity in your project. Click any entity to se
 
 ### Create and edit entities
 
-Click **+ Create Entity** to add a new entity. Give it a name, choose a type, and optionally set some initial state values. You can also edit existing entities — change their name, type, or state directly from the browser.
+Click **+ Create Entity** to add a new entity. Give it a name, choose a type, and optionally set some initial state values. You can also edit existing entities — change their display name, type, or state directly from the browser. The entity's slug (used as its API and message-bus identifier) is set at creation time and does not change when you rename it.
 
 ### Watch live state changes
 

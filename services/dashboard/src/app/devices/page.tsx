@@ -9,6 +9,7 @@ import { StatsCard } from '@/components/StatsCard'
 import { DeviceCard } from '@/components/DeviceCard'
 import { PendingDeviceCard } from '@/components/PendingDeviceCard'
 import { ApproveDeviceModal } from '@/components/ApproveDeviceModal'
+import { DeviceDetailModal } from '@/components/DeviceDetailModal'
 import { BlockedDevicesList } from '@/components/BlockedDevicesList'
 import {
   Activity,
@@ -22,7 +23,7 @@ import {
 import { EmptyState } from '@/components/EmptyState'
 import { getDocsUrl } from '@/lib/hosts'
 import { devicesApi, discoveryApi } from '@/lib/api'
-import type { Device, DeviceApproval } from '@/lib/types'
+import type { Device, DeviceApproval, DeviceUpdate } from '@/lib/types'
 
 type Tab = 'active' | 'pending' | 'blocked'
 
@@ -39,6 +40,7 @@ export default function DevicesPage() {
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [approveDevice, setApproveDevice] = useState<Device | null>(null)
+  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null)
   const [registerForm, setRegisterForm] = useState({
     name: '',
     device_type: 'arduino',
@@ -57,6 +59,13 @@ export default function DevicesPage() {
     } catch (err) {
       toast({ message: `Failed to register device: ${err instanceof Error ? err.message : 'Unknown error'}`, type: 'error' })
     }
+  }
+
+  const handleDeviceUpdate = async (device: Device, update: DeviceUpdate) => {
+    await devicesApi.update(device.id, update)
+    setSelectedDevice(null)
+    refresh()
+    toast({ message: `Device "${device.name}" updated`, type: 'success' })
   }
 
   const handleDelete = async (device: Device) => {
@@ -350,7 +359,7 @@ export default function DevicesPage() {
             {!loading && filteredDevices.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredDevices.map((device) => (
-                  <DeviceCard key={device.id} device={device} onDelete={handleDelete} />
+                  <DeviceCard key={device.id} device={device} onDelete={handleDelete} onClick={setSelectedDevice} />
                 ))}
               </div>
             )}
@@ -385,6 +394,7 @@ export default function DevicesPage() {
         {activeTab === 'blocked' && (
           <BlockedDevicesList devices={blockedDevices} onUnblock={handleUnblock} />
         )}
+
       </div>
 
       {/* Approve Device Modal */}
@@ -395,6 +405,16 @@ export default function DevicesPage() {
           onCancel={() => setApproveDevice(null)}
         />
       )}
+
+      {/* Device Detail/Edit Modal */}
+      {selectedDevice && (
+        <DeviceDetailModal
+          device={selectedDevice}
+          onSave={handleDeviceUpdate}
+          onClose={() => setSelectedDevice(null)}
+        />
+      )}
+
     </div>
   )
 }

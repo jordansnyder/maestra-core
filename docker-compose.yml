@@ -23,6 +23,7 @@ services:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
       interval: 10s
       timeout: 5s
+      start_period: 3s
       retries: 3
 
   # Mosquitto - MQTT broker for IoT devices
@@ -41,8 +42,9 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/#' -C 1 -i healthcheck -W 3"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
+      start_period: 5s
       retries: 3
 
   # Redis - Caching, pub/sub, and real-time data
@@ -61,6 +63,7 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
+      start_period: 3s
       retries: 3
 
   # =============================================================================
@@ -87,6 +90,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U maestra"]
       interval: 10s
       timeout: 5s
+      start_period: 15s
       retries: 5
 
   # =============================================================================
@@ -104,7 +108,7 @@ services:
       - "1880:1880"
     volumes:
       - nodered-data:/data
-      - ./flows:/data/flows
+      - ./flows/flows.json:/data/flows.json
       - ./config/nodered/settings.js:/data/settings.js
     networks:
       - maestra-network
@@ -115,8 +119,9 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:1880/"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
       retries: 3
 
   # =============================================================================
@@ -153,6 +158,12 @@ services:
       mosquitto:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\""]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
 
   # =============================================================================
   # WEB DASHBOARD & CONTROL PANEL
@@ -176,8 +187,8 @@ services:
       - "3001:3000"
     volumes:
       - ./services/dashboard:/app
-      - /app/node_modules
-      - /app/.next
+      - dashboard-next:/app/.next
+      - ./VERSION:/etc/maestra-version:ro
     networks:
       - maestra-network
     depends_on:
@@ -281,6 +292,7 @@ services:
     environment:
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
+      - FLEET_MANAGER_URL=http://fleet-manager:8080
       - OSC_IN_PORT=${OSC_IN_PORT:-57120}
       - OSC_OUT_PORT=${OSC_OUT_PORT:-57121}
       - OSC_TARGETS=${OSC_TARGETS:-}
@@ -295,6 +307,7 @@ services:
     depends_on:
       - nats
       - redis
+      - fleet-manager
     restart: unless-stopped
 
   # WebSocket Gateway - For browser-based SDKs
@@ -417,3 +430,4 @@ volumes:
   nodered-data:
   grafana-data:
   portainer-data:
+  dashboard-next:

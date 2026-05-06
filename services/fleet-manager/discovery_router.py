@@ -38,6 +38,7 @@ def device_db_to_response(db_device: DeviceDB) -> Device:
         ip_address=db_device.ip_address,
         location=db_device.location,
         metadata=db_device.device_metadata,
+        configuration=db_device.configuration or {},
         status=db_device.status,
         last_seen=db_device.last_seen,
         created_at=db_device.created_at or datetime.utcnow(),
@@ -319,6 +320,26 @@ async def unblock_device(
 
 
 # =============================================================================
+# Device Configuration (resolve by hardware_id)
+# =============================================================================
+
+@router.get("/devices/config/{hardware_id}")
+async def get_device_config(
+    hardware_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    SDK-facing endpoint: returns the device's configuration JSON by hardware_id.
+    Returns {} if no device exists with that hardware_id (never 404).
+    """
+    result = await db.execute(
+        select(DeviceDB).where(DeviceDB.hardware_id == hardware_id)
+    )
+    device = result.scalar_one_or_none()
+    return device.configuration if device and device.configuration else {}
+
+
+# =============================================================================
 # Provisioning
 # =============================================================================
 
@@ -352,6 +373,15 @@ async def get_device_provision(
             "device_id": str(device_id),
         })
 
+    # Get device configuration directly from the device record
+    device_config = {}
+    device_result = await db.execute(
+        select(DeviceDB).where(DeviceDB.id == device_id)
+    )
+    device = device_result.scalar_one_or_none()
+    if device:
+        device_config = device.configuration or {}
+
     conn = provision.connection_config or {}
     return DeviceProvisionResponse(
         device_id=provision.device_id,
@@ -363,6 +393,7 @@ async def get_device_provision(
         ws_url=conn.get("ws_url", f"ws://{os.getenv('HOST_IP', 'localhost')}:8765"),
         entity_id=provision.entity_id,
         env_vars=provision.env_vars or {},
+        device_config=device_config,
     )
 
 

@@ -8,9 +8,10 @@ interface JsonControlProps {
   value: unknown
   onChange: (value: unknown) => void
   disabled?: boolean
+  compact?: boolean
 }
 
-export function JsonControl({ variable, value, onChange, disabled }: JsonControlProps) {
+export function JsonControl({ variable, value, onChange, disabled, compact }: JsonControlProps) {
   const isArray = variable.type === 'array'
   const placeholder = isArray ? '[]' : '{}'
 
@@ -40,14 +41,21 @@ export function JsonControl({ variable, value, onChange, disabled }: JsonControl
     }
   }
 
+  if (compact) {
+    const preview = JSON.stringify(currentValue)
+    const truncated = preview.length > 30 ? preview.slice(0, 30) + '...' : preview
+    return (
+      <span className="font-mono text-xs text-slate-400 truncate max-w-[120px] inline-block" title={preview}>
+        {truncated}
+      </span>
+    )
+  }
+
   return (
     <div className="space-y-2">
       <textarea
         value={text}
-        onChange={(e) => {
-          setText(e.target.value)
-          setError(null)
-        }}
+        onChange={(e) => { setText(e.target.value); setError(null) }}
         onBlur={handleBlur}
         disabled={disabled}
         placeholder={placeholder}
@@ -56,9 +64,7 @@ export function JsonControl({ variable, value, onChange, disabled }: JsonControl
           error ? 'border-red-500' : 'border-slate-700 focus:border-blue-500'
         }`}
       />
-      {error && (
-        <p className="text-sm text-red-400">{error}</p>
-      )}
+      {error && <p className="text-sm text-red-400">{error}</p>}
     </div>
   )
 }

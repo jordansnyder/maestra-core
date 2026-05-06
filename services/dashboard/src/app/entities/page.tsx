@@ -242,27 +242,23 @@ function EntityList({
                 <div className="w-9 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0 mt-0.5">
                   <Icon className="w-4.5 h-4.5 text-slate-400" />
                 </div>
-                <div>
-                  <Link
-                    href={`/entities/${entity.id}`}
-                    className="text-lg font-semibold hover:text-blue-400 transition-colors"
-                  >
-                    {entity.name}
-                  </Link>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${
+                      entity.status === 'active' ? 'bg-green-400' : entity.status === 'warning' ? 'bg-amber-400' : 'bg-slate-500'
+                    }`} />
+                    <Link
+                      href={`/entities/${entity.id}`}
+                      className="text-lg font-semibold hover:text-blue-400 transition-colors truncate"
+                    >
+                      {entity.name}
+                    </Link>
+                  </div>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs px-2 py-0.5 bg-slate-700 rounded">
                       {getTypeName(entity.entity_type_id)}
                     </span>
                     <span className="text-xs text-slate-500 font-mono">{entity.slug}</span>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded ${
-                        entity.status === 'active'
-                          ? 'bg-green-900/50 text-green-400'
-                          : 'bg-slate-700 text-slate-400'
-                      }`}
-                    >
-                      {entity.status}
-                    </span>
                     {isDmxLinked && (
                       <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25">
                         <Zap className="w-2.5 h-2.5" />
@@ -271,15 +267,21 @@ function EntityList({
                     )}
                   </div>
                   {entity.description && (
-                    <p className="text-sm text-slate-400 mt-2">{entity.description}</p>
+                    <p className="text-sm text-slate-400 mt-2 line-clamp-1">{entity.description}</p>
                   )}
                   {Object.keys(entity.state).length > 0 && (
-                    <div className="mt-2">
-                      <span className="text-xs text-slate-500">State: </span>
-                      <code className="text-xs text-slate-400 font-mono">
-                        {JSON.stringify(entity.state).slice(0, 100)}
-                        {JSON.stringify(entity.state).length > 100 ? '...' : ''}
-                      </code>
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                      {Object.entries(entity.state).slice(0, 3).map(([key, val]) => (
+                        <span key={key} className="text-xs">
+                          <span className="text-slate-500">{key}: </span>
+                          <span className="text-slate-300 font-mono">
+                            {typeof val === 'object' ? '{...}' : String(val)}
+                          </span>
+                        </span>
+                      ))}
+                      {Object.keys(entity.state).length > 3 && (
+                        <span className="text-xs text-slate-600">+{Object.keys(entity.state).length - 3} more</span>
+                      )}
                     </div>
                   )}
                 </div>

@@ -158,6 +158,7 @@ export interface Device {
   ip_address?: string
   location?: Record<string, unknown>
   metadata?: Record<string, unknown>
+  configuration: Record<string, unknown>
   status: 'online' | 'offline' | 'error' | 'maintenance' | 'pending'
   last_seen?: string
   created_at: string
@@ -185,6 +186,16 @@ export interface DeviceProvision {
   ws_url?: string
   entity_id?: string
   env_vars: Record<string, string>
+}
+
+export interface DeviceUpdate {
+  name?: string
+  device_type?: string
+  firmware_version?: string
+  ip_address?: string
+  location?: Record<string, unknown>
+  metadata?: Record<string, unknown>
+  configuration?: Record<string, unknown>
 }
 
 export interface DeviceApproval {
@@ -411,6 +422,34 @@ export interface UniverseConfig {
   color?: string
 }
 
+export interface DMXGroup {
+  id: string
+  name: string
+  color?: string
+  sort_order: number
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+  // populated by GET /dmx/groups/{id}
+  fixture_count?: number
+  cue_count?: number
+  sequence_count?: number
+}
+
+export interface DMXGroupCreate {
+  name: string
+  color?: string
+  sort_order?: number
+  metadata?: Record<string, unknown>
+}
+
+export interface DMXGroupUpdate {
+  name?: string
+  color?: string
+  sort_order?: number
+  metadata?: Record<string, unknown>
+}
+
 export interface DMXNode {
   id: string
   name: string
@@ -474,7 +513,6 @@ export interface ChannelMapping {
 export interface DMXFixture {
   id: string
   name: string
-  label?: string
   ofl_manufacturer?: string
   ofl_model?: string
   node_id: string
@@ -484,7 +522,10 @@ export interface DMXFixture {
   fixture_mode?: string
   channel_map: Record<string, ChannelMapping>
   entity_id?: string
+  /** Slug of the linked entity — read-only on the fixture, derived via JOIN. */
+  entity_slug?: string
   ofl_fixture_id?: string
+  group_id?: string
   position_x: number
   position_y: number
   sort_order: number
@@ -495,7 +536,6 @@ export interface DMXFixture {
 
 export interface DMXFixtureCreate {
   name: string
-  label?: string
   node_id: string
   universe: number
   start_channel: number
@@ -503,7 +543,10 @@ export interface DMXFixtureCreate {
   fixture_mode?: string
   channel_map?: Record<string, ChannelMapping>
   entity_id?: string
+  /** Desired slug for the auto-created linked entity. Returns 409 if already in use. */
+  entity_slug?: string
   ofl_fixture_id?: string
+  group_id?: string
   position_x?: number
   position_y?: number
   metadata?: Record<string, unknown>
@@ -511,7 +554,6 @@ export interface DMXFixtureCreate {
 
 export interface DMXFixtureUpdate {
   name?: string
-  label?: string
   node_id?: string
   universe?: number
   start_channel?: number
@@ -520,6 +562,10 @@ export interface DMXFixtureUpdate {
   channel_map?: Record<string, ChannelMapping>
   /** Pass null explicitly to unlink from an entity; omit to leave unchanged. */
   entity_id?: string | null
+  /** New slug for the linked entity. Returns 409 if already in use. */
+  entity_slug?: string
+  /** Pass null explicitly to remove from a group; omit to leave unchanged. */
+  group_id?: string | null
   position_x?: number
   position_y?: number
   metadata?: Record<string, unknown>
@@ -531,13 +577,22 @@ export interface FixturePositionUpdate {
   position_y: number
 }
 
+export interface DMXCueNode {
+  node_id: string
+  node_name: string
+  universes: number[]
+}
+
 export interface DMXCue {
   id: string
   name: string
   fade_duration: number
   sort_order: number
+  group_id?: string
   created_at: string
   updated_at: string
+  /** Art-Net nodes and universes used by fixtures snapshotted in this cue. */
+  nodes: DMXCueNode[]
 }
 
 export interface DMXCueRecallResult {
@@ -562,6 +617,7 @@ export interface DMXSequence {
   name: string
   fade_out_duration: number
   sort_order: number
+  group_id?: string
   cue_placements: DMXCuePlacement[]
   created_at: string
   updated_at: string
@@ -580,6 +636,30 @@ export interface DataPreviewData {
 }
 
 export type PreviewData = SensorPreviewData | AudioPreviewData | DataPreviewData
+
+// =============================================================================
+// OSC Mapping Types
+// =============================================================================
+
+export interface OscMapping {
+  id: string
+  osc_address: string
+  entity_slug: string
+  state_key: string | null
+  state_keys: string[] | null
+  operation: 'update' | 'set'
+  enabled: boolean
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface OscMappingImportResult {
+  created: number
+  updated: number
+  failed: number
+  errors: string[]
+}
 
 // =============================================================================
 // OFL Fixture Library Types
@@ -632,4 +712,69 @@ export interface OFLSyncStatus {
   fixtures_errored: number
   status: 'success' | 'partial' | 'failed'
   errors: unknown[]
+}
+
+// =============================================================================
+// Show Control
+// =============================================================================
+
+export type ShowPhase = 'idle' | 'pre_show' | 'active' | 'paused' | 'post_show' | 'shutdown'
+
+export interface ShowState {
+  phase: ShowPhase
+  previous_phase: ShowPhase | null
+  transition_time: string | null
+  source: string | null
+  context: Record<string, unknown>
+}
+
+export interface ShowTransitionResponse {
+  status: string
+  state: ShowState
+}
+
+export interface ShowValidTransitions {
+  current_phase: ShowPhase
+  valid_transitions: ShowPhase[]
+}
+
+export interface ShowHistoryEntry {
+  time: string
+  state: ShowState
+  source: string | null
+}
+
+export interface ShowScheduleEntry {
+  cron: string
+  transition: string
+}
+
+export interface ShowSchedule {
+  id: string
+  name: string
+  enabled: boolean
+  timezone: string
+  entries: ShowScheduleEntry[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ShowScheduleCreate {
+  name: string
+  enabled?: boolean
+  timezone?: string
+  entries: ShowScheduleEntry[]
+}
+
+export interface ShowSideEffect {
+  id: string
+  from_phase: string
+  to_phase: string
+  action_type: 'entity_state_update' | 'nats_publish' | 'internal_call'
+  action_config: Record<string, unknown>
+  enabled: boolean
+  description: string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
 }

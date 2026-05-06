@@ -25,6 +25,9 @@ typedef std::function<void(const char* entitySlug, JsonObject state, JsonArray c
 // Wildcard entity callback — receives entity type and slug
 typedef std::function<void(const char* entityType, const char* entitySlug, JsonObject state, JsonArray changedKeys)> WildcardEntityCallback;
 
+// Show phase change callback type
+typedef std::function<void(const char* phase, const char* previousPhase)> ShowPhaseChangeCallback;
+
 /**
  * Entity State container
  */
@@ -142,6 +145,12 @@ public:
     void updateEntityState(const char* slug, JsonObject state, const char* source = nullptr);
     void setEntityState(const char* slug, JsonObject state, const char* source = nullptr);
 
+    // Show control
+    String getShowPhase();
+    bool isShowActive();
+    bool isShowPaused();
+    void onShowPhaseChange(ShowPhaseChangeCallback callback);
+
     // Stream discovery
     void subscribeStreamEvents(StreamAdvertisedCallback callback);
     void subscribeStreamType(const char* streamType, StreamAdvertisedCallback callback);
@@ -151,6 +160,15 @@ public:
                          const char* address, int port, const char* publisherId = nullptr);
     void withdrawStream(const char* streamId);
     void streamHeartbeat(const char* streamId);
+
+    // Device config (pre-provisioned JSON from Fleet Manager)
+    /**
+     * Get the pre-provisioned device configuration.
+     * Populated automatically during discoverAndConnect() if a config exists
+     * for this device's hardware_id.
+     */
+    JsonObject getDeviceConfig();
+    bool hasDeviceConfig() const { return _hasDeviceConfig; }
 
     // Internal: MQTT callback
     void _handleMessage(char* topic, byte* payload, unsigned int length);
@@ -163,6 +181,10 @@ private:
     char _username[32];
     char _password[64];
     bool _hasCredentials;
+
+    // Device config
+    StaticJsonDocument<MAESTRA_JSON_BUFFER_SIZE> _deviceConfigDoc;
+    bool _hasDeviceConfig;
 
     // Entity registry
     static const int MAX_ENTITIES = 10;
@@ -181,6 +203,11 @@ private:
     static const int MAX_STREAMS = 5;
     MaestraStreamInfo _streams[MAX_STREAMS];
     int _streamCount;
+
+    // Show control
+    char _showPhase[32];
+    ShowPhaseChangeCallback _showPhaseCallback;
+    void _handleShowMessage(JsonObject payload);
 
     void _publishState(const char* slug, JsonObject state, const char* source, bool replace);
     void _handleStreamMessage(const char* topic, JsonObject payload);

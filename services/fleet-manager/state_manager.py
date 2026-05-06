@@ -7,6 +7,7 @@ Also processes incoming MQTT state update commands from devices (Arduino, ESP32,
 import json
 import asyncio
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Callable
 from uuid import UUID
@@ -16,7 +17,23 @@ import nats
 from nats.aio.client import Client as NATS
 import paho.mqtt.client as mqtt
 
+from redis_client import (
+    get_cached_entity_metadata,
+    cache_entity_metadata,
+    invalidate_entity_state_cache
+)
+
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EntityCacheEntry:
+    """Cached entity metadata for fast slug lookups."""
+    entity_id: UUID
+    entity_type: str
+    entity_path: Optional[str]
+    entity_metadata: Optional[dict]
+    device_id: Optional[UUID]
 
 # Async event loop reference — set during connect() so MQTT thread callbacks
 # can schedule coroutines on the main loop.
@@ -42,6 +59,7 @@ class StateManager:
         self.mqtt_client: Optional[mqtt.Client] = None
         self._connected = False
         self._message_handlers: List[Callable] = []
+        self._entity_cache: Dict[str, EntityCacheEntry] = {}  # slug -> cached entity info
 
     async def connect(self) -> bool:
         """Connect to NATS and MQTT brokers"""
@@ -52,9 +70,9 @@ class StateManager:
         # Connect to NATS
         try:
             self.nc = await nats.connect(self.nats_url)
-            print(f"✅ NATS connected: {self.nats_url}")
+            logger.info(f"NATS connected: {self.nats_url}")
         except Exception as e:
-            print(f"⚠️ NATS connection failed: {e}")
+            logger.warning(f"NATS connection failed: {e}")
             self.nc = None
             success = False
 
@@ -65,13 +83,13 @@ class StateManager:
                 callback_api_version=mqtt.CallbackAPIVersion.VERSION2
             )
             self.mqtt_client.on_connect = self._on_mqtt_connect
-            self.mqtt_client.on_connect_fail = lambda client, userdata: print("⚠️ MQTT connection failed")
+            self.mqtt_client.on_connect_fail = lambda client, userdata: logger.warning("MQTT connection failed")
             self.mqtt_client.on_message = self._on_mqtt_message
             self.mqtt_client.connect_async(self.mqtt_broker, self.mqtt_port)
             self.mqtt_client.loop_start()
-            print(f"✅ MQTT connecting: {self.mqtt_broker}:{self.mqtt_port}")
+            logger.info(f"MQTT connecting: {self.mqtt_broker}:{self.mqtt_port}")
         except Exception as e:
-            print(f"⚠️ MQTT connection failed: {e}")
+            logger.warning(f"MQTT connection failed: {e}")
             self.mqtt_client = None
             success = False
 
@@ -88,7 +106,7 @@ class StateManager:
                 "maestra.entity.state.set.*",
                 cb=self._on_nats_state_set
             )
-            print("✅ NATS state update subscriptions active")
+            logger.info("NATS state update subscriptions active")
 
         self._connected = success
         return success
@@ -97,24 +115,24 @@ class StateManager:
         """Disconnect from message brokers"""
         if self.nc:
             await self.nc.close()
-            print("📴 NATS disconnected")
+            logger.info("NATS disconnected")
 
         if self.mqtt_client:
             self.mqtt_client.loop_stop()
             self.mqtt_client.disconnect()
-            print("📴 MQTT disconnected")
+            logger.info("MQTT disconnected")
 
         self._connected = False
 
     def _on_mqtt_connect(self, client, userdata, flags, reason_code, properties=None):
         """MQTT connection callback"""
         if reason_code == 0:
-            print("✅ MQTT connected successfully")
+            logger.info("MQTT connected successfully")
             # Subscribe to state update requests
             client.subscribe("maestra/entity/state/update/#")
             client.subscribe("maestra/entity/state/set/#")
         else:
-            print(f"⚠️ MQTT connection failed: {reason_code}")
+            logger.warning(f"MQTT connection failed: {reason_code}")
 
     def _on_mqtt_message(self, client, userdata, msg):
         """Handle incoming MQTT messages (state update requests).
@@ -140,7 +158,7 @@ class StateManager:
                             handler(operation, slug, payload), _loop
                         )
         except Exception as e:
-            print(f"⚠️ Error processing MQTT message: {e}")
+            logger.error(f"Error processing MQTT message: {e}")
 
     def add_message_handler(self, handler: Callable):
         """Add a handler for incoming state update requests"""
@@ -200,19 +218,55 @@ class StateManager:
 
         try:
             async with async_session_maker() as db:
-                # Look up entity by slug
-                result = await db.execute(
-                    select(EntityDB, EntityTypeDB)
-                    .join(EntityTypeDB, EntityDB.entity_type_id == EntityTypeDB.id)
-                    .where(EntityDB.slug == slug)
-                )
-                row = result.first()
+                # Try Redis cache first (faster than in-memory for distributed systems)
+                cached_meta = await get_cached_entity_metadata(slug)
 
-                if not row:
-                    logger.warning(f"MQTT state update: entity '{slug}' not found")
-                    return
+                if cached_meta:
+                    # Redis cache hit: use cached metadata
+                    entity_type_name = cached_meta["entity_type"]
+                    entity_path = cached_meta["entity_path"]
+                    entity_metadata = cached_meta["entity_metadata"]
+                    device_id = cached_meta["device_id"]
 
-                db_entity, entity_type = row
+                    # Only read current state from DB (skip join, use entity_id)
+                    result = await db.execute(
+                        select(EntityDB).where(EntityDB.id == UUID(cached_meta["entity_id"]))
+                    )
+                    db_entity = result.scalar_one_or_none()
+                    if not db_entity:
+                        # Entity was deleted; invalidate cache
+                        await invalidate_entity_state_cache(slug)
+                        logger.warning(f"State update: entity '{slug}' no longer exists")
+                        return
+                else:
+                    # Cache miss: full lookup with join
+                    result = await db.execute(
+                        select(EntityDB, EntityTypeDB)
+                        .join(EntityTypeDB, EntityDB.entity_type_id == EntityTypeDB.id)
+                        .where(EntityDB.slug == slug)
+                    )
+                    row = result.first()
+
+                    if not row:
+                        logger.warning(f"State update: entity '{slug}' not found")
+                        return
+
+                    db_entity, entity_type = row
+                    entity_type_name = entity_type.name
+                    entity_path = db_entity.path
+                    entity_metadata = db_entity.entity_metadata
+                    device_id = db_entity.device_id
+
+                    # Populate Redis cache for future lookups
+                    await cache_entity_metadata(
+                        slug=slug,
+                        entity_id=db_entity.id,
+                        entity_type=entity_type_name,
+                        entity_path=entity_path,
+                        entity_metadata=entity_metadata,
+                        device_id=device_id
+                    )
+
                 previous_state = db_entity.state or {}
 
                 # Apply update or replace
@@ -221,7 +275,7 @@ class StateManager:
                 elif operation == "set":
                     new_state = state_data
                 else:
-                    logger.warning(f"MQTT state update: unknown operation '{operation}'")
+                    logger.warning(f"State update: unknown operation '{operation}'")
                     return
 
                 # Update database
@@ -233,27 +287,27 @@ class StateManager:
                 try:
                     from entity_router import record_state_change
                     await record_state_change(
-                        db, db_entity.id, db_entity.slug, entity_type.name,
-                        db_entity.path, previous_state, new_state,
-                        source=source, device_id=db_entity.device_id
+                        db, db_entity.id, db_entity.slug, entity_type_name,
+                        entity_path, previous_state, new_state,
+                        source=source, device_id=device_id
                     )
                 except Exception as e:
-                    logger.error(f"MQTT state history recording failed: {e}")
+                    logger.error(f"State history recording failed: {e}")
 
                 # Broadcast to all subscribers (NATS + MQTT)
                 await self.broadcast_state_change(
                     entity_id=db_entity.id,
                     entity_slug=db_entity.slug,
-                    entity_type=entity_type.name,
-                    entity_path=db_entity.path,
+                    entity_type=entity_type_name,
+                    entity_path=entity_path,
                     previous_state=previous_state,
                     new_state=new_state,
                     source=source,
-                    entity_metadata=db_entity.entity_metadata
+                    entity_metadata=entity_metadata
                 )
 
-                logger.info(
-                    f"MQTT state {operation} for '{slug}': "
+                logger.debug(
+                    f"State {operation} for '{slug}': "
                     f"{list(state_data.keys())} (source={source})"
                 )
 
@@ -382,7 +436,7 @@ class StateManager:
             "entity_slug": entity_slug,
             "entity_type": entity_type,
             "path": entity_path,
-            "previous_state": previous_state,
+            "previous_state": {},
             "current_state": new_state,
             "changed_keys": changed_keys,
             "source": source,
@@ -397,6 +451,10 @@ class StateManager:
             return_exceptions=True
         )
 
+    def invalidate_entity_cache(self, slug: str):
+        """Remove a slug from the entity cache (call on entity CRUD)."""
+        self._entity_cache.pop(slug, None)
+
     async def broadcast_entity_lifecycle(
         self,
         event_type: str,  # "created", "updated", "deleted"
@@ -405,7 +463,9 @@ class StateManager:
         entity_type: str,
         data: Optional[Dict[str, Any]] = None
     ):
-        """Broadcast entity lifecycle events (create/update/delete)"""
+        """Broadcast entity lifecycle events (create/update/delete)."""
+        # Invalidate cache on any entity mutation
+        self.invalidate_entity_cache(entity_slug)
         event = {
             "type": f"entity_{event_type}",
             "entity_id": str(entity_id),
@@ -427,26 +487,22 @@ class StateManager:
         entity_type: str,
         event: Dict[str, Any]
     ):
-        """Publish state change to NATS"""
+        """Publish state change to NATS.
+
+        Publishes to a single subject: maestra.entity.state.<type>.<slug>
+        Consumers use NATS wildcards for broader subscriptions:
+          - maestra.entity.state.>           (all entities)
+          - maestra.entity.state.<type>.*    (all of one type)
+        """
         if not self.nc or self.nc.is_closed:
             return
 
         try:
             payload = json.dumps(event).encode()
-
-            # Publish to specific entity subject
-            # Pattern: maestra.entity.state.<type>.<slug>
             subject = f"maestra.entity.state.{entity_type}.{slug}"
             await self.nc.publish(subject, payload)
-
-            # Also publish to generic state channel for broad subscriptions
-            await self.nc.publish("maestra.entity.state", payload)
-
-            # Type-level subscription
-            await self.nc.publish(f"maestra.entity.state.{entity_type}", payload)
-
         except Exception as e:
-            print(f"⚠️ NATS publish error: {e}")
+            logger.error(f"NATS publish error: {e}")
 
     async def _publish_mqtt(
         self,
@@ -454,25 +510,22 @@ class StateManager:
         entity_type: str,
         event: Dict[str, Any]
     ):
-        """Publish state change to MQTT"""
+        """Publish state change to MQTT.
+
+        Publishes to a single topic: maestra/entity/state/<type>/<slug>
+        Consumers use MQTT wildcards for broader subscriptions:
+          - maestra/entity/state/#              (all entities)
+          - maestra/entity/state/<type>/#       (all of one type)
+        """
         if not self.mqtt_client:
             return
 
         try:
             payload = json.dumps(event)
-
-            # Topic pattern: maestra/entity/state/<type>/<slug>
             topic = f"maestra/entity/state/{entity_type}/{slug}"
             self.mqtt_client.publish(topic, payload, qos=1)
-
-            # Generic topic for broad subscriptions
-            self.mqtt_client.publish("maestra/entity/state", payload, qos=1)
-
-            # Type-level topic
-            self.mqtt_client.publish(f"maestra/entity/state/{entity_type}", payload, qos=1)
-
         except Exception as e:
-            print(f"⚠️ MQTT publish error: {e}")
+            logger.error(f"MQTT publish error: {e}")
 
     async def _publish_nats_lifecycle(
         self,
@@ -481,7 +534,7 @@ class StateManager:
         entity_type: str,
         event: Dict[str, Any]
     ):
-        """Publish lifecycle event to NATS"""
+        """Publish lifecycle event to NATS (single subject)."""
         if not self.nc or self.nc.is_closed:
             return
 
@@ -489,9 +542,8 @@ class StateManager:
             payload = json.dumps(event).encode()
             subject = f"maestra.entity.{event_type}.{entity_type}.{slug}"
             await self.nc.publish(subject, payload)
-            await self.nc.publish(f"maestra.entity.{event_type}", payload)
         except Exception as e:
-            print(f"⚠️ NATS lifecycle publish error: {e}")
+            logger.error(f"NATS lifecycle publish error: {e}")
 
     async def _publish_mqtt_lifecycle(
         self,
@@ -500,7 +552,7 @@ class StateManager:
         entity_type: str,
         event: Dict[str, Any]
     ):
-        """Publish lifecycle event to MQTT"""
+        """Publish lifecycle event to MQTT (single topic)."""
         if not self.mqtt_client:
             return
 
@@ -508,9 +560,8 @@ class StateManager:
             payload = json.dumps(event)
             topic = f"maestra/entity/{event_type}/{entity_type}/{slug}"
             self.mqtt_client.publish(topic, payload, qos=1)
-            self.mqtt_client.publish(f"maestra/entity/{event_type}", payload, qos=1)
         except Exception as e:
-            print(f"⚠️ MQTT lifecycle publish error: {e}")
+            logger.error(f"MQTT lifecycle publish error: {e}")
 
     async def subscribe_nats(self, subject: str, callback: Callable):
         """Subscribe to NATS subject"""

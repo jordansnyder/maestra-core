@@ -73,10 +73,7 @@ module.exports = {
     // Customising the editor
     editorTheme: {
         projects: {
-            enabled: true,
-            workflow: {
-                mode: "auto"
-            }
+            enabled: false
         },
         header: {
             title: "Maestra Logic Engine",

@@ -15,7 +15,7 @@ import json
 
 from database import get_db, init_db, close_db, DeviceDB
 from models import (
-    Device, DeviceRegistration, DeviceHeartbeat,
+    Device, DeviceRegistration, DeviceUpdate, DeviceHeartbeat,
     DeviceMetric, DeviceEvent, DeviceStatus
 )
 from state_manager import state_manager
@@ -32,7 +32,10 @@ from cloud_manager import cloud_manager
 from discovery_router import router as discovery_router
 from dmx_router import router as dmx_router
 from fixtures_router import router as fixtures_router
-from dmx_playback_engine import playback_engine
+from osc_mapping_router import router as osc_mapping_router
+from dmx_playback_engine import playback_engine, engine_registry
+from show_control_router import router as show_control_router, handle_show_command
+from show_scheduler import show_scheduler
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -60,6 +63,8 @@ app.include_router(cloud_router)
 app.include_router(discovery_router)
 app.include_router(dmx_router)
 app.include_router(fixtures_router)
+app.include_router(osc_mapping_router)
+app.include_router(show_control_router)
 
 
 # =============================================================================
@@ -127,6 +132,7 @@ def device_db_to_response(db_device: DeviceDB) -> Device:
         ip_address=db_device.ip_address,
         location=db_device.location,
         metadata=db_device.device_metadata,
+        configuration=db_device.configuration or {},
         status=db_device.status or 'offline',
         last_seen=db_device.last_seen,
         created_at=db_device.created_at or datetime.utcnow(),
@@ -161,6 +167,7 @@ async def register_device(
         ip_address=registration.ip_address,
         location=registration.location,
         device_metadata=registration.metadata,
+        configuration=registration.configuration or {},
         status='online',
         last_seen=datetime.utcnow()
     )
@@ -250,6 +257,54 @@ async def delete_device(device_id: UUID, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     return {"status": "deleted", "device_id": str(device_id)}
+
+
+@app.put("/devices/{device_id}/configuration", response_model=Device)
+async def update_device_configuration(
+    device_id: UUID,
+    body: Dict[str, Any],
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a device's configuration JSON"""
+    result = await db.execute(select(DeviceDB).where(DeviceDB.id == device_id))
+    db_device = result.scalar_one_or_none()
+
+    if not db_device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    db_device.configuration = body
+    await db.commit()
+    await db.refresh(db_device)
+
+    return device_db_to_response(db_device)
+
+
+@app.patch("/devices/{device_id}", response_model=Device)
+async def update_device(
+    device_id: UUID,
+    data: DeviceUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Partial update of a device (hardware_id is immutable)"""
+    result = await db.execute(select(DeviceDB).where(DeviceDB.id == device_id))
+    db_device = result.scalar_one_or_none()
+
+    if not db_device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    update_data = data.model_dump(exclude_unset=True)
+
+    # Map 'metadata' to the DB column name 'device_metadata'
+    if 'metadata' in update_data:
+        db_device.device_metadata = update_data.pop('metadata')
+
+    for key, value in update_data.items():
+        setattr(db_device, key, value)
+
+    await db.commit()
+    await db.refresh(db_device)
+
+    return device_db_to_response(db_device)
 
 
 # =============================================================================
@@ -389,7 +444,7 @@ async def startup_event():
 
     # Load persisted DMX settings (interval, etc.)
     if db_ok:
-        await playback_engine.load_settings()
+        await engine_registry.load_settings()
     # Subscribe NATS for external DMX lighting entity control
     if state_manager.nc:
         async def _on_dmx_lighting_state(msg):
@@ -398,18 +453,63 @@ async def startup_event():
                 if event.get('source') == 'dmx-engine':
                     return  # Ignore our own broadcasts
                 current_state = event.get('current_state', {}) or {}
-                active_sequence_id = current_state.get('active_sequence_id')
-                active_cue_id = current_state.get('active_cue_id')
+                # changed_keys is set by state_manager on internal updates; external
+                # NATS messages may omit it — treat as "all keys changed" in that case.
+                changed_keys = event.get('changed_keys') or list(current_state.keys())
 
-                if active_sequence_id:
-                    if playback_engine.status['sequence_id'] != active_sequence_id:
-                        await playback_engine.play(active_sequence_id)
-                elif active_cue_id:
-                    prev_cue = playback_engine.status.get('active_cue_id') if playback_engine.status else None
-                    await playback_engine.recall_cue_fade(prev_cue, active_cue_id, 0)
-                else:
-                    if playback_engine.status['play_state'] != 'stopped':
-                        await playback_engine.stop()
+                def _parse_seq_control(value):
+                    """Parse active_sequence_id which can be:
+                    - None/null  → stop
+                    - str        → play once, stop on last values
+                    - dict       → {id, loop?, fadeout?}  (fadeout in seconds)
+                    Returns (seq_id, loop, fadeout_ms).
+                    """
+                    if value is None:
+                        return None, False, None
+                    if isinstance(value, str):
+                        return value, False, None
+                    if isinstance(value, dict):
+                        seq_id = value.get('id')
+                        loop = bool(value.get('loop', False))
+                        fadeout_s = value.get('fadeout')
+                        fadeout_ms = float(fadeout_s) * 1000.0 if fadeout_s is not None else None
+                        return seq_id, loop, fadeout_ms
+                    return None, False, None
+
+                # ── Ungrouped (legacy) engine ─────────────────────────────────
+                if 'active_sequence_id' in changed_keys or 'active_cue_id' in changed_keys:
+                    raw_seq = current_state.get('active_sequence_id')
+                    active_cue_id = current_state.get('active_cue_id')
+                    seq_id, loop, fadeout_ms = _parse_seq_control(raw_seq)
+                    if seq_id:
+                        if playback_engine.status['sequence_id'] != seq_id:
+                            await playback_engine.play(seq_id, loop=loop, fadeout_ms=fadeout_ms)
+                    elif active_cue_id:
+                        prev_cue = playback_engine.status.get('sequence_id')
+                        await playback_engine.recall_cue_fade(prev_cue, active_cue_id, 0)
+                    else:
+                        if playback_engine.status['play_state'] != 'stopped':
+                            await playback_engine.stop()
+
+                # ── Per-group engines ─────────────────────────────────────────
+                # group_playback: {<group_uuid>: {active_sequence_id, active_cue_id}}
+                if 'group_playback' in changed_keys:
+                    group_playback = current_state.get('group_playback') or {}
+                    for group_id, control in group_playback.items():
+                        if not isinstance(control, dict):
+                            continue
+                        grp_engine = engine_registry.get(group_id)
+                        raw_seq = control.get('active_sequence_id')
+                        cue_id = control.get('active_cue_id')
+                        seq_id, loop, fadeout_ms = _parse_seq_control(raw_seq)
+                        if seq_id:
+                            if grp_engine.status['sequence_id'] != seq_id:
+                                await grp_engine.play(seq_id, loop=loop, fadeout_ms=fadeout_ms)
+                        elif cue_id:
+                            await grp_engine.recall_cue_fade(None, cue_id, 0)
+                        else:
+                            if grp_engine.status['play_state'] != 'stopped':
+                                await grp_engine.stop()
             except Exception as e:
                 print(f"⚠️ DMX lighting state handler error: {e}")
 
@@ -443,6 +543,17 @@ async def startup_event():
         )
         print("✅ DMX node heartbeat subscriber active")
 
+    # Subscribe NATS for inbound show control commands (OSC/MQTT bridged)
+    if state_manager.nc:
+        await state_manager.subscribe_nats('maestra.show.command.*', handle_show_command)
+        await state_manager.subscribe_nats('maestra.osc.show.*', handle_show_command)
+        print("✅ Show control NATS subscribers active")
+
+    # Start show scheduler
+    if db_ok:
+        await show_scheduler.start()
+        print("✅ Show scheduler started")
+
     # Start demo simulator if DEMO_MODE is enabled
     if os.getenv("DEMO_MODE", "").lower() == "true" and state_manager.nc:
         await demo_simulator.start(state_manager.nc)
@@ -455,7 +566,8 @@ async def startup_event():
 async def shutdown_event():
     """Cleanup on shutdown"""
     print("👋 Maestra Fleet Manager shutting down...")
-    await playback_engine.shutdown()
+    await show_scheduler.stop()
+    await engine_registry.shutdown_all()
     await demo_simulator.stop()
     await cloud_manager.disconnect()
     await stream_manager.disconnect()

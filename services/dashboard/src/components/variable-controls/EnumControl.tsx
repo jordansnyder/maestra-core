@@ -12,9 +12,10 @@ interface EnumControlProps {
   value: unknown
   onChange: (value: string) => void
   disabled?: boolean
+  compact?: boolean
 }
 
-export function EnumControl({ variable, value, onChange, disabled }: EnumControlProps) {
+export function EnumControl({ variable, value, onChange, disabled, compact }: EnumControlProps) {
   const config = variable.config || {}
   const options = (config.options as EnumOption[]) || []
 
@@ -25,8 +26,11 @@ export function EnumControl({ variable, value, onChange, disabled }: EnumControl
       value={strValue}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
-      className="w-full px-3 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed appearance-none cursor-pointer"
-      style={{
+      className={compact
+        ? 'px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs text-white focus:outline-none focus:border-blue-500 disabled:opacity-50 cursor-pointer'
+        : 'w-full px-3 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed appearance-none cursor-pointer'
+      }
+      style={compact ? undefined : {
         backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
         backgroundRepeat: 'no-repeat',
         backgroundPosition: 'right 0.75rem center',
@@ -34,7 +38,7 @@ export function EnumControl({ variable, value, onChange, disabled }: EnumControl
       }}
     >
       <option value="" disabled>
-        Select an option...
+        Select...
       </option>
       {options.map((opt) => (
         <option key={opt.value} value={opt.value}>

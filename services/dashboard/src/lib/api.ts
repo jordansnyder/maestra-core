@@ -8,12 +8,14 @@ import {
   RouteData, RouteCreate, RoutePreset, RoutePresetCreate, RoutePresetUpdate,
   RoutePresetDetail, RoutingState,
   StreamInfo, StreamSession, StreamSubscriber, StreamTypeInfo, StreamRegistryState,
-  BlockedDevice, DeviceProvision, DeviceApproval,
+  BlockedDevice, DeviceProvision, DeviceApproval, DeviceUpdate,
+  DMXGroup, DMXGroupCreate, DMXGroupUpdate,
   DMXNode, DMXNodeCreate, DMXNodeUpdate,
   DMXFixture, DMXFixtureCreate, DMXFixtureUpdate, FixturePositionUpdate,
   DMXCue, DMXCueRecallResult,
   DMXSequence, DMXCuePlacement, DMXCueFixtureSnapshot,
   OFLManufacturer, OFLFixture, OFLSyncStatus,
+  OscMapping, OscMappingImportResult,
 } from './types'
 
 import { getApiUrl } from './hosts'
@@ -246,6 +248,18 @@ export const devicesApi = {
     fetchApi<{ status: string; device_id: string }>('/devices/heartbeat', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: DeviceUpdate) =>
+    fetchApi<Device>(`/devices/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  updateConfiguration: (id: string, configuration: Record<string, unknown>) =>
+    fetchApi<Device>(`/devices/${id}/configuration`, {
+      method: 'PUT',
+      body: JSON.stringify(configuration),
     }),
 }
 
@@ -504,6 +518,21 @@ export const cloudApi = {
 }
 // DMX API
 export const dmxApi = {
+  // DMX Groups
+  listGroups: () => fetchApi<DMXGroup[]>('/dmx/groups'),
+  getGroup: (id: string) => fetchApi<DMXGroup>(`/dmx/groups/${id}`),
+  createGroup: (data: DMXGroupCreate) =>
+    fetchApi<DMXGroup>('/dmx/groups', { method: 'POST', body: JSON.stringify(data) }),
+  updateGroup: (id: string, data: DMXGroupUpdate) =>
+    fetchApi<DMXGroup>(`/dmx/groups/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteGroup: (id: string) =>
+    fetchApi<{ status: string; id: string }>(`/dmx/groups/${id}`, { method: 'DELETE' }),
+  bulkAssignFixturesToGroup: (groupId: string, fixtureIds: string[]) =>
+    fetchApi<{ assigned: number; group_id: string }>(`/dmx/groups/${groupId}/fixtures`, {
+      method: 'POST',
+      body: JSON.stringify(fixtureIds),
+    }),
+
   // Art-Net Nodes
   listNodes: () => fetchApi<DMXNode[]>('/dmx/nodes'),
   getNode: (id: string) => fetchApi<DMXNode>(`/dmx/nodes/${id}`),
@@ -549,8 +578,8 @@ export const dmxApi = {
 
   // DMX Cues
   listCues: () => fetchApi<DMXCue[]>('/dmx/cues'),
-  saveCue: (name: string) =>
-    fetchApi<DMXCue>('/dmx/cues', { method: 'POST', body: JSON.stringify({ name }) }),
+  saveCue: (name: string, groupId?: string) =>
+    fetchApi<DMXCue>('/dmx/cues', { method: 'POST', body: JSON.stringify({ name, group_id: groupId ?? null }) }),
   recallCue: (id: string) =>
     fetchApi<DMXCueRecallResult>(`/dmx/cues/${id}/recall`, { method: 'POST' }),
   updateCueSnapshot: (id: string) =>
@@ -566,8 +595,8 @@ export const dmxApi = {
 
   // DMX Sequences
   listSequences: () => fetchApi<DMXSequence[]>('/dmx/sequences'),
-  createSequence: (name: string) =>
-    fetchApi<DMXSequence>('/dmx/sequences', { method: 'POST', body: JSON.stringify({ name }) }),
+  createSequence: (name: string, groupId?: string) =>
+    fetchApi<DMXSequence>('/dmx/sequences', { method: 'POST', body: JSON.stringify({ name, group_id: groupId ?? null }) }),
   reorderSequences: (ids: string[]) =>
     fetchApi<{ reordered: number }>('/dmx/sequences/reorder', { method: 'PUT', body: JSON.stringify(ids) }),
   renameSequence: (id: string, name: string) =>
@@ -586,8 +615,10 @@ export const dmxApi = {
 
 // DMX Playback API
 export const playbackApi = {
-  getStatus: () =>
-    fetchApi<{
+  getStatus: (groupId?: string) => {
+    const q = groupId ? `?group_id=${groupId}` : ''
+    return fetchApi<{
+      group_id: string | null
       sequence_id: string | null
       play_state: string
       phase: string
@@ -596,37 +627,67 @@ export const playbackApi = {
       hold_progress: number
       loop: boolean
       fade_progress: number | null
-    }>('/dmx/playback/status'),
+    }>(`/dmx/playback/status${q}`)
+  },
 
-  play: (sequenceId: string) =>
-    fetchApi<{ status: string }>('/dmx/playback/play', {
+  getAllStatuses: () =>
+    fetchApi<{
+      engines: Array<{
+        group_id: string | null
+        sequence_id: string | null
+        play_state: string
+        phase: string
+        cue_index: number
+        progress: number
+        hold_progress: number
+        loop: boolean
+        fade_progress: number | null
+      }>
+    }>('/dmx/playback/status?group_id=all'),
+
+  play: (sequenceId: string, groupId?: string) => {
+    const q = groupId ? `?group_id=${groupId}` : ''
+    return fetchApi<{ status: string; group_id: string | null }>(`/dmx/playback/play${q}`, {
       method: 'POST',
       body: JSON.stringify({ sequence_id: sequenceId }),
-    }),
+    })
+  },
 
-  pause: () =>
-    fetchApi<{ status: string }>('/dmx/playback/pause', { method: 'POST' }),
+  pause: (groupId?: string) => {
+    const q = groupId ? `?group_id=${groupId}` : ''
+    return fetchApi<{ status: string }>(`/dmx/playback/pause${q}`, { method: 'POST' })
+  },
 
-  resume: () =>
-    fetchApi<{ status: string }>('/dmx/playback/resume', { method: 'POST' }),
+  resume: (groupId?: string) => {
+    const q = groupId ? `?group_id=${groupId}` : ''
+    return fetchApi<{ status: string }>(`/dmx/playback/resume${q}`, { method: 'POST' })
+  },
 
-  stop: () =>
-    fetchApi<{ status: string }>('/dmx/playback/stop', { method: 'POST' }),
+  stop: (groupId?: string) => {
+    const q = groupId ? `?group_id=${groupId}` : ''
+    return fetchApi<{ status: string }>(`/dmx/playback/stop${q}`, { method: 'POST' })
+  },
 
-  toggleLoop: () =>
-    fetchApi<{ loop: boolean }>('/dmx/playback/toggle-loop', { method: 'POST' }),
+  toggleLoop: (groupId?: string) => {
+    const q = groupId ? `?group_id=${groupId}` : ''
+    return fetchApi<{ loop: boolean }>(`/dmx/playback/toggle-loop${q}`, { method: 'POST' })
+  },
 
-  fadeOut: (durationMs: number = 3000) =>
-    fetchApi<{ status: string }>('/dmx/playback/fadeout', {
+  fadeOut: (durationMs: number = 3000, groupId?: string) => {
+    const q = groupId ? `?group_id=${groupId}` : ''
+    return fetchApi<{ status: string }>(`/dmx/playback/fadeout${q}`, {
       method: 'POST',
       body: JSON.stringify({ duration_ms: durationMs }),
-    }),
+    })
+  },
 
-  recallCueFade: (fromCueId: string | null, toCueId: string, durationMs: number) =>
-    fetchApi<{ status: string }>('/dmx/playback/cue-fade', {
+  recallCueFade: (fromCueId: string | null, toCueId: string, durationMs: number, groupId?: string) => {
+    const q = groupId ? `?group_id=${groupId}` : ''
+    return fetchApi<{ status: string }>(`/dmx/playback/cue-fade${q}`, {
       method: 'POST',
       body: JSON.stringify({ from_cue_id: fromCueId, to_cue_id: toCueId, duration_ms: durationMs }),
-    }),
+    })
+  },
 
   blackout: () =>
     fetchApi<{ status: string; fixtures: number }>('/dmx/playback/blackout', { method: 'POST' }),
@@ -666,6 +727,89 @@ export const oflApi = {
     fetchApi<OFLFixture>(`/ofl/fixtures/by-id/${id}`),
 
   getSyncStatus: () => fetchApi<OFLSyncStatus>(`/ofl/sync/status`),
+}
+
+// OSC Mappings API
+export const oscMappingsApi = {
+  getAll: () => fetchApi<OscMapping[]>('/osc-mappings/'),
+
+  create: (data: Partial<OscMapping>) =>
+    fetchApi<OscMapping>('/osc-mappings/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: Partial<OscMapping>) =>
+    fetchApi<OscMapping>(`/osc-mappings/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  patch: (id: string, data: Partial<OscMapping>) =>
+    fetchApi<OscMapping>(`/osc-mappings/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  remove: (id: string) =>
+    fetchApi<{ status: string }>(`/osc-mappings/${id}`, {
+      method: 'DELETE',
+    }),
+
+  importMappings: (data: Partial<OscMapping>[]) =>
+    fetchApi<OscMappingImportResult>('/osc-mappings/import', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  exportMappings: () =>
+    fetch(`${API_URL}/osc-mappings/export`, {
+      headers: { 'Content-Type': 'application/json' },
+    }),
+}
+
+// Show Control API
+import type {
+  ShowState, ShowTransitionResponse, ShowValidTransitions,
+  ShowHistoryEntry, ShowSchedule, ShowScheduleCreate,
+  ShowSideEffect,
+} from './types'
+
+export const showControlApi = {
+  getState: () => fetchApi<ShowState>('/show/state'),
+  getValidTransitions: () => fetchApi<ShowValidTransitions>('/show/transitions'),
+  transition: (to: string, source?: string) =>
+    fetchApi<ShowTransitionResponse>('/show/transition', {
+      method: 'POST',
+      body: JSON.stringify({ to, source: source || 'dashboard' }),
+    }),
+  warmup: () => fetchApi<ShowTransitionResponse>('/show/warmup', { method: 'POST' }),
+  go: () => fetchApi<ShowTransitionResponse>('/show/go', { method: 'POST' }),
+  pause: () => fetchApi<ShowTransitionResponse>('/show/pause', { method: 'POST' }),
+  resume: () => fetchApi<ShowTransitionResponse>('/show/resume', { method: 'POST' }),
+  stop: () => fetchApi<ShowTransitionResponse>('/show/stop', { method: 'POST' }),
+  shutdown: () => fetchApi<ShowTransitionResponse>('/show/shutdown', { method: 'POST' }),
+  reset: () => fetchApi<ShowTransitionResponse>('/show/reset', { method: 'POST' }),
+  getHistory: (limit = 20, offset = 0) =>
+    fetchApi<ShowHistoryEntry[]>(`/show/history?limit=${limit}&offset=${offset}`),
+
+  // Schedules
+  listSchedules: () => fetchApi<ShowSchedule[]>('/show/schedules'),
+  createSchedule: (data: ShowScheduleCreate) =>
+    fetchApi<ShowSchedule>('/show/schedules', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateSchedule: (id: string, data: Partial<ShowScheduleCreate>) =>
+    fetchApi<ShowSchedule>(`/show/schedules/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteSchedule: (id: string) =>
+    fetchApi<{ status: string }>(`/show/schedules/${id}`, { method: 'DELETE' }),
+
+  // Side Effects
+  listSideEffects: () => fetchApi<ShowSideEffect[]>('/show/side-effects'),
 }
 
 export { ApiError }

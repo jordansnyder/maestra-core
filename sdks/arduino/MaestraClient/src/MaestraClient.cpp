@@ -84,9 +84,11 @@ void MaestraEntity::_handleMessage(JsonObject payload) {
 MaestraClient::MaestraClient(Client& networkClient)
     : _mqtt(networkClient), _port(1883), _hasCredentials(false),
       _entityCount(0), _wildcardEntityCallback(nullptr), _wildcardTypeCount(0),
-      _streamCallback(nullptr), _streamCount(0) {
+      _streamCallback(nullptr), _streamCount(0), _showPhaseCallback(nullptr),
+      _hasDeviceConfig(false) {
     strcpy(_broker, "localhost");
     strcpy(_clientId, "maestra-arduino");
+    strcpy(_showPhase, "idle");
     _globalClient = this;
 
     for (int i = 0; i < MAX_ENTITIES; i++) {
@@ -115,6 +117,7 @@ bool MaestraClient::connect() {
     _mqtt.setServer(_broker, _port);
     _mqtt.setCallback(mqttCallback);
     _mqtt.setBufferSize(MAESTRA_JSON_BUFFER_SIZE);
+    _mqtt.setKeepAlive(60);  // 60s keepalive (default 15s is too aggressive for IoT)
 
     bool connected;
     if (_hasCredentials) {
@@ -125,6 +128,9 @@ bool MaestraClient::connect() {
 
     if (connected) {
         Serial.println("✅ Connected to Maestra MQTT broker");
+
+        // Auto-subscribe to show control state
+        _mqtt.subscribe("maestra/entity/state/show_control/show");
     } else {
         Serial.print("❌ MQTT connection failed, rc=");
         Serial.println(_mqtt.state());
@@ -156,6 +162,15 @@ bool MaestraClient::discoverAndConnect(unsigned long timeoutMs) {
 
     // Configure broker from discovery results
     setBroker(discovery.getMqttBroker(), discovery.getMqttPort());
+
+    // Copy device config if available from provisioning
+    if (discovery.hasDeviceConfig()) {
+        DeserializationError err = deserializeJson(_deviceConfigDoc, discovery.getDeviceConfigJson());
+        _hasDeviceConfig = (err == DeserializationError::Ok);
+        if (_hasDeviceConfig) {
+            Serial.println("[MaestraClient] Device config loaded from provisioning");
+        }
+    }
 
     Serial.print("[MaestraClient] Connecting to discovered broker ");
     Serial.print(discovery.getMqttBroker());
@@ -239,6 +254,46 @@ void MaestraClient::_publishState(const char* slug, JsonObject state, const char
     serializeJson(doc, buffer);
 
     _mqtt.publish(topic, buffer);
+}
+
+// ============================================================================
+// Show Control Methods
+// ============================================================================
+
+String MaestraClient::getShowPhase() {
+    return String(_showPhase);
+}
+
+bool MaestraClient::isShowActive() {
+    return strcmp(_showPhase, "active") == 0;
+}
+
+bool MaestraClient::isShowPaused() {
+    return strcmp(_showPhase, "paused") == 0;
+}
+
+void MaestraClient::onShowPhaseChange(ShowPhaseChangeCallback callback) {
+    _showPhaseCallback = callback;
+}
+
+void MaestraClient::_handleShowMessage(JsonObject payload) {
+    if (!payload.containsKey("current_state")) return;
+
+    JsonObject currentState = payload["current_state"];
+    if (!currentState.containsKey("phase")) return;
+
+    const char* newPhase = currentState["phase"] | "idle";
+    const char* previousPhase = currentState["previous_phase"] | _showPhase;
+
+    // Only fire callback if phase actually changed
+    if (strcmp(_showPhase, newPhase) != 0) {
+        strncpy(_showPhase, newPhase, sizeof(_showPhase) - 1);
+        _showPhase[sizeof(_showPhase) - 1] = '\0';
+
+        if (_showPhaseCallback) {
+            _showPhaseCallback(_showPhase, previousPhase);
+        }
+    }
 }
 
 // ============================================================================
@@ -341,6 +396,11 @@ void MaestraClient::_handleMessage(char* topic, byte* payload, unsigned int leng
         const char* entitySlug = parts[4];
         JsonObject jsonPayload = doc.as<JsonObject>();
 
+        // Intercept show control messages
+        if (strcmp(entityType, "show_control") == 0 && strcmp(entitySlug, "show") == 0) {
+            _handleShowMessage(jsonPayload);
+        }
+
         // Dispatch to specific MaestraEntity if registered
         for (int i = 0; i < _entityCount; i++) {
             if (_entities[i] && strcmp(_entities[i]->slug(), entitySlug) == 0) {
@@ -365,4 +425,17 @@ void MaestraClient::_handleMessage(char* topic, byte* payload, unsigned int leng
             }
         }
     }
+}
+
+// ============================================================================
+// Device Config
+// ============================================================================
+
+JsonObject MaestraClient::getDeviceConfig() {
+    if (_hasDeviceConfig) {
+        return _deviceConfigDoc.as<JsonObject>();
+    }
+    // Return empty object
+    static StaticJsonDocument<16> empty;
+    return empty.to<JsonObject>();
 }

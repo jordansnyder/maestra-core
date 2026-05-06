@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useDMX } from '@/hooks/useDMX'
+import { useDMXGroups } from '@/hooks/useDMXGroups'
 import { DMXCanvas } from '@/components/dmx/DMXCanvas'
 import { DMXSidebar } from '@/components/dmx/DMXSidebar'
 import { NodeSetupForm } from '@/components/dmx/NodeSetupForm'
@@ -46,12 +47,17 @@ function getInitialScale(): number {
 
 export default function DMXPage() {
   const { nodes, fixtures, loading, error, createNode, updateNode, deleteNode, createFixture, updateFixture, deleteFixture, bulkUpdatePositions, reorderNodes, reorderFixtures } = useDMX()
+  const { groups, createGroup, updateGroup, deleteGroup } = useDMXGroups()
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+  const [cueGroupId, setCueGroupId] = useState<string | null>(null)
+  // Canvas shows group highlight from whichever context is active;
+  // shift-click editing only enabled when selectedGroupId is set (Groups tab)
+  const effectiveCanvasGroupId = selectedGroupId ?? cueGroupId
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showDMXAdjust, setShowDMXAdjust] = useState(false)
   const [showAddNode, setShowAddNode] = useState(false)
   const [showAddFixture, setShowAddFixture] = useState(false)
   const [editingFixture, setEditingFixture] = useState<DMXFixture | null>(null)
-  const [copyingFixture, setCopyingFixture] = useState<{ fixture: DMXFixture; name: string } | null>(null)
   const [nodeDiameter, setNodeDiameter] = useState<number>(getInitialScale)
   const [editingNode, setEditingNode] = useState<DMXNode | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -59,6 +65,7 @@ export default function DMXPage() {
   const [deletingFixture, setDeletingFixture] = useState<DMXFixture | null>(null)
   const [confirmDeleteNode, setConfirmDeleteNode] = useState(false)
   const [deleteNodeDevice, setDeleteNodeDevice] = useState(false)
+  const dmxEntityIdRef = useRef<string | null>(null)
   const [isPaused, setIsPaused] = useState(false)
   const [pauseLoading, setPauseLoading] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
@@ -70,7 +77,7 @@ export default function DMXPage() {
   const [sequences, setSequences] = useState<DMXSequence[]>([])
   const [deleteSequenceTarget, setDeleteSequenceTarget] = useState<DMXSequence | null>(null)
   const [openSequencesSignal, setOpenSequencesSignal] = useState(0)
-  const { status: playbackStatus, play: playSequence, pause: pauseSequence, resume: resumeSequence, stop: stopSequence, toggleLoop, fadeOut, startPolling: startPlaybackPolling } = useSequencePlayback()
+  const { getGroupStatus, activeGroupIds, play: playSequence, pause: pauseSequence, resume: resumeSequence, stop: stopSequence, toggleLoop, fadeOut, startPolling: startPlaybackPolling } = useSequencePlayback()
   const { fadeProgress: cueFadeProgress, fadeTo: fadeCueTo, cancelFade: cancelCueFade, trackExternalFade } = useCueFade()
 
   // Real-time sync: subscribe to dmx-lighting entity state changes for external control
@@ -162,17 +169,19 @@ export default function DMXPage() {
     // while a sequence or cue is already running (WebSocket events may not fire
     // during the hold phase between cue transitions)
     Promise.all([
-      playbackApi.getStatus().catch(() => null),
+      playbackApi.getAllStatuses().catch(() => null),
       entitiesApi.getBySlug('dmx-lighting').catch(() => null),
-    ]).then(([status, entity]) => {
-      if (status && (status.play_state !== 'stopped' || status.phase !== 'idle')) {
-        startPlaybackPolling()
-      }
-      if (entity?.state) {
-        const s = entity.state as Record<string, unknown>
-        const cueId = (s.active_cue_id as string | null) ?? null
-        if (cueId && (!status || status.play_state === 'stopped')) {
-          setActiveCueId(cueId)
+    ]).then(([allStatuses, entity]) => {
+      const anyActive = allStatuses?.engines.some(
+        (e) => e.play_state !== 'stopped' || e.phase !== 'idle',
+      )
+      if (anyActive) startPlaybackPolling()
+      if (entity) {
+        dmxEntityIdRef.current = entity.id
+        if (entity.state) {
+          const s = entity.state as Record<string, unknown>
+          const cueId = (s.active_cue_id as string | null) ?? null
+          if (cueId && !anyActive) setActiveCueId(cueId)
         }
       }
     })
@@ -183,6 +192,18 @@ export default function DMXPage() {
     setNodeDiameter(diameter)
     localStorage.setItem('dmx-node-scale', String(diameter))
   }
+
+  const handleToggleFixtureGroup = useCallback(async (fixtureId: string) => {
+    if (!selectedGroupId) return
+    const fixture = fixtures.find((f) => f.id === fixtureId)
+    if (!fixture) return
+    const newGroupId = fixture.group_id === selectedGroupId ? null : selectedGroupId
+    try {
+      await updateFixture(fixtureId, { group_id: newGroupId })
+    } catch {
+      // non-critical, fixture list will still reflect DB state on next refresh
+    }
+  }, [selectedGroupId, fixtures, updateFixture])
 
   const handleTogglePause = async () => {
     setPauseLoading(true)
@@ -216,11 +237,19 @@ export default function DMXPage() {
     if (activeCueId === id) {
       setActiveCueId(null)
       cancelCueFade()
+      if (dmxEntityIdRef.current) {
+        entitiesApi.updateState(dmxEntityIdRef.current, { state: { active_cue_id: null } }).catch(() => {})
+      }
       return
     }
     // If we're editing a different cue, exit that edit mode
     if (editingCueId && editingCueId !== id) setEditingCueId(null)
     setActiveCueId(id)
+    // Auto-resume output — cue recall is an intentional "fire" action,
+    // not an edit operation. Gateway filters engine writes while paused.
+    if (isPaused) {
+      try { await dmxApi.resumeOutput(); setIsPaused(false) } catch { /* non-critical */ }
+    }
     try {
       await fadeCueTo(activeCueId, id, fadeDuration * 1000)
     } catch {
@@ -283,13 +312,13 @@ export default function DMXPage() {
 
   // ── Sequence handlers ──────────────────────────────────────────────────────
 
-  const handleCreateSequence = async () => {
+  const handleCreateSequence = async (groupId?: string) => {
     const names = sequences.map((s) => s.name)
     let base = 'New Sequence'; let n = 1
     while (names.includes(n === 1 ? base : `${base} ${n}`)) n++
     const name = n === 1 ? base : `${base} ${n}`
     try {
-      const seq = await dmxApi.createSequence(name)
+      const seq = await dmxApi.createSequence(name, groupId)
       setSequences((prev) => [...prev, seq])
       setOpenSequencesSignal((s) => s + 1)
     } catch (err) { console.error('Failed to create sequence:', err) }
@@ -304,9 +333,11 @@ export default function DMXPage() {
 
   const handleDeleteSequence = async (id: string) => {
     try {
+      const seq = sequences.find((s) => s.id === id)
+      const groupId = seq?.group_id ?? null
       await dmxApi.deleteSequence(id)
       setSequences((prev) => prev.filter((s) => s.id !== id))
-      if (playbackStatus.sequenceId === id) stopSequence()
+      if (getGroupStatus(groupId).sequenceId === id) await stopSequence(groupId)
       setDeleteSequenceTarget(null)
     } catch { /* silently ignore */ }
   }
@@ -365,8 +396,9 @@ export default function DMXPage() {
   }
 
   const handlePlaySequence = (seq: DMXSequence) => {
-    if (playbackStatus.sequenceId === seq.id && playbackStatus.playState === 'paused') {
-      resumeSequence()
+    const groupStatus = getGroupStatus(seq.group_id ?? null)
+    if (groupStatus.sequenceId === seq.id && groupStatus.playState === 'paused') {
+      resumeSequence(seq.group_id ?? null)
     } else {
       playSequence(seq)
     }
@@ -395,13 +427,6 @@ export default function DMXPage() {
     }
   }
 
-  const handleCopy = (fixture: DMXFixture) => {
-    const existingNames = fixtures.map((f) => f.name)
-    const base = fixture.name.replace(/ \d+$/, '')
-    let n = 2
-    while (existingNames.includes(`${base} ${n}`)) n++
-    setCopyingFixture({ fixture, name: `${base} ${n}` })
-  }
 
   const handleDeleteRequest = (id: string) => {
     const fixture = fixtures.find((f) => f.id === id)
@@ -477,22 +502,22 @@ export default function DMXPage() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-900 border-b border-slate-800 shrink-0">
-        <div className="flex items-center gap-2">
-          <Zap className="w-4 h-4 text-amber-400" />
-          <span className="text-sm font-semibold text-white">DMX Lighting</span>
-          <span className="text-xs text-slate-600">
+      <div className="flex items-center justify-between px-3 md:px-4 py-2.5 bg-slate-900 border-b border-slate-800 shrink-0 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+          <span className="text-sm font-semibold text-white shrink-0">DMX Lighting</span>
+          <span className="text-xs text-slate-600 hidden sm:inline">
             {fixtures.length} fixture{fixtures.length !== 1 ? 's' : ''} · {nodes.length} node{nodes.length !== 1 ? 's' : ''}
           </span>
           {syncStatus && (
-            <span className="text-xs text-slate-600 ml-2 pl-2 border-l border-slate-800">
+            <span className="text-xs text-slate-600 ml-2 pl-2 border-l border-slate-800 hidden lg:inline">
               OFL synced {formatRelativeTime(syncStatus.ran_at)}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {actionError && (
-            <span className="text-xs text-red-400">{actionError}</span>
+            <span className="text-xs text-red-400 hidden sm:inline">{actionError}</span>
           )}
 
           {/* DMX Pause / Resume / Clear */}
@@ -500,34 +525,34 @@ export default function DMXPage() {
             <button
               onClick={handleTogglePause}
               disabled={pauseLoading}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+              className={`flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
                 isPaused
                   ? 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30'
                   : 'bg-slate-800 text-slate-400 hover:text-slate-200'
               }`}
             >
               {isPaused
-                ? <><Play className="w-3 h-3" /> Resume Listening</>
-                : <><Pause className="w-3 h-3" /> Pause</>
+                ? <><Play className="w-3 h-3" /><span className="hidden sm:inline ml-1">Resume</span></>
+                : <><Pause className="w-3 h-3" /><span className="hidden sm:inline ml-1">Pause</span></>
               }
             </button>
             {isPaused && (
-              <>
-                <button
-                  onClick={() => setShowClearConfirm(true)}
-                  disabled={clearLoading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400 bg-slate-800 hover:bg-red-900/30 hover:text-red-300 transition-colors disabled:opacity-50"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  Clear
-                </button>
-              </>
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                disabled={clearLoading}
+                className="flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 text-xs font-medium text-red-400 bg-slate-800 hover:bg-red-900/30 hover:text-red-300 transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span className="hidden sm:inline">Clear</span>
+              </button>
             )}
           </div>
+
+          {/* Paused badge — icon-only on mobile */}
           {isPaused && (
-            <span className="flex items-center gap-1.5 text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1.5 rounded-lg">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 md:px-2.5 py-1.5 rounded-lg">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
-              External signals paused
+              <span className="hidden md:inline">External signals paused</span>
             </span>
           )}
 
@@ -536,14 +561,14 @@ export default function DMXPage() {
             onClick={() => playbackApi.blackout().catch(() => {})}
             onDoubleClick={(e) => { e.preventDefault(); handleBlackoutAndPause() }}
             title="Blackout — double-click to blackout and pause"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-700 bg-slate-800 text-slate-400 hover:text-yellow-300 hover:border-yellow-700/50 hover:bg-yellow-900/20 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-700 bg-slate-800 text-slate-400 hover:text-yellow-300 hover:border-yellow-700/50 hover:bg-yellow-900/20 transition-colors"
           >
             <ZapOff className="w-3 h-3" />
-            Blackout
+            <span className="hidden sm:inline">Blackout</span>
           </button>
 
-          {/* Node scale picker */}
-          <div className="flex items-center rounded-lg overflow-hidden border border-slate-700">
+          {/* Node scale picker — desktop only (no canvas on mobile) */}
+          <div className="hidden md:flex items-center rounded-lg overflow-hidden border border-slate-700">
             {NODE_SCALES.map((scale) => (
               <button
                 key={scale.label}
@@ -563,16 +588,19 @@ export default function DMXPage() {
 
       {/* Canvas + sidebar */}
       <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 min-w-0">
+        {/* Canvas — hidden on mobile */}
+        <div className="hidden md:block flex-1 min-w-0">
           <DMXCanvas
             fixtures={fixtures}
             nodes={nodes}
+            groups={groups}
             nodeSize={nodeDiameter}
             selectedIds={selectedIds}
             multiSelectGroup={multiSelectGroup}
+            selectedGroupId={effectiveCanvasGroupId}
+            onToggleFixtureGroup={selectedGroupId ? handleToggleFixtureGroup : undefined}
             onSelect={handleSelect}
             onEdit={(fixture) => setEditingFixture(fixture)}
-            onCopy={handleCopy}
             onDelete={handleDeleteRequest}
             onAdjustDMX={() => setShowDMXAdjust(true)}
             onPositionsChange={async (positions) => {
@@ -587,6 +615,14 @@ export default function DMXPage() {
         <DMXSidebar
           nodes={nodes}
           fixtures={fixtures}
+          groups={groups}
+          selectedGroupId={selectedGroupId}
+          onGroupSelect={setSelectedGroupId}
+          cueGroupId={cueGroupId}
+          onCueGroupChange={setCueGroupId}
+          onCreateGroup={async (name, color) => { await createGroup({ name, color }) }}
+          onUpdateGroup={async (id, name, color) => { await updateGroup(id, { name, color }) }}
+          onDeleteGroup={async (id) => { await deleteGroup(id) }}
           selectedIds={selectedIds}
           multiSelectGroup={multiSelectGroup}
           onSelect={handleSelect}
@@ -610,16 +646,17 @@ export default function DMXPage() {
           onDeleteCue={handleDeleteCue}
           onReorderCues={handleReorderCues}
           onOpenCues={() => dmxApi.listCues().then(setCues).catch(() => {})}
-          onSaveCue={async (name) => { const cue = await dmxApi.saveCue(name); setCues((prev) => [cue, ...prev]) }}
+          onSaveCue={async (name, groupId) => { const cue = await dmxApi.saveCue(name, groupId); setCues((prev) => [cue, ...prev]) }}
           onUpdateCue={handleUpdateCue}
           updateCueLoading={updateCueLoading}
           sequences={sequences}
-          playbackStatus={playbackStatus}
+          getStatusForSeq={(seq) => getGroupStatus(seq.group_id ?? null)}
+          activeGroupIds={activeGroupIds}
           onPlaySequence={handlePlaySequence}
-          onPauseSequence={pauseSequence}
-          onStopSequence={stopSequence}
-          onToggleLoop={toggleLoop}
-          onFadeOut={(durationSec) => fadeOut(durationSec * 1000)}
+          onPauseSequence={(seq) => pauseSequence(seq.group_id ?? null)}
+          onStopSequence={(seq) => stopSequence(seq.group_id ?? null)}
+          onToggleLoop={(seq) => toggleLoop(seq.group_id ?? null)}
+          onFadeOut={(durationSec, seq) => fadeOut(durationSec * 1000, seq.group_id ?? null)}
           onBlackout={() => playbackApi.blackout().catch(() => {})}
           onRenameSequence={handleRenameSequence}
           onDeleteSequence={handleRequestDeleteSequence}
@@ -632,13 +669,17 @@ export default function DMXPage() {
           openSequencesSignal={openSequencesSignal}
           availableCues={cues}
           onCreateSequence={handleCreateSequence}
+          onAdjustFixture={(fixture) => {
+            setSelectedIds(new Set([fixture.id]))
+            setShowDMXAdjust(true)
+          }}
         />
       </div>
 
       {/* Add Node Modal */}
       {showAddNode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+        <div className="modal-backdrop">
+          <div className="modal-panel max-w-lg">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <Network className="w-4 h-4 text-blue-400" />
@@ -663,8 +704,8 @@ export default function DMXPage() {
 
       {/* Edit Node Modal */}
       {editingNode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+        <div className="modal-backdrop">
+          <div className="modal-panel max-w-lg">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <Network className="w-4 h-4 text-blue-400" />
@@ -789,6 +830,7 @@ export default function DMXPage() {
         <AddFixtureModal
           nodes={nodes}
           fixtures={fixtures}
+          groups={groups}
           defaultPosition={{ x: 300 + fixtures.length * 30, y: 200 + fixtures.length * 20 }}
           onSubmit={createFixture}
           onClose={() => setShowAddFixture(false)}
@@ -800,6 +842,7 @@ export default function DMXPage() {
         <AddFixtureModal
           nodes={nodes}
           fixtures={fixtures}
+          groups={groups}
           fixture={editingFixture}
           onSubmit={async (data) => {
             await updateFixture(editingFixture.id, data)
@@ -809,20 +852,6 @@ export default function DMXPage() {
         />
       )}
 
-      {/* Copy Fixture Modal */}
-      {copyingFixture && (
-        <AddFixtureModal
-          nodes={nodes}
-          fixtures={fixtures}
-          copyOf={copyingFixture.fixture}
-          initialName={copyingFixture.name}
-          onSubmit={async (data) => {
-            await createFixture(data)
-            setCopyingFixture(null)
-          }}
-          onClose={() => setCopyingFixture(null)}
-        />
-      )}
 
       {/* Delete Fixture Confirmation */}
       {deletingFixture && (
@@ -844,8 +873,8 @@ export default function DMXPage() {
 
       {/* Delete Sequence Confirmation */}
       {deleteSequenceTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+        <div className="modal-backdrop">
+          <div className="modal-panel max-w-sm">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800">
               <div className="w-8 h-8 rounded-full bg-red-900/40 border border-red-800/50 flex items-center justify-center shrink-0">
                 <Trash2 className="w-4 h-4 text-red-400" />
@@ -870,8 +899,8 @@ export default function DMXPage() {
 
       {/* Clear DMX Confirmation */}
       {showClearConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+        <div className="modal-backdrop">
+          <div className="modal-panel max-w-sm">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800">
               <div className="w-8 h-8 rounded-full bg-red-900/40 border border-red-800/50 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-4 h-4 text-red-400" />

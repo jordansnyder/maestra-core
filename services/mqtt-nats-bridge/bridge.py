@@ -6,10 +6,17 @@ Bidirectional message routing between MQTT and NATS
 import asyncio
 import os
 import json
+import logging
 from datetime import datetime
 import paho.mqtt.client as mqtt
 import nats
 from nats.aio.client import Client as NATS
+
+logging.basicConfig(
+    level=os.getenv('LOG_LEVEL', 'INFO').upper(),
+    format='%(asctime)s %(levelname)s %(name)s: %(message)s',
+)
+logger = logging.getLogger('mqtt-nats-bridge')
 
 # Configuration
 MQTT_BROKER = os.getenv('MQTT_BROKER', 'mosquitto')
@@ -30,7 +37,7 @@ async def connect_nats():
     """Connect to NATS message bus"""
     global nc
     nc = await nats.connect(NATS_URL)
-    print(f"✅ Connected to NATS at {NATS_URL}")
+    logger.info("Connected to NATS at %s", NATS_URL)
 
 
 def mqtt_topic_to_nats_subject(topic: str) -> str:
@@ -59,12 +66,12 @@ def nats_subject_to_mqtt_topic(subject: str) -> str:
 def on_mqtt_connect(client, userdata, flags, reason_code, properties):
     """Callback when MQTT connects (paho v2 API)"""
     if reason_code == 0:
-        print("✅ Connected to MQTT broker")
+        logger.info("Connected to MQTT broker")
         # Subscribe to all maestra topics
         client.subscribe("maestra/#")
-        print("📡 Subscribed to MQTT topic: maestra/#")
+        logger.info("Subscribed to MQTT topic: maestra/#")
     else:
-        print(f"❌ MQTT connection failed: {reason_code}")
+        logger.error("MQTT connection failed: %s", reason_code)
 
 
 def on_mqtt_message(client, userdata, msg):
@@ -75,7 +82,7 @@ def on_mqtt_message(client, userdata, msg):
     topic = msg.topic
     payload = msg.payload.decode('utf-8', errors='ignore')
 
-    print(f"📨 MQTT -> NATS: {topic}")
+    logger.debug("MQTT -> NATS: %s", topic)
 
     # Convert MQTT topic to NATS subject
     nats_subject = mqtt_topic_to_nats_subject(topic)
@@ -105,9 +112,9 @@ async def publish_to_nats(subject: str, message: dict):
     """Publish message to NATS"""
     try:
         await nc.publish(subject, json.dumps(message).encode())
-        print(f"✅ Published to NATS: {subject}")
+        logger.debug("Published to NATS: %s", subject)
     except Exception as e:
-        print(f"❌ Error publishing to NATS: {e}")
+        logger.error("Error publishing to NATS: %s", e)
 
 
 async def nats_message_handler(msg):
@@ -117,7 +124,7 @@ async def nats_message_handler(msg):
     """
     subject = msg.subject
 
-    print(f"📨 NATS -> MQTT: {subject}")
+    logger.debug("NATS -> MQTT: %s", subject)
 
     try:
         data = json.loads(msg.data.decode())
@@ -137,16 +144,16 @@ async def nats_message_handler(msg):
     # Publish to MQTT
     if mqtt_client and mqtt_client.is_connected():
         mqtt_client.publish(mqtt_topic, payload)
-        print(f"✅ Published to MQTT: {mqtt_topic}")
+        logger.debug("Published to MQTT: %s", mqtt_topic)
     else:
-        print("⚠️  MQTT not connected, skipping message")
+        logger.warning("MQTT not connected, skipping message")
 
 
 async def subscribe_nats_to_mqtt():
     """Subscribe to NATS topics for forwarding to MQTT"""
     if nc:
         await nc.subscribe(NATS_TO_MQTT_SUBJECT, cb=nats_message_handler)
-        print(f"📡 Subscribed to NATS subject: {NATS_TO_MQTT_SUBJECT}")
+        logger.info("Subscribed to NATS subject: %s", NATS_TO_MQTT_SUBJECT)
 
 
 def setup_mqtt():
@@ -157,7 +164,7 @@ def setup_mqtt():
     mqtt_client.on_connect = on_mqtt_connect
     mqtt_client.on_message = on_mqtt_message
 
-    print(f"🔌 Connecting to MQTT broker at {MQTT_BROKER}:{MQTT_PORT}...")
+    logger.info("Connecting to MQTT broker at %s:%d...", MQTT_BROKER, MQTT_PORT)
     mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
     mqtt_client.loop_start()
 
@@ -167,8 +174,7 @@ async def main():
 
     global _loop
 
-    print("🚀 Starting Maestra MQTT-NATS Bridge...")
-    print("=" * 60)
+    logger.info("Starting Maestra MQTT-NATS Bridge...")
 
     # Store the running loop so MQTT callbacks can schedule async work
     _loop = asyncio.get_running_loop()
@@ -182,24 +188,17 @@ async def main():
     # Setup MQTT client
     setup_mqtt()
 
-    print("=" * 60)
-    print("✅ Bridge ready!")
-    print()
-    print("📊 Message Flow:")
-    print("   MQTT (maestra/#) → NATS (maestra.mqtt.*)")
-    print("   NATS (maestra.to_mqtt.*) → MQTT (*)")
-    print()
-    print("📚 Examples:")
-    print("   MQTT: maestra/devices/esp32/temp → NATS: maestra.mqtt.maestra.devices.esp32.temp")
-    print("   NATS: maestra.to_mqtt.devices.esp32.cmd → MQTT: devices/esp32/cmd")
-    print("=" * 60)
+    logger.info("Bridge ready!")
+    logger.info("Message Flow:")
+    logger.info("  MQTT (maestra/#) -> NATS (maestra.mqtt.*)")
+    logger.info("  NATS (maestra.to_mqtt.*) -> MQTT (*)")
 
     # Keep running
     try:
         while True:
             await asyncio.sleep(1)
     except KeyboardInterrupt:
-        print("\n👋 Shutting down MQTT-NATS Bridge...")
+        logger.info("Shutting down MQTT-NATS Bridge...")
     finally:
         if mqtt_client:
             mqtt_client.loop_stop()

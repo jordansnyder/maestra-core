@@ -41,6 +41,7 @@ class MaestraExt:
         self._osc_port = 57120
         self._connected = False
         self._active_stream_id = None
+        self._device_config = {}
 
     # =========================================================================
     # Properties
@@ -70,6 +71,33 @@ class MaestraExt:
     def ActiveStreamId(self) -> str:
         """Get active advertised stream ID (if any)"""
         return self._active_stream_id or ""
+
+    @property
+    def DeviceConfig(self) -> dict:
+        """Get pre-provisioned device configuration"""
+        return self._device_config.copy()
+
+    def FetchDeviceConfig(self, hardware_id: str) -> dict:
+        """
+        Fetch device configuration by hardware_id from the Fleet Manager.
+        Stores the result in self.DeviceConfig.
+
+        Args:
+            hardware_id: MAC address or unique hardware identifier
+
+        Returns:
+            Configuration dict (empty dict if no config exists)
+        """
+        try:
+            import urllib.request
+            import urllib.parse
+            url = f"{self._api_url}/devices/config/{urllib.parse.quote(hardware_id, safe='')}"
+            with urllib.request.urlopen(url, timeout=5) as response:
+                self._device_config = json.loads(response.read().decode())
+                return self._device_config.copy()
+        except Exception as e:
+            self._set_status(f"Error fetching device config: {e}")
+            return {}
 
     # =========================================================================
     # Parameter-driven interface (used by builder COMP)
@@ -221,16 +249,19 @@ class MaestraExt:
         self._api_url = api_url
         self._fetch_initial_state()
 
-    def DiscoverAndInitialize(self, entity_slug: str, timeout: float = 5.0):
+    def DiscoverAndInitialize(self, entity_slug: str, timeout: float = 5.0,
+                              hardware_id: str = None):
         """
         Discover a Maestra server on the local network via mDNS,
         then initialize the connection using the discovered API URL.
+        If hardware_id is provided, also fetches the pre-provisioned device config.
 
         Requires the 'zeroconf' package: pip install zeroconf
 
         Args:
             entity_slug: Entity slug to bind to
             timeout: How long to wait for mDNS discovery (seconds)
+            hardware_id: Optional MAC address to fetch pre-provisioned config
 
         Returns:
             dict with discovered connection config (api_url, nats_url, etc.)
@@ -247,6 +278,11 @@ class MaestraExt:
             config = discover_maestra(timeout=timeout)
             api_url = config.get("api_url", "http://localhost:8080")
             self.Initialize(entity_slug, api_url=api_url)
+
+            # Fetch device config if hardware_id provided
+            if hardware_id:
+                self.FetchDeviceConfig(hardware_id)
+
             return config
         except TimeoutError as e:
             self._set_status(f"Discovery timed out: {e}")
@@ -543,6 +579,185 @@ class MaestraExt:
         except Exception as e:
             self._set_status(f"Error stopping session: {e}")
             return False
+
+    # =========================================================================
+    # Show Control
+    # =========================================================================
+
+    @property
+    def ShowPhase(self) -> str:
+        """
+        Get current show phase (read-only).
+        Returns one of: idle, pre_show, active, paused, post_show, shutdown, or empty string if unknown.
+        Updated automatically when receiving MQTT state broadcasts on
+        maestra/entity/state/show_control/show, or manually via GetShowState().
+        """
+        return self._show_phase if hasattr(self, '_show_phase') else ""
+
+    def _ensure_show_state(self):
+        """Lazy-init show control state fields"""
+        if not hasattr(self, '_show_phase'):
+            self._show_phase = ""
+        if not hasattr(self, '_show_previous_phase'):
+            self._show_previous_phase = ""
+
+    def GetShowState(self) -> dict:
+        """
+        Fetch current show state from the REST API.
+        Returns dict with: phase, previous_phase, transition_time, source, context
+        """
+        self._ensure_show_state()
+        try:
+            import urllib.request
+            url = f"{self._api_url}/show/state"
+            with urllib.request.urlopen(url) as response:
+                data = json.loads(response.read().decode())
+                new_phase = data.get('phase', '')
+                previous_phase = data.get('previous_phase', '')
+                if new_phase != self._show_phase:
+                    old_phase = self._show_phase
+                    self._show_phase = new_phase
+                    self._show_previous_phase = previous_phase
+                    self.onShowChange(new_phase, old_phase)
+                return data
+        except Exception as e:
+            self._set_status(f"Error getting show state: {e}")
+            return {}
+
+    def onShowChange(self, phase: str, previousPhase: str):
+        """
+        Called when the show phase changes.
+        Override this method or use the callbacks DAT to respond to phase changes.
+
+        Args:
+            phase: The new show phase (idle, pre_show, active, paused, post_show, shutdown)
+            previousPhase: The previous show phase
+        """
+        self._set_status(f"Show phase changed: {previousPhase} -> {phase}")
+
+        # Update show phase parameter if it exists
+        p = self.ownerComp.par
+        if hasattr(p, 'Showphase'):
+            p.Showphase.val = phase
+
+        # Run callback DAT if exists
+        callback = self.ownerComp.op('callbacks')
+        if callback:
+            try:
+                callback.run(phase, previousPhase)
+            except Exception:
+                pass
+
+    def onShowMqttMessage(self, topic: str, payload: str):
+        """
+        Handle incoming MQTT message for show state changes.
+        Call this from an MQTT subscriber DAT callback when receiving messages
+        on topic: maestra/entity/state/show_control/show
+
+        Args:
+            topic: The MQTT topic
+            payload: The raw MQTT payload string (JSON)
+        """
+        self._ensure_show_state()
+        try:
+            data = json.loads(payload)
+            state = data if isinstance(data, dict) else {}
+            new_phase = state.get('phase', '')
+            if new_phase and new_phase != self._show_phase:
+                old_phase = self._show_phase
+                self._show_phase = new_phase
+                self._show_previous_phase = state.get('previous_phase', old_phase)
+                self.onShowChange(new_phase, old_phase)
+        except Exception as e:
+            self._set_status(f"Error parsing show MQTT message: {e}")
+
+    def _send_show_command(self, endpoint: str) -> dict:
+        """Internal helper to send a POST command to a show endpoint"""
+        self._ensure_show_state()
+        try:
+            import urllib.request
+            url = f"{self._api_url}{endpoint}"
+            req = urllib.request.Request(
+                url,
+                data=b'{}',
+                headers={'Content-Type': 'application/json'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+                new_phase = data.get('phase', '')
+                if new_phase and new_phase != self._show_phase:
+                    old_phase = self._show_phase
+                    self._show_phase = new_phase
+                    self._show_previous_phase = data.get('previous_phase', old_phase)
+                    self.onShowChange(new_phase, old_phase)
+                return data
+        except Exception as e:
+            self._set_status(f"Error sending show command ({endpoint}): {e}")
+            return {}
+
+    def ShowWarmup(self) -> dict:
+        """Transition to warmup / pre-show phase"""
+        return self._send_show_command('/show/warmup')
+
+    def ShowGo(self) -> dict:
+        """Start the show (transition to active phase)"""
+        return self._send_show_command('/show/go')
+
+    def ShowPause(self) -> dict:
+        """Pause the show"""
+        return self._send_show_command('/show/pause')
+
+    def ShowResume(self) -> dict:
+        """Resume the show from paused state"""
+        return self._send_show_command('/show/resume')
+
+    def ShowStop(self) -> dict:
+        """Stop the show (transition to post-show phase)"""
+        return self._send_show_command('/show/stop')
+
+    def ShowShutdown(self) -> dict:
+        """Shutdown the show"""
+        return self._send_show_command('/show/shutdown')
+
+    def ShowReset(self) -> dict:
+        """Reset the show back to idle"""
+        return self._send_show_command('/show/reset')
+
+    def ShowTransition(self, to_phase: str, source: str = "touchdesigner") -> dict:
+        """
+        Transition to an arbitrary show phase.
+
+        Args:
+            to_phase: Target phase (idle, pre_show, active, paused, post_show, shutdown)
+            source: Optional source identifier
+        """
+        self._ensure_show_state()
+        try:
+            import urllib.request
+            url = f"{self._api_url}/show/transition"
+            payload = json.dumps({
+                'to': to_phase,
+                'source': source
+            }).encode()
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={'Content-Type': 'application/json'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+                new_phase = data.get('phase', '')
+                if new_phase and new_phase != self._show_phase:
+                    old_phase = self._show_phase
+                    self._show_phase = new_phase
+                    self._show_previous_phase = data.get('previous_phase', old_phase)
+                    self.onShowChange(new_phase, old_phase)
+                return data
+        except Exception as e:
+            self._set_status(f"Error sending show transition: {e}")
+            return {}
 
 
 # Module-level cached factory — prevents re-instantiation every frame

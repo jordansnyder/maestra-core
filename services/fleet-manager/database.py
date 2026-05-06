@@ -100,6 +100,7 @@ class DeviceDB(Base):
     ip_address = Column(String(50))  # Store as string for simplicity
     location = Column(JSONB)
     device_metadata = Column('metadata', JSONB)
+    configuration = Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
     status = Column(String(50), default='offline')
     last_seen = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -203,6 +204,26 @@ class StreamTypeDB(Base):
     stream_type_metadata = Column('metadata', JSONB, default={})
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# =============================================================================
+# OSC Mapping Model
+# =============================================================================
+
+class OscMappingDB(Base):
+    """OSC address → entity state mapping, managed via web UI"""
+    __tablename__ = 'osc_mappings'
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    osc_address = Column(Text, nullable=False, unique=True)
+    entity_slug = Column(Text, nullable=False)
+    state_key = Column(Text, nullable=True)
+    state_keys = Column(ARRAY(Text), nullable=True)
+    operation = Column(Text, nullable=False, server_default='update')
+    enabled = Column(Boolean, nullable=False, server_default=text('true'))
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=text("NOW()"))
+    updated_at = Column(DateTime, server_default=text("NOW()"))
 
 
 # =============================================================================

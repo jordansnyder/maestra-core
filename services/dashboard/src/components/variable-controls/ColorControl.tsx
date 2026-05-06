@@ -8,13 +8,13 @@ interface ColorControlProps {
   value: unknown
   onChange: (value: string) => void
   disabled?: boolean
+  compact?: boolean
 }
 
-export function ColorControl({ variable, value, onChange, disabled }: ColorControlProps) {
+export function ColorControl({ variable, value, onChange, disabled, compact }: ColorControlProps) {
   const strValue = typeof value === 'string' ? value : (variable.defaultValue as string) ?? '#000000'
   const [localValue, setLocalValue] = useState(strValue)
 
-  // Normalize color to hex for the color picker
   const toHex = (color: string): string => {
     if (color.startsWith('#')) return color.slice(0, 7)
     return '#000000'
@@ -31,9 +31,22 @@ export function ColorControl({ variable, value, onChange, disabled }: ColorContr
   }
 
   const handleTextBlur = () => {
-    if (localValue !== strValue) {
-      onChange(localValue)
-    }
+    if (localValue !== strValue) onChange(localValue)
+  }
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          value={toHex(localValue)}
+          onChange={handleColorChange}
+          disabled={disabled}
+          className="w-7 h-7 rounded cursor-pointer border border-slate-600 disabled:opacity-50"
+        />
+        <span className="font-mono text-xs text-slate-400">{localValue}</span>
+      </div>
+    )
   }
 
   return (

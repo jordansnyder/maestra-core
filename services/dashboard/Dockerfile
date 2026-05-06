@@ -1,10 +1,11 @@
 FROM node:20-alpine
 
-WORKDIR /app
-
-# Install dependencies
+# Install deps into /deps — outside the /app bind mount zone
+WORKDIR /deps
 COPY package.json package-lock.json* ./
 RUN npm ci
+
+WORKDIR /app
 
 # Copy source (will be overwritten by volume mount in dev)
 COPY . .
@@ -16,6 +17,8 @@ EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+# Point Node to the isolated node_modules
+ENV NODE_PATH=/deps/node_modules
+ENV PATH=/deps/node_modules/.bin:$PATH
 
-# Run in development mode (supports hot reload with volume mounts)
 CMD ["npm", "run", "dev"]

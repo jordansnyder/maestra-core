@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { DMXNode, DMXFixture, DMXFixtureCreate, ChannelMapping, Entity, EntityType, OFLManufacturer, OFLFixture, OFLFixtureMode } from '@/lib/types'
+import { DMXNode, DMXFixture, DMXFixtureCreate, DMXGroup, ChannelMapping, Entity, EntityType, OFLManufacturer, OFLFixture, OFLFixtureMode } from '@/lib/types'
 import { X, Search, ChevronDown, ExternalLink } from '@/components/icons'
 import { entitiesApi, entityTypesApi, oflApi } from '@/lib/api'
 
 interface AddFixtureModalProps {
   nodes: DMXNode[]
   fixtures: DMXFixture[]      // all existing fixtures, used to suggest start channel
+  groups?: DMXGroup[]         // available groups for assignment
   fixture?: DMXFixture        // edit mode: pre-filled, saves as update
   copyOf?: DMXFixture         // copy mode: pre-filled, saves as new create
   initialName?: string        // override the initial name field (used for copy)
@@ -42,7 +43,15 @@ function sanitizeName(raw: string): string {
     .replace(/^_+|_+$/g, '')
 }
 
-export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName, defaultPosition, onSubmit, onClose }: AddFixtureModalProps) {
+/** Derive a URL-safe entity slug from a fixture name */
+function slugify(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf, initialName, defaultPosition, onSubmit, onClose }: AddFixtureModalProps) {
   const isEditing = !!fixture
   const isCopying = !!copyOf
   // source to pre-fill from (edit uses fixture, copy uses copyOf)
@@ -51,7 +60,10 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
   const [error, setError] = useState<string | null>(null)
 
   const [name, setName] = useState(initialName ?? source?.name ?? '')
-  const [label, setLabel] = useState(source?.label ?? '')
+  const [entitySlug, setEntitySlug] = useState(
+    isEditing ? (fixture?.entity_slug ?? '') : slugify(initialName ?? source?.name ?? '')
+  )
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(isEditing)
   const [fixtureMode, setFixtureMode] = useState(source?.fixture_mode ?? '')
   const initialNodeId = source?.node_id ?? nodes[0]?.id ?? ''
   const initialUniverse = source?.universe ?? 1
@@ -83,6 +95,8 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
   // Edit mode: OFL profile loaded by ID for mode dropdown
   const [editOFLFixture, setEditOFLFixture] = useState<OFLFixture | null>(null)
 
+  const [groupId, setGroupId] = useState<string>(fixture?.group_id ?? '')
+
   // Edit mode only: entity picker
   const [entityId, setEntityId] = useState(fixture?.entity_id ?? '')
   const [entities, setEntities] = useState<Entity[]>([])
@@ -95,6 +109,9 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
 
   // Track all fixture names for auto-numbering
   const [allFixtureNames, setAllFixtureNames] = useState<string[]>([])
+  useEffect(() => {
+    setAllFixtureNames(fixtures.map((f) => f.name))
+  }, [fixtures])
 
   const selectedNode = nodes.find((n) => n.id === nodeId)
   const selectedEntity = entities.find((e) => e.id === entityId) ?? null
@@ -108,6 +125,13 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
       setEntityTypes(types)
     }).catch(() => {})
   }, [])
+
+  // Auto-derive slug from name while user hasn't manually edited it
+  useEffect(() => {
+    if (!slugManuallyEdited && !isEditing) {
+      setEntitySlug(slugify(name))
+    }
+  }, [name, slugManuallyEdited, isEditing])
 
   // Re-suggest start channel when node or universe changes (add/copy only).
   // Preserves the current channel span (end - start + 1) and shifts both fields to a new gap.
@@ -277,6 +301,11 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
     if (isNaN(ec) || ec < 1 || ec > 512) { setError('End channel must be 1–512'); return }
     if (ec < sc) { setError('End channel must be ≥ start channel'); return }
     const cc = ec - sc + 1
+    const trimmedSlug = entitySlug.trim()
+    if (trimmedSlug && !/^[a-z0-9][a-z0-9-]*$/.test(trimmedSlug)) {
+      setError('Slug must be lowercase letters, numbers, and hyphens only')
+      return
+    }
 
     setSubmitting(true)
     setError(null)
@@ -292,6 +321,7 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
             const created = await entitiesApi.create({
               name: name.trim(),
               entity_type_id: typeId,
+              slug: trimmedSlug || undefined,
               description: `DMX fixture — ${selectedOFLFixture ? `${selectedMfr?.name ?? ''} ${selectedOFLFixture.name}`.trim() : name.trim() || 'linked fixture'}`,
               metadata: { dmx_fixture: true },
             })
@@ -336,18 +366,27 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
 
       await onSubmit({
         name: name.trim(),
-        label: label.trim() || undefined,
         fixture_mode: fixtureMode.trim() || undefined,
         node_id: nodeId,
         universe,
         start_channel: sc,
         channel_count: cc,
         entity_id: resolvedEntityId,
+        entity_slug: isEditing && trimmedSlug && trimmedSlug !== fixture?.entity_slug ? trimmedSlug : undefined,
         ofl_fixture_id: oflFixtureId ?? (isEditing ? fixture?.ofl_fixture_id : undefined),
+        group_id: groupId || undefined,
         channel_map: editChannelMap,
         position_x: (isCopying ? (copyOf!.position_x + 40) : fixture?.position_x) ?? defaultPosition?.x ?? 200,
         position_y: (isCopying ? (copyOf!.position_y + 40) : fixture?.position_y) ?? defaultPosition?.y ?? 200,
       })
+      // In edit mode, keep the linked entity's display name in sync with the fixture name
+      if (isEditing && resolvedEntityId) {
+        try {
+          await entitiesApi.update(resolvedEntityId, { name: name.trim() })
+        } catch {
+          // Non-fatal: display name sync failure doesn't block the save
+        }
+      }
       onClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : isEditing ? 'Failed to update fixture' : 'Failed to create fixture')
@@ -356,8 +395,8 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-xl shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="modal-backdrop">
+      <div className="modal-panel max-w-lg flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 shrink-0">
           <div>
@@ -549,17 +588,38 @@ export function AddFixtureModal({ nodes, fixtures, fixture, copyOf, initialName,
                   autoFocus={isEditing}
                 />
               </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Short Label</label>
+              <div className="col-span-2">
+                <label className="block text-xs text-slate-400 mb-1">
+                  Entity Slug
+                  <span className="ml-2 text-slate-600 font-normal">used as the linked entity identifier</span>
+                </label>
                 <input
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                  placeholder="e.g. FWL"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                  value={entitySlug}
+                  onChange={(e) => {
+                    setEntitySlug(e.target.value)
+                    setSlugManuallyEdited(true)
+                  }}
+                  placeholder="e.g. front-wash-left"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
                 />
               </div>
+              {groups.length > 0 && (
+                <div className="col-span-2">
+                  <label className="block text-xs text-slate-400 mb-1">Group</label>
+                  <select
+                    value={groupId}
+                    onChange={(e) => setGroupId(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">Ungrouped</option>
+                    {groups.map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               {isEditing && editOFLFixture && editOFLFixture.modes.length > 0 && (
-                <div>
+                <div className="col-span-2">
                   <label className="block text-xs text-slate-400 mb-1 flex items-center gap-2">
                     Fixture Mode
                     <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-900/40 border border-emerald-800/50 text-emerald-400 normal-case tracking-normal">

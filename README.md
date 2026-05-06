@@ -67,6 +67,7 @@ Not sure which SDK to use? See the [Choose Your SDK](docs/docs/guides/choose-you
 - **Visual Programming** -- Use Node-RED's flow-based editor to build automation, orchestration, and show control logic with drag-and-drop nodes.
 - **DMX / Art-Net Gateway** -- Control physical DMX lighting fixtures from any Maestra client via Art-Net. Configure nodes and fixtures through the Dashboard, save lighting looks as **Cues**, chain them into automated **Sequences** with cross-fades, and trigger playback from any SDK or the REST API. Opt-in service, no code changes required between venues.
 - **Monitoring** -- Eight pre-built Grafana dashboards give you real-time visibility into device health, message throughput, entity state history, and system performance.
+- **Live Console Visualization** -- The Dashboard Console includes an Ambient tab with a real-time Canvas 2D visualization of your message bus. Devices, entities, and gateways are plotted as live nodes; particles travel along the actual routing path each message takes (gateway → bus → destination). A bus heat glow shifts from cool blue to warm orange based on traffic volume, and a Simulate mode lets you preview the visualization without connected hardware.
 
 ## Services
 

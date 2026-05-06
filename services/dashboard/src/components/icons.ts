@@ -91,6 +91,7 @@ export {
   Pencil,
   Trash2,
   X,
+  Menu,
   ChevronRight,
   Search,
   RefreshCw,
@@ -110,6 +111,8 @@ export {
   RotateCcw,
   ZapOff,
   Undo2,
+  Move,
+  Crosshair,
 } from 'lucide-react'
 
 // Device type icon lookup

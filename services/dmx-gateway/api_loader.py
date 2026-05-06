@@ -26,7 +26,6 @@ class ChannelMapping(BaseModel):
 class APIFixture(BaseModel):
     id: str
     name: str
-    label: Optional[str] = None
     node_id: str
     universe: int
     start_channel: int

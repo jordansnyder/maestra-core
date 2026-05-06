@@ -34,6 +34,7 @@ nav:
       - Events & Messages: concepts/events.md
   - Guides:
       - Choose Your Protocol: guides/choose-your-sdk.md
+      - Networking Best Practices: guides/networking.md
       - Using the Dashboard: guides/dashboard.md
       - Node-RED Automation: guides/nodered.md
       - DMX / Art-Net Lighting: guides/dmx-gateway.md

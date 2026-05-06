@@ -149,6 +149,80 @@ function anything() {
 }
 ```
 
+## Show Control
+
+Maestra broadcasts show phase changes as entity state on the `show_control/show` topic. Use this to react to show phases (idle, pre_show, active, paused, post_show, shutdown) in your Max patches.
+
+### Receiving Show Phase
+
+```
+[udpreceive 57121]
+|
+[oscparse]
+|
+[route /maestra/entity/state]
+|
+[route show_control]
+|
+[route show]
+|
+[js parse-show-phase.js]
+|   |
+[phase]  [previous_phase]
+```
+
+### parse-show-phase.js
+
+```javascript
+// parse-show-phase.js - Extract show phase from Maestra state events
+
+function anything() {
+    var args = arrayfromargs(arguments);
+    var payload = args.slice(0).join('');
+
+    try {
+        var data = JSON.parse(payload);
+
+        if (data.current_state && data.current_state.phase) {
+            // Outlet 0: current phase
+            outlet(0, data.current_state.phase);
+
+            // Outlet 1: previous phase
+            outlet(1, data.current_state.previous_phase || "idle");
+        }
+    } catch (e) {
+        post("Error parsing show phase: " + e + "\n");
+    }
+}
+```
+
+### Conditional Logic Based on Show Phase
+
+```
+[js parse-show-phase.js]
+|
+[sel idle pre_show active paused post_show shutdown]
+|    |       |       |        |          |
+[b]  [b]     [b]     [b]      [b]       [b]
+```
+
+### maestra.showphase
+
+Convenience abstraction for show phase tracking.
+
+**Outlets:**
+1. Current phase (symbol)
+2. Previous phase (symbol)
+3. Bang when show becomes active
+4. Bang when show is paused
+
+**Example:**
+```
+[maestra.showphase @host localhost @port 57121]
+|       |       |       |
+[phase] [prev]  [bang:active] [bang:paused]
+```
+
 ## OSC Message Format
 
 ### Incoming (State Changes)

@@ -87,14 +87,19 @@ def _interpolate_state(
     return result
 
 
-class DMXPlaybackEngine:
+class DMXGroupEngine:
     """
-    Singleton playback engine.  Call play(), pause(), resume(), stop(),
-    toggle_loop(), fade_out(), and recall_cue_fade() from FastAPI routes.
-    Status is exposed via the .status property.
+    Per-group playback engine.  One instance per DMX group (None key = ungrouped).
+    Call play(), pause(), resume(), stop(), toggle_loop(), fade_out(), and
+    recall_cue_fade() from FastAPI routes.  Status is exposed via the .status property.
+
+    Uses jsonb_set merge semantics for entity state updates so multiple group
+    engines can drive different channels on the same entity simultaneously (LTP).
     """
 
-    def __init__(self):
+    def __init__(self, group_id: Optional[str] = None):
+        self.group_id: Optional[str] = group_id  # None = ungrouped (legacy) engine
+
         # Configurable tick interval (seconds); loaded from DB at startup
         self._send_interval: float = DMX_SEND_INTERVAL_DEFAULT
 
@@ -108,6 +113,7 @@ class DMXPlaybackEngine:
         self._paused_elapsed: float = 0.0
         self._last_dmx_send: float = 0.0
         self._loop: bool = False
+        self._fadeout_ms_on_complete: Optional[float] = None
         self._progress: float = 0.0
         self._hold_progress: float = 0.0
         self._fade_progress: Optional[float] = None
@@ -122,11 +128,16 @@ class DMXPlaybackEngine:
         # Cache: entity_id (str) → {slug, entity_type, path}
         self._entity_info: dict = {}
 
+        # Status publishing throttle (publish at most every 100ms)
+        self._last_status_publish: float = 0.0
+        self._status_publish_interval: float = 0.1  # 100ms = 10 Hz
+
     # ── Status ────────────────────────────────────────────────────────────────
 
     @property
     def status(self) -> dict:
         return {
+            "group_id": self.group_id,
             "sequence_id": self._sequence_id,
             "play_state": self._play_state,
             "phase": self._phase,
@@ -136,7 +147,31 @@ class DMXPlaybackEngine:
             "loop": self._loop,
             "fade_progress": self._fade_progress,
             "interval_ms": round(self._send_interval * 1000),
+            "fadeout_ms_on_complete": self._fadeout_ms_on_complete,
         }
+
+    async def publish_status(self, force: bool = False) -> None:
+        """Publish playback status to NATS for dashboard push updates.
+
+        Throttled to at most 10 Hz unless force=True (used on state transitions).
+        """
+        now = asyncio.get_event_loop().time()
+        if not force and (now - self._last_status_publish) < self._status_publish_interval:
+            return
+        self._last_status_publish = now
+
+        try:
+            nc = state_manager.nc
+            if nc and not nc.is_closed:
+                from datetime import datetime
+                payload = json.dumps({
+                    "type": "playback_status",
+                    "engines": [self.status],
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                }).encode()
+                await nc.publish("maestra.dmx.playback.status", payload)
+        except Exception as e:
+            logger.debug(f"Status publish failed: {e}")
 
     async def load_settings(self) -> None:
         """Load persisted settings from DB (called once at startup)."""
@@ -172,7 +207,7 @@ class DMXPlaybackEngine:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    async def play(self, sequence_id: str) -> bool:
+    async def play(self, sequence_id: str, loop: bool = False, fadeout_ms: Optional[float] = None) -> bool:
         await self._cancel_tasks()
         loaded = await self._load_sequence(sequence_id)
         if not loaded:
@@ -186,6 +221,8 @@ class DMXPlaybackEngine:
         self._cue_index = 0
         self._phase = 'transitioning' if first_transition > 0 else 'holding'
         self._play_state = 'playing'
+        self._loop = loop
+        self._fadeout_ms_on_complete = fadeout_ms
         self._phase_start = asyncio.get_event_loop().time()
         self._paused_elapsed = 0.0
         self._last_dmx_send = 0.0
@@ -217,6 +254,7 @@ class DMXPlaybackEngine:
             active_cue_id=None,
         )
         self._task = asyncio.create_task(self._tick_loop())
+        await self.publish_status(force=True)
         return True
 
     async def pause(self):
@@ -231,6 +269,7 @@ class DMXPlaybackEngine:
         self._task = None
         self._paused_elapsed += asyncio.get_event_loop().time() - self._phase_start
         self._play_state = 'paused'
+        await self.publish_status(force=True)
 
     async def resume(self):
         if self._play_state != 'paused':
@@ -238,6 +277,7 @@ class DMXPlaybackEngine:
         self._play_state = 'playing'
         self._phase_start = asyncio.get_event_loop().time()
         self._task = asyncio.create_task(self._tick_loop())
+        await self.publish_status(force=True)
 
     async def stop(self):
         await self._cancel_tasks()
@@ -255,6 +295,7 @@ class DMXPlaybackEngine:
                 active_sequence_id=None,
                 active_cue_id=None,
             )
+        await self.publish_status(force=True)
 
     async def toggle_loop(self) -> bool:
         self._loop = not self._loop
@@ -338,6 +379,7 @@ class DMXPlaybackEngine:
         try:
             while self._play_state == 'playing':
                 await self._tick()
+                await self.publish_status()  # throttled to 10 Hz
                 await asyncio.sleep(self._send_interval)
         except asyncio.CancelledError:
             pass
@@ -397,7 +439,10 @@ class DMXPlaybackEngine:
                         self._paused_elapsed = 0.0
                         self._last_dmx_send = 0.0
                     else:
-                        # Sequence complete — clear entity IDs and stop (lights stay at last cue)
+                        # Sequence complete — stop tick loop; lights stay at last cue unless
+                        # fadeout was configured, in which case kick off the fade background task.
+                        if self._fadeout_ms_on_complete is not None:
+                            fixtures = list(self._loaded[self._cue_index]['fixtures']) if self._loaded else []
                         self._play_state = 'stopped'
                         self._sequence_id = None
                         self._loaded = []
@@ -407,6 +452,10 @@ class DMXPlaybackEngine:
                         await self._set_dmx_lighting_active(
                             active_sequence_id=None, active_cue_id=None
                         )
+                        if self._fadeout_ms_on_complete is not None and fixtures:
+                            self._fade_task = asyncio.create_task(
+                                self._run_fade_out(fixtures, self._fadeout_ms_on_complete)
+                            )
                 else:
                     self._cue_index = next_idx
                     self._phase = 'transitioning'
@@ -534,7 +583,12 @@ class DMXPlaybackEngine:
         await self._batch_update(updates)
 
     async def _batch_update(self, updates: list):
-        """Batch-update entity states in DB, then broadcast each change to NATS."""
+        """Batch-update entity states via jsonb merge, then broadcast each change to NATS.
+
+        Uses `state || patch` (jsonb concatenation) instead of a full state replace so
+        multiple group engines can write different channels on the same entity
+        simultaneously without clobbering each other (LTP semantics).
+        """
         if not updates:
             return
         try:
@@ -546,9 +600,10 @@ class DMXPlaybackEngine:
                 for entity_id, _, new_state in updates:
                     await db.execute(text("""
                         UPDATE entities
-                        SET state = CAST(:state AS jsonb), state_updated_at = NOW()
+                        SET state = COALESCE(state, '{}'::jsonb) || CAST(:patch AS jsonb),
+                            state_updated_at = NOW()
                         WHERE id = CAST(:id AS uuid)
-                    """), {"state": json.dumps(new_state), "id": entity_id})
+                    """), {"patch": json.dumps(new_state), "id": entity_id})
                 await db.commit()
 
             for entity_id, prev_state, new_state in updates:
@@ -747,5 +802,54 @@ class DMXPlaybackEngine:
         await self._cancel_tasks()
 
 
-# Singleton instance
-playback_engine = DMXPlaybackEngine()
+# =============================================================================
+# Engine Registry — one DMXGroupEngine per group (None key = ungrouped/legacy)
+# =============================================================================
+
+class DMXEngineRegistry:
+    """
+    Singleton registry of per-group playback engines.
+
+    Key None  →  ungrouped (legacy) engine — backward-compatible with all
+                 existing API calls that omit group_id.
+    Key <str> →  one engine per DMX group UUID.
+
+    Engines are created on demand and never destroyed (they just sit idle).
+    This preserves playback state across API calls without re-instantiation.
+    """
+
+    def __init__(self):
+        self._engines: dict[Optional[str], DMXGroupEngine] = {
+            None: DMXGroupEngine(group_id=None)
+        }
+        self._lock = asyncio.Lock()
+
+    def get(self, group_id: Optional[str] = None) -> DMXGroupEngine:
+        """Return the engine for the given group_id, creating it on first access."""
+        if group_id not in self._engines:
+            self._engines[group_id] = DMXGroupEngine(group_id=group_id)
+        return self._engines[group_id]
+
+    @property
+    def ungrouped(self) -> DMXGroupEngine:
+        """Convenience accessor for the legacy ungrouped engine."""
+        return self._engines[None]
+
+    def all_statuses(self) -> list:
+        """Return status dicts for all engines that are not idle."""
+        return [e.status for e in self._engines.values()]
+
+    async def load_settings(self) -> None:
+        """Load persisted settings into the ungrouped (legacy) engine at startup."""
+        await self._engines[None].load_settings()
+
+    async def shutdown_all(self) -> None:
+        for engine in self._engines.values():
+            await engine.shutdown()
+
+
+# Registry singleton — used by dmx_router.py playback endpoints
+engine_registry = DMXEngineRegistry()
+
+# Backward-compatible alias — existing imports of `playback_engine` continue to work
+playback_engine = engine_registry.ungrouped

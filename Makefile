@@ -220,7 +220,9 @@ bootstrap-venue: ## Create venue entities in Maestra from config/dmx/patch.yaml
 
 bootstrap-venue-dry: ## Preview venue bootstrap without creating anything
 	python3 scripts/bootstrap_venue.py --patch config/dmx/patch.yaml --dry-run
-sync-ofl: ## Run OFL fixture sync manually (never runs automatically)
+sync-ofl: ## Pull latest OFL fixtures from fork then sync into the database
+	git submodule sync vendor/ofl
+	git submodule update --remote vendor/ofl
 	docker compose --profile ofl-sync run --build --rm ofl-sync
 
 ofl-status: ## Show last 5 OFL sync results

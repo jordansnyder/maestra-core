@@ -25,6 +25,7 @@
 #include <ESPmDNS.h>
 #include <MaestraClient.h>
 #include "er_oled.h"
+#include "esp_mac.h"
 
 // ---- Network mode ----
 // Uncomment to use WiFi with hardcoded config (skips auto-discovery)
@@ -212,16 +213,36 @@ bool resolveEntitySlug(const char* entityId) {
 // ---- Network setup ----
 
 #ifndef USE_WIFI
+/**
+ * Populate macAddress buffer. Tries ETH.macAddress() first; if the result is
+ * empty or all-zeros (some ESP32 chips / board revisions don't expose the
+ * Ethernet MAC correctly), falls back to the chip's base MAC from eFuse.
+ */
+void readEthernetMac() {
+  ETH.macAddress().toCharArray(macAddress, sizeof(macAddress));
+
+  // Check for empty or all-zero result
+  if (macAddress[0] == '\0' || strcmp(macAddress, "00:00:00:00:00:00") == 0) {
+    Serial.println("ETH MAC unavailable, falling back to eFuse base MAC");
+    uint8_t mac[6];
+    esp_read_mac(mac, ESP_MAC_ETH);
+    snprintf(macAddress, sizeof(macAddress),
+             "%02X:%02X:%02X:%02X:%02X:%02X",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  }
+}
+
 void onEthEvent(arduino_event_id_t event) {
   switch (event) {
     case ARDUINO_EVENT_ETH_START:
       ETH.setHostname("esp32-oled-artist");
       break;
     case ARDUINO_EVENT_ETH_GOT_IP:
+      readEthernetMac();
       Serial.print("ETH IP: ");
       Serial.print(ETH.localIP());
       Serial.print("  MAC: ");
-      Serial.println(ETH.macAddress());
+      Serial.println(macAddress);
       ethConnected = true;
       break;
     case ARDUINO_EVENT_ETH_DISCONNECTED:
@@ -251,18 +272,26 @@ void setupNetwork() {
   while (!ethConnected && timeout > 0) { delay(500); Serial.print("."); timeout--; }
   Serial.println();
   if (ethConnected) {
-    ETH.macAddress().toCharArray(macAddress, sizeof(macAddress));
     char ipStr[16];
     ETH.localIP().toString().toCharArray(ipStr, sizeof(ipStr));
     showStatus("Ethernet connected", ipStr);
   } else {
-    showStatus("ETH: No link!", "Check cable");
+    char timeoutMsg[32];
+    snprintf(timeoutMsg, sizeof(timeoutMsg), "Timeout after %ds", (30 - timeout) / 2);
+    showStatus("ETH: No link!", timeoutMsg);
+    delay(5000);
   }
 #endif
 
   Serial.print("MAC: ");
   Serial.println(macAddress);
-  showStatus("MAC Address:", macAddress);
+  if (macAddress[0] == '\0') {
+    showStatus("MAC: EMPTY", ethConnected ? "Link OK but no MAC" : "No ETH link");
+  } else if (strcmp(macAddress, "00:00:00:00:00:00") == 0) {
+    showStatus("MAC: ALL ZEROS", "eFuse fallback failed");
+  } else {
+    showStatus("MAC Address:", macAddress);
+  }
   delay(3000);
 }
 

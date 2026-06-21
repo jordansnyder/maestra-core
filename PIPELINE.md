@@ -14,8 +14,17 @@ cd services/dashboard && npm run test:watch
 ```
 Tests live in `services/dashboard/test/`. Currently one test file: `console-provider.test.ts`.
 
-**Python services (Fleet Manager, gateways) — No automated unit tests exist.**
-The Makefile has integration smoke tests that require a running Docker stack:
+**Python services (Fleet Manager) — pytest unit tests, no Docker required:**
+```bash
+cd services/fleet-manager
+python3 -m venv /tmp/fm-venv && /tmp/fm-venv/bin/pip install -q -r requirements.txt pytest
+/tmp/fm-venv/bin/python -m pytest tests/ -v
+```
+Tests live in `services/fleet-manager/tests/`. `conftest.py` mocks all external deps
+(NATS, Redis, MQTT, asyncpg) so no live connections are needed.
+Coverage: slug generation, state machine helpers, type checking, deep merge, variable validation.
+
+**Integration smoke tests** (require full Docker stack via `make up`):
 ```bash
 make test-mqtt                        # publish to MQTT broker
 make test-mqtt-state SLUG=my-entity   # test entity state update via MQTT
@@ -23,7 +32,6 @@ make test-osc                         # send OSC message to gateway
 make test-osc-state SLUG=my-entity    # test entity state via OSC
 make test-dmx                         # publish entity state to NATS → DMX
 ```
-These require `make up` first. Do not rely on them in CI without the full stack.
 
 ---
 

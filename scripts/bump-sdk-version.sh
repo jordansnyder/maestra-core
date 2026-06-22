@@ -10,7 +10,7 @@
 #   ./scripts/bump-sdk-version.sh js 1.0.0
 #   ./scripts/bump-sdk-version.sh all 0.2.0
 #
-# Supported SDKs: python, js, unity, unreal, arduino, touchdesigner, all
+# Supported SDKs: python, js, unity, unreal, arduino, processing, maxmsp, touchdesigner, all
 
 set -euo pipefail
 
@@ -18,7 +18,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 if [[ $# -ne 2 ]]; then
     echo "Usage: $0 <sdk> <version>"
-    echo "SDKs: python, js, unity, unreal, arduino, touchdesigner, all"
+    echo "SDKs: python, js, unity, unreal, arduino, processing, maxmsp, touchdesigner, all"
     exit 1
 fi
 
@@ -77,7 +77,31 @@ bump_arduino() {
         pkg.version = '$VERSION';
         fs.writeFileSync('$file', JSON.stringify(pkg, null, 2) + '\n');
     "
-    echo "  Arduino SDK → $VERSION ($file)"
+    # Arduino Library Manager reads library.properties (separate from library.json)
+    local props="$REPO_ROOT/sdks/arduino/MaestraClient/library.properties"
+    sed -i.bak -E "s/^version=.*/version=$VERSION/" "$props"
+    rm -f "$props.bak"
+    echo "  Arduino SDK → $VERSION ($file + library.properties)"
+}
+
+bump_processing() {
+    local file="$REPO_ROOT/sdks/processing/MaestraClient/library.properties"
+    # prettyVersion is the human string; version is a monotonic integer counter.
+    local cur; cur="$(grep '^version=' "$file" | cut -d= -f2)"
+    sed -i.bak -E "s/^prettyVersion=.*/prettyVersion=$VERSION/; s/^version=.*/version=$((cur + 1))/" "$file"
+    rm -f "$file.bak"
+    echo "  Processing SDK → $VERSION ($file)"
+}
+
+bump_maxmsp() {
+    local file="$REPO_ROOT/sdks/maxmsp/package-info.json"
+    node -e "
+        const fs = require('fs');
+        const pkg = JSON.parse(fs.readFileSync('$file', 'utf8'));
+        pkg.version = '$VERSION';
+        fs.writeFileSync('$file', JSON.stringify(pkg, null, '\t') + '\n');
+    "
+    echo "  Max/MSP SDK → $VERSION ($file)"
 }
 
 bump_touchdesigner() {
@@ -94,6 +118,8 @@ case "$SDK" in
     unity)         bump_unity ;;
     unreal)        bump_unreal ;;
     arduino)       bump_arduino ;;
+    processing)    bump_processing ;;
+    maxmsp)        bump_maxmsp ;;
     touchdesigner) bump_touchdesigner ;;
     all)
         bump_python
@@ -101,11 +127,13 @@ case "$SDK" in
         bump_unity
         bump_unreal
         bump_arduino
+        bump_processing
+        bump_maxmsp
         bump_touchdesigner
         ;;
     *)
         echo "Error: Unknown SDK '$SDK'"
-        echo "Valid SDKs: python, js, unity, unreal, arduino, touchdesigner, all"
+        echo "Valid SDKs: python, js, unity, unreal, arduino, processing, maxmsp, touchdesigner, all"
         exit 1
         ;;
 esac

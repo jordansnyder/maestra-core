@@ -5,9 +5,9 @@
   "description": "Connect Unity to the Maestra immersive experience platform for real-time entity state management.",
   "unity": "2021.3",
   "unityRelease": "0f1",
-  "documentationUrl": "https://maestra.dev/docs/sdk/unity",
-  "changelogUrl": "https://github.com/maestra/maestra-core/blob/main/sdks/unity/CHANGELOG.md",
-  "licensesUrl": "https://github.com/maestra/maestra-core/blob/main/LICENSE",
+  "documentationUrl": "https://maestra.cc/docs",
+  "changelogUrl": "https://github.com/jordansnyder/maestra-core/blob/main/sdks/unity/CHANGELOG.md",
+  "licensesUrl": "https://github.com/jordansnyder/maestra-core/blob/main/sdks/unity/LICENSE.md",
   "keywords": [
     "maestra",
     "iot",
@@ -17,7 +17,7 @@
   ],
   "author": {
     "name": "Maestra Team",
-    "url": "https://maestra.dev"
+    "url": "https://maestra.cc"
   },
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.0.0"

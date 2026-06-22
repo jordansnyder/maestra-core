@@ -10,7 +10,7 @@ Add to your `platformio.ini`:
 
 ```ini
 lib_deps =
-    https://github.com/maestra/maestra-core#main
+    https://github.com/jordansnyder/maestra-core#main
     knolleary/PubSubClient@^2.8
     bblanchon/ArduinoJson@^7.0.0
 ```

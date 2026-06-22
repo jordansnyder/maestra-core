@@ -1,0 +1,31 @@
+{
+	"name": "Maestra",
+	"version": "0.1.0",
+	"author": "Maestra",
+	"description": "Connect Max/MSP to the Maestra immersive experience platform over OSC. Subscribe to real-time entity state, publish updates, and react to show-control phases.",
+	"homepatcher": "MaestraOverview.maxpat",
+	"tags": [
+		"osc",
+		"networking",
+		"state",
+		"iot",
+		"maestra"
+	],
+	"max_version_min": "8.0.0",
+	"max_version_max": "none",
+	"website": "https://maestra.cc",
+	"reverse_domain": "cc.maestra",
+	"os": {
+		"macintosh": {
+			"platform": [
+				"aarch64",
+				"x64"
+			]
+		},
+		"windows": {
+			"platform": [
+				"x64"
+			]
+		}
+	}
+}

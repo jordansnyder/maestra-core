@@ -26,7 +26,7 @@ MQTT-based SDK for connecting OpenFrameworks apps to the Maestra platform.
 Clone or copy `ofxMaestra` into your `addons/` directory:
 ```bash
 cd openframeworks/addons
-git clone https://github.com/maestra/maestra-core.git
+git clone https://github.com/jordansnyder/maestra-core.git
 # or copy sdks/openframeworks/ofxMaestra/ directly
 ```
 

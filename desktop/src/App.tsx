@@ -10,6 +10,8 @@ import {
   ReadinessStatus,
   FirstRunWelcome,
 } from "./components/ReadinessStatus";
+import { UpdateBanner } from "./components/UpdateBanner";
+import { useAppUpdate } from "./hooks/useAppUpdate";
 
 type View = "main" | "logs";
 
@@ -35,6 +37,7 @@ export default function App() {
     setError,
   } = useDocker();
 
+  const appUpdate = useAppUpdate();
   const [view, setView] = useState<View>("main");
   const [showEnvEditor, setShowEnvEditor] = useState(false);
   const [isFirstRun, setIsFirstRun] = useState<boolean | null>(null);
@@ -178,6 +181,9 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen bg-surface-0 bg-grid noise">
+      {/* App self-update banner (hidden when no update) */}
+      <UpdateBanner update={appUpdate} />
+
       {/* Header */}
       <header className="relative flex items-center justify-between px-5 py-3 glass z-10">
         {/* Accent line at top */}
@@ -234,7 +240,7 @@ export default function App() {
             onClick={handleCheckForUpdates}
             disabled={isPulling}
             className="p-2 text-gray-500 hover:text-gray-200 rounded-lg hover:bg-surface-3 transition-all disabled:opacity-50"
-            title="Check for Updates"
+            title="Update Services (pull latest Docker images)"
           >
             {updateStatus === "checking" ? (
               <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">

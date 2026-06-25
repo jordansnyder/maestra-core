@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { showControlApi } from '@/lib/api'
+import { getApiUrl } from '@/lib/hosts'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import type { ShowPhase, ShowState, ShowHistoryEntry, ShowSchedule, Device } from '@/lib/types'
 import {
@@ -49,7 +50,7 @@ export default function ShowControlPage() {
         showControlApi.getState(),
         showControlApi.getHistory(20),
         showControlApi.listSchedules(),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/devices`).then(r => r.json()).catch(() => []),
+        fetch(`${getApiUrl()}/devices`).then(r => r.json()).catch(() => []),
       ])
       setShowState(state)
       setHistory(hist)

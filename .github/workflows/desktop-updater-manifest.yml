@@ -1,0 +1,58 @@
+name: Publish Desktop Updater Manifest
+
+# When a desktop release is *published* (not draft), copy its generated
+# latest.json onto the dedicated `updater` branch. The Tauri app polls the raw
+# URL of that branch, so updates only go live once the release is public and its
+# installer assets are downloadable.
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish-manifest:
+    if: startsWith(github.event.release.tag_name, 'desktop/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch latest.json from the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          mkdir -p _manifest
+          if ! gh release download "$TAG" --repo "$REPO" \
+                --pattern 'latest.json' --dir _manifest --clobber; then
+            echo "::error::No latest.json asset on release $TAG. Was the build run with TAURI_SIGNING_PRIVATE_KEY set?"
+            exit 1
+          fi
+
+      - name: Publish to updater branch
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin updater >/dev/null 2>&1; then
+            git fetch origin updater
+            git checkout updater
+          else
+            git checkout --orphan updater
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+
+          cp _manifest/latest.json latest.json
+          rm -rf _manifest
+          git add latest.json
+          if git diff --cached --quiet; then
+            echo "Manifest unchanged — nothing to publish."
+          else
+            git commit -m "chore(updater): publish manifest for $TAG"
+            git push origin updater
+          fi

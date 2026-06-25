@@ -43,8 +43,11 @@ jobs:
 
       - name: Fetch Processing core.jar
         run: |
-          curl -fsSL -o processing.tgz \
-            "https://github.com/processing/processing4/releases/download/${PROCESSING_BUILD}/processing-${PROCESSING_VERSION}-linux-x64.tgz"
+          URL="https://github.com/processing/processing4/releases/download/${PROCESSING_BUILD}/processing-${PROCESSING_VERSION}-linux-x64.tgz"
+          if ! curl -fsSL --retry 4 --retry-delay 5 --retry-all-errors -o processing.tgz "$URL"; then
+            echo "::error::Could not download Processing from $URL — if upstream moved the release, bump PROCESSING_VERSION/PROCESSING_BUILD in this workflow's env."
+            exit 1
+          fi
           tar xzf processing.tgz
           CORE="$(find . -path '*/core/library/core.jar' | head -1)"
           [ -n "$CORE" ] || { echo "::error::core.jar not found in Processing archive"; exit 1; }
@@ -52,8 +55,11 @@ jobs:
 
       - name: Fetch processing-mqtt library
         run: |
-          curl -fsSL -o mqtt.zip \
-            "https://github.com/256dpi/processing-mqtt/releases/download/v${MQTT_LIB_VERSION}/mqtt.zip"
+          URL="https://github.com/256dpi/processing-mqtt/releases/download/v${MQTT_LIB_VERSION}/mqtt.zip"
+          if ! curl -fsSL --retry 4 --retry-delay 5 --retry-all-errors -o mqtt.zip "$URL"; then
+            echo "::error::Could not download processing-mqtt from $URL — if upstream moved the release, bump MQTT_LIB_VERSION in this workflow's env."
+            exit 1
+          fi
           unzip -q mqtt.zip -d mqtt-lib
           MQTT="$(find mqtt-lib -name 'mqtt.jar' | head -1)"
           [ -n "$MQTT" ] || { echo "::error::mqtt.jar not found in processing-mqtt archive"; exit 1; }

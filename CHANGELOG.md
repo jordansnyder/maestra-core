@@ -2,6 +2,16 @@
 
 All notable changes to Maestra will be documented in this file.
 
+## [0.21.0.0] - 2026-06-25
+
+### Added
+- **Maestra Desktop auto-updater**: The desktop app checks for and installs new releases, with hardened security (signed/notarized macOS builds) and more robust Docker lifecycle handling.
+- **Distribution pipeline**: CI now builds and publishes the OpenFrameworks addon, the desktop updater artifacts, and enforces an SDK version gate so releases stay in sync.
+- **RELEASE.md operator runbook**: Step-by-step guide for cutting SDK, desktop, and Docker distribution releases.
+
+### Fixed
+- **Dashboard loses devices/entities after an IP change**: The dashboard no longer bakes the host machine's LAN IP into its browser bundle. It resolves every service host from `window.location.hostname` at runtime, so it keeps working at `localhost` or over the LAN and survives DHCP/network IP changes that previously left it pointing at a dead address.
+
 ## [0.20.2.0] - 2026-04-06
 
 ### Changed

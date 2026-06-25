@@ -2,6 +2,16 @@
 
 All notable changes to Maestra will be documented in this file.
 
+## [0.22.0.0] - 2026-06-25
+
+### Added
+- **Light/dark theme toggle** in the dashboard. Your choice is remembered across sessions and defaults to your operating system preference, with no flash of the wrong theme on load.
+- **maestra.cc brand identity** across the dashboard and documentation: Space Grotesk and JetBrains Mono typography, a warm paper light theme and a matching dark theme, the red-orange brand accent, square corners, monospace HUD labels, and a subtle graph-paper texture.
+
+### Changed
+- The dashboard now resolves all colors through a semantic theme layer, so both themes stay consistent as the UI grows.
+- The documentation site (MkDocs) adopts the same brand fonts, colors, and light/dark toggle.
+
 ## [0.21.0.0] - 2026-06-25
 
 ### Added

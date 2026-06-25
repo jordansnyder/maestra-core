@@ -25,8 +25,8 @@ export function BooleanControl({ variable, value, onChange, disabled, compact }:
         className={`
           px-3 py-1 rounded-md text-xs font-medium transition-all
           ${boolValue
-            ? 'bg-green-600/80 text-white'
-            : 'bg-slate-700 text-slate-400'}
+            ? 'bg-green-600/80 text-fg'
+            : 'bg-surface-2 text-fg-muted'}
           disabled:opacity-50 disabled:cursor-not-allowed
         `}
       >
@@ -42,13 +42,13 @@ export function BooleanControl({ variable, value, onChange, disabled, compact }:
       className={`
         relative w-full h-12 rounded-lg font-medium transition-all
         ${boolValue
-          ? 'bg-green-600 hover:bg-green-500 text-white'
-          : 'bg-slate-700 hover:bg-slate-600 text-slate-300'}
+          ? 'bg-green-600 hover:bg-green-500 text-fg'
+          : 'bg-surface-2 hover:bg-surface-2 text-fg'}
         disabled:opacity-50 disabled:cursor-not-allowed
       `}
     >
       <span className="flex items-center justify-center gap-2">
-        <span className={`w-3 h-3 rounded-full ${boolValue ? 'bg-green-300' : 'bg-slate-500'}`} />
+        <span className={`w-3 h-3 rounded-full ${boolValue ? 'bg-green-300' : 'bg-fg-subtle'}`} />
         {boolValue ? trueLabel : falseLabel}
       </span>
     </button>

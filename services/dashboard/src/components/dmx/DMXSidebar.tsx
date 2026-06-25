@@ -264,31 +264,31 @@ export function DMXSidebar({
 
   return (
     <>
-    <aside className="w-full md:w-sidebar-dmx md:shrink-0 bg-slate-900 md:border-l border-slate-800 flex flex-col overflow-hidden">
+    <aside className="w-full md:w-sidebar-dmx md:shrink-0 bg-surface-0 md:border-l border-edge flex flex-col overflow-hidden">
 
       {/* ── Art-Net Nodes section ───────────────────────────────────── */}
       <div className="flex flex-col shrink-0" style={{ transition: 'flex 350ms cubic-bezier(0.4,0,0.2,1)' }}>
         <div
           onClick={() => setActiveSection('nodes')}
           className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 cursor-pointer select-none ${
-            active === 'nodes' ? 'border-b border-slate-800' : 'hover:bg-slate-800/40'
+            active === 'nodes' ? 'border-b border-edge' : 'hover:bg-surface-1/40'
           }`}
         >
-          <Network className={`w-3.5 h-3.5 transition-colors ${active === 'nodes' ? 'text-slate-400' : 'text-slate-600'}`} />
-          <span className={`text-[10px] uppercase tracking-wider font-medium transition-colors ${active === 'nodes' ? 'text-slate-400' : 'text-slate-600'}`}>
+          <Network className={`w-3.5 h-3.5 transition-colors ${active === 'nodes' ? 'text-fg-muted' : 'text-fg-subtle'}`} />
+          <span className={`text-[10px] uppercase tracking-wider font-medium transition-colors ${active === 'nodes' ? 'text-fg-muted' : 'text-fg-subtle'}`}>
             Art-Net Nodes
           </span>
-          <span className={`text-[10px] transition-colors ${active === 'nodes' ? 'text-slate-600' : 'text-slate-700'}`}>
+          <span className={`text-[10px] transition-colors ${active === 'nodes' ? 'text-fg-subtle' : 'text-fg'}`}>
             ({nodes.length})
           </span>
           <button
             onClick={(e) => { e.stopPropagation(); onAddNode() }}
-            className="ml-auto text-slate-600 hover:text-blue-400 transition-colors cursor-pointer p-0.5"
+            className="ml-auto text-fg-subtle hover:text-accent transition-colors cursor-pointer p-0.5"
             title="Add Node"
           >
             <Plus className="w-3.5 h-3.5" />
           </button>
-          <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${active === 'nodes' ? 'text-slate-500 rotate-90' : 'text-slate-700'}`} />
+          <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${active === 'nodes' ? 'text-fg-subtle rotate-90' : 'text-fg'}`} />
         </div>
 
         <div
@@ -302,7 +302,7 @@ export function DMXSidebar({
           <div className="min-h-0 overflow-y-auto">
             <div className="px-4 py-3">
               {nodes.length === 0 ? (
-                <p className="text-xs text-slate-600">No nodes configured</p>
+                <p className="text-xs text-fg-subtle">No nodes configured</p>
               ) : (
                 <div className="space-y-1.5">
                   {nodes.map((node) => {
@@ -324,39 +324,39 @@ export function DMXSidebar({
                         }}
                         className={`rounded-lg px-3 py-2 border transition-colors ${
                           isDraggedOver
-                            ? 'bg-slate-700/50 border-slate-500 border-dashed'
+                            ? 'bg-surface-2/50 border-edge-strong border-dashed'
                             : draggedNodeId === node.id
-                            ? 'opacity-40 border-transparent bg-slate-800/50'
-                            : 'bg-slate-800/50 border-transparent'
+                            ? 'opacity-40 border-transparent bg-surface-1/50'
+                            : 'bg-surface-1/50 border-transparent'
                         }`}
                       >
                         <div className="flex items-center justify-between gap-1">
-                          <GripVertical className="w-3 h-3 text-slate-700 hover:text-slate-500 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
-                          <div className="text-xs font-medium text-slate-200 truncate flex-1">{node.name}</div>
-                          <button onClick={() => onEditNode(node)} className="text-slate-600 hover:text-slate-300 transition-colors shrink-0">
+                          <GripVertical className="w-3 h-3 text-fg hover:text-fg-subtle transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
+                          <div className="text-xs font-medium text-fg truncate flex-1">{node.name}</div>
+                          <button onClick={() => onEditNode(node)} className="text-fg-subtle hover:text-fg transition-colors shrink-0">
                             <Pencil className="w-3 h-3" />
                           </button>
                         </div>
-                        <div className="text-[10px] font-mono text-slate-500 mt-0.5 pl-4">{node.ip_address}</div>
-                        <div className="text-[10px] text-slate-600 mt-0.5 pl-4">
+                        <div className="text-[10px] font-mono text-fg-subtle mt-0.5 pl-4">{node.ip_address}</div>
+                        <div className="text-[10px] text-fg-subtle mt-0.5 pl-4">
                           {nodeFixtures.length} fixture{nodeFixtures.length !== 1 ? 's' : ''} · {node.universe_count} universe{node.universe_count !== 1 ? 's' : ''}
                         </div>
                         {node.device_id ? (
                           <a
                             href="/devices"
                             onClick={(e) => e.stopPropagation()}
-                            className="mt-1.5 flex items-center justify-between w-full px-2 py-1 rounded bg-blue-900/20 border border-blue-800/40 hover:bg-blue-900/30 transition-colors group"
+                            className="mt-1.5 flex items-center justify-between w-full px-2 py-1 rounded bg-accent/20 border border-accent/40 hover:bg-accent/30 transition-colors group"
                           >
                             <div className="min-w-0">
-                              <div className="text-[8px] uppercase tracking-wider text-blue-700 font-medium leading-none">Linked Device</div>
-                              <div className="text-[9px] font-mono text-blue-500/80 group-hover:text-blue-400 truncate leading-none mt-0.5">{node.device_id.slice(0, 8)}…</div>
+                              <div className="text-[8px] uppercase tracking-wider text-accent font-medium leading-none">Linked Device</div>
+                              <div className="text-[9px] font-mono text-accent/80 group-hover:text-accent truncate leading-none mt-0.5">{node.device_id.slice(0, 8)}…</div>
                             </div>
-                            <ExternalLink className="w-2.5 h-2.5 text-blue-700 group-hover:text-blue-400 shrink-0 ml-1.5" />
+                            <ExternalLink className="w-2.5 h-2.5 text-accent group-hover:text-accent shrink-0 ml-1.5" />
                           </a>
                         ) : (
-                          <div className="mt-1.5 flex items-center gap-1.5 px-2 py-1 rounded bg-slate-800/50 border border-slate-700/40">
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-600 shrink-0" />
-                            <span className="text-[9px] text-slate-600">No linked device</span>
+                          <div className="mt-1.5 flex items-center gap-1.5 px-2 py-1 rounded bg-surface-1/50 border border-edge/40">
+                            <span className="w-1.5 h-1.5 rounded-full bg-surface-2 shrink-0" />
+                            <span className="text-[9px] text-fg-subtle">No linked device</span>
                           </div>
                         )}
                       </div>
@@ -379,25 +379,25 @@ export function DMXSidebar({
       >
         <div
           onClick={() => setActiveSection('fixtures')}
-          className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 border-t border-slate-800 cursor-pointer select-none ${
-            active === 'fixtures' ? 'border-b border-slate-800' : 'hover:bg-slate-800/40'
+          className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 border-t border-edge cursor-pointer select-none ${
+            active === 'fixtures' ? 'border-b border-edge' : 'hover:bg-surface-1/40'
           }`}
         >
-          <Layers className={`w-3.5 h-3.5 transition-colors ${active === 'fixtures' ? 'text-slate-400' : 'text-slate-600'}`} />
-          <span className={`text-[10px] uppercase tracking-wider font-medium transition-colors ${active === 'fixtures' ? 'text-slate-400' : 'text-slate-600'}`}>
+          <Layers className={`w-3.5 h-3.5 transition-colors ${active === 'fixtures' ? 'text-fg-muted' : 'text-fg-subtle'}`} />
+          <span className={`text-[10px] uppercase tracking-wider font-medium transition-colors ${active === 'fixtures' ? 'text-fg-muted' : 'text-fg-subtle'}`}>
             Fixtures
           </span>
-          <span className={`text-[10px] transition-colors ${active === 'fixtures' ? 'text-slate-600' : 'text-slate-700'}`}>
+          <span className={`text-[10px] transition-colors ${active === 'fixtures' ? 'text-fg-subtle' : 'text-fg'}`}>
             ({fixtures.length})
           </span>
           <button
             onClick={(e) => { e.stopPropagation(); onAddFixture() }}
-            className="ml-auto text-slate-600 hover:text-blue-400 transition-colors cursor-pointer p-0.5"
+            className="ml-auto text-fg-subtle hover:text-accent transition-colors cursor-pointer p-0.5"
             title="Add Fixture"
           >
             <Plus className="w-3.5 h-3.5" />
           </button>
-          <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${active === 'fixtures' ? 'text-slate-500 rotate-90' : 'text-slate-700'}`} />
+          <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${active === 'fixtures' ? 'text-fg-subtle rotate-90' : 'text-fg'}`} />
         </div>
 
         <div
@@ -411,7 +411,7 @@ export function DMXSidebar({
           <div className="min-h-0 overflow-y-auto">
             <div className="px-4 py-3">
               {fixtures.length === 0 ? (
-                <p className="text-xs text-slate-600">No fixtures added yet</p>
+                <p className="text-xs text-fg-subtle">No fixtures added yet</p>
               ) : (
                 <>
                   {/* Universe filter chips — only when multiple universes exist */}
@@ -424,8 +424,8 @@ export function DMXSidebar({
                           onClick={() => setFilterUniverse(null)}
                           className={`text-[9px] font-mono px-1.5 py-0.5 rounded transition-colors ${
                             filterUniverse === null
-                              ? 'bg-slate-600 text-slate-200'
-                              : 'bg-slate-800 text-slate-500 hover:text-slate-400'
+                              ? 'bg-surface-2 text-fg'
+                              : 'bg-surface-1 text-fg-subtle hover:text-fg-muted'
                           }`}
                         >
                           All
@@ -498,20 +498,20 @@ export function DMXSidebar({
                                   draggedFixtureId === fixture.id
                                     ? 'opacity-40 border-transparent'
                                     : isDraggedOver
-                                    ? 'bg-slate-700/50 border-slate-500 border-dashed'
+                                    ? 'bg-surface-2/50 border-edge-strong border-dashed'
                                     : isSelected
-                                    ? 'bg-slate-700 border-transparent'
+                                    ? 'bg-surface-2 border-transparent'
                                     : isMultiSelectable
-                                    ? 'bg-slate-800/40 border-dashed border-slate-600/60 hover:border-slate-500/80 hover:bg-slate-800/70'
-                                    : 'border-transparent hover:bg-slate-800/70'
+                                    ? 'bg-surface-1/40 border-dashed border-edge-strong/60 hover:border-edge-strong/80 hover:bg-surface-1/70'
+                                    : 'border-transparent hover:bg-surface-1/70'
                                 }`}
                                 onClick={(e) => onSelect(fixture.id, e.shiftKey)}
                                 onDoubleClick={(e) => { e.stopPropagation(); onEdit(fixture) }}
                               >
                                 {/* Row 1: grip · name · actions */}
                                 <div className="flex items-center gap-1">
-                                  <GripVertical className="w-3 h-3 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
-                                  <div className="text-xs font-medium text-slate-200 truncate flex-1">{fixture.name}</div>
+                                  <GripVertical className="w-3 h-3 text-fg group-hover:text-fg-subtle transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
+                                  <div className="text-xs font-medium text-fg truncate flex-1">{fixture.name}</div>
                                   {/* Action buttons: always visible on mobile, hover-only on desktop */}
                                   <div className="flex items-center gap-1 shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                     <button
@@ -525,14 +525,14 @@ export function DMXSidebar({
                                         }
                                       }}
                                       title="Adjust DMX channels"
-                                      className="text-slate-600 hover:text-blue-400 transition-colors p-0.5"
+                                      className="text-fg-subtle hover:text-accent transition-colors p-0.5"
                                     >
                                       <SlidersHorizontal className="w-3.5 h-3.5" />
                                     </button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); onEdit(fixture) }}
                                       title="Edit fixture"
-                                      className="text-slate-600 hover:text-slate-300 transition-colors p-0.5"
+                                      className="text-fg-subtle hover:text-fg transition-colors p-0.5"
                                     >
                                       <Pencil className="w-3.5 h-3.5" />
                                     </button>
@@ -540,7 +540,7 @@ export function DMXSidebar({
                                 </div>
                                 {/* Row 2: manufacturer · model (combined) */}
                                 {(fixture.ofl_manufacturer || fixture.ofl_model) && (
-                                  <div className="text-[10px] text-slate-500 truncate mt-0.5 pl-4">
+                                  <div className="text-[10px] text-fg-subtle truncate mt-0.5 pl-4">
                                     {[fixture.ofl_manufacturer, fixture.ofl_model].filter(Boolean).join(' · ')}
                                   </div>
                                 )}
@@ -557,13 +557,13 @@ export function DMXSidebar({
                                       </span>
                                     )
                                   })()}
-                                  <span className="text-[10px] font-mono text-slate-500 shrink-0">{fixture.start_channel}–{fixture.start_channel + fixture.channel_count - 1}</span>
-                                  <span className="text-[9px] font-mono text-slate-700 shrink-0">#{fixture.id.replace(/-/g, '').slice(0, 7)}</span>
+                                  <span className="text-[10px] font-mono text-fg-subtle shrink-0">{fixture.start_channel}–{fixture.start_channel + fixture.channel_count - 1}</span>
+                                  <span className="text-[9px] font-mono text-fg shrink-0">#{fixture.id.replace(/-/g, '').slice(0, 7)}</span>
                                   {!isMultiSelectable && node && (
-                                    <span className="text-[9px] text-slate-700 truncate">{node.name}</span>
+                                    <span className="text-[9px] text-fg truncate">{node.name}</span>
                                   )}
                                   {isMultiSelectable && (
-                                    <span className="text-[9px] text-slate-600 truncate">shift+click to add</span>
+                                    <span className="text-[9px] text-fg-subtle truncate">shift+click to add</span>
                                   )}
                                 </div>
                               </div>
@@ -584,25 +584,25 @@ export function DMXSidebar({
       <div className="flex flex-col shrink-0" style={{ transition: 'flex 350ms cubic-bezier(0.4,0,0.2,1)' }}>
         <div
           onClick={() => setActiveSection('groups')}
-          className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 cursor-pointer select-none border-t border-slate-800 ${
-            active === 'groups' ? 'border-b border-slate-800' : 'hover:bg-slate-800/40'
+          className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 cursor-pointer select-none border-t border-edge ${
+            active === 'groups' ? 'border-b border-edge' : 'hover:bg-surface-1/40'
           }`}
         >
-          <FolderOpen className={`w-3.5 h-3.5 transition-colors ${active === 'groups' ? 'text-slate-400' : 'text-slate-600'}`} />
-          <span className={`text-[10px] uppercase tracking-wider font-medium transition-colors ${active === 'groups' ? 'text-slate-400' : 'text-slate-600'}`}>
+          <FolderOpen className={`w-3.5 h-3.5 transition-colors ${active === 'groups' ? 'text-fg-muted' : 'text-fg-subtle'}`} />
+          <span className={`text-[10px] uppercase tracking-wider font-medium transition-colors ${active === 'groups' ? 'text-fg-muted' : 'text-fg-subtle'}`}>
             Groups
           </span>
-          <span className={`text-[10px] transition-colors ${active === 'groups' ? 'text-slate-600' : 'text-slate-700'}`}>
+          <span className={`text-[10px] transition-colors ${active === 'groups' ? 'text-fg-subtle' : 'text-fg'}`}>
             ({groups.length})
           </span>
           <button
             onClick={(e) => { e.stopPropagation(); setShowNewGroupForm(true); setActiveSection('groups') }}
-            className="ml-auto text-slate-600 hover:text-blue-400 transition-colors cursor-pointer p-0.5"
+            className="ml-auto text-fg-subtle hover:text-accent transition-colors cursor-pointer p-0.5"
             title="Add Group"
           >
             <Plus className="w-3.5 h-3.5" />
           </button>
-          <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${active === 'groups' ? 'text-slate-500 rotate-90' : 'text-slate-700'}`} />
+          <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${active === 'groups' ? 'text-fg-subtle rotate-90' : 'text-fg'}`} />
         </div>
 
         <div
@@ -624,7 +624,7 @@ export function DMXSidebar({
 
               {/* New group form */}
               {showNewGroupForm && (
-                <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-3 space-y-2">
+                <div className="rounded-lg border border-edge bg-surface-1/60 p-3 space-y-2">
                   <input
                     autoFocus
                     type="text"
@@ -644,7 +644,7 @@ export function DMXSidebar({
                       }
                     }}
                     placeholder="Group name"
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-slate-500"
+                    className="w-full bg-surface-0 border border-edge rounded px-2 py-1 text-xs text-fg placeholder-fg-subtle focus:outline-none focus:border-edge-strong"
                   />
                   <div className="flex flex-wrap gap-1.5">
                     {GROUP_COLORS.map((c) => (
@@ -668,13 +668,13 @@ export function DMXSidebar({
                           .finally(() => setNewGroupLoading(false))
                       }}
                       disabled={!newGroupName.trim() || newGroupLoading}
-                      className="flex-1 py-1 rounded text-[10px] font-medium bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white transition-colors"
+                      className="flex-1 py-1 rounded text-[10px] font-medium bg-accent hover:bg-accent-hover disabled:opacity-50 text-fg transition-colors"
                     >
                       {newGroupLoading ? 'Creating…' : 'Create'}
                     </button>
                     <button
                       onClick={() => { setShowNewGroupForm(false); setNewGroupName('') }}
-                      className="px-3 py-1 rounded text-[10px] text-slate-400 hover:text-slate-200 bg-slate-700/50 hover:bg-slate-700 transition-colors"
+                      className="px-3 py-1 rounded text-[10px] text-fg-muted hover:text-fg bg-surface-2/50 hover:bg-surface-2 transition-colors"
                     >
                       Cancel
                     </button>
@@ -683,7 +683,7 @@ export function DMXSidebar({
               )}
 
               {groups.length === 0 && !showNewGroupForm ? (
-                <p className="text-xs text-slate-600">No groups yet</p>
+                <p className="text-xs text-fg-subtle">No groups yet</p>
               ) : (
                 <div className="space-y-1.5">
                   {/* All — clears group selection, shows full canvas */}
@@ -691,16 +691,16 @@ export function DMXSidebar({
                     onClick={(e) => { e.stopPropagation(); onGroupSelect?.(null); onCueGroupChange?.(null) }}
                     className={`rounded-lg px-3 py-2 border transition-colors cursor-pointer select-none ${
                       selectedGroupId === null
-                        ? 'border-slate-500 bg-slate-700/60'
-                        : 'bg-slate-800/50 border-transparent hover:border-slate-700/50'
+                        ? 'border-edge-strong bg-surface-2/60'
+                        : 'bg-surface-1/50 border-transparent hover:border-edge/50'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-slate-600 border border-slate-500" />
-                      <span className={`text-xs flex-1 transition-colors ${selectedGroupId === null ? 'text-white' : 'text-slate-400'}`}>All</span>
-                      <span className="text-[10px] text-slate-500 shrink-0">{fixtures.length}fx</span>
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-surface-2 border border-edge-strong" />
+                      <span className={`text-xs flex-1 transition-colors ${selectedGroupId === null ? 'text-fg' : 'text-fg-muted'}`}>All</span>
+                      <span className="text-[10px] text-fg-subtle shrink-0">{fixtures.length}fx</span>
                       {selectedGroupId === null && (
-                        <span className="text-[9px] text-slate-400 shrink-0 font-mono">all</span>
+                        <span className="text-[9px] text-fg-muted shrink-0 font-mono">all</span>
                       )}
                     </div>
                   </div>
@@ -715,8 +715,8 @@ export function DMXSidebar({
                         onClick={(e) => { e.stopPropagation(); if (!isRenaming) { const next = isSelected ? null : group.id; onGroupSelect?.(next); onCueGroupChange?.(next) } }}
                         className={`rounded-lg px-3 py-2 border transition-colors cursor-pointer select-none ${
                           isSelected
-                            ? 'border-slate-500 bg-slate-700/60'
-                            : 'bg-slate-800/50 border-transparent hover:border-slate-700/50'
+                            ? 'border-edge-strong bg-surface-2/60'
+                            : 'bg-surface-1/50 border-transparent hover:border-edge/50'
                         }`}
                         style={isSelected && group.color ? { borderColor: `${group.color}66`, backgroundColor: `${group.color}18` } : undefined}
                       >
@@ -737,7 +737,7 @@ export function DMXSidebar({
                                     .finally(() => setRenamingGroupId(null))
                                 }
                               }}
-                              className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-slate-500"
+                              className="w-full bg-surface-0 border border-edge rounded px-2 py-1 text-xs text-fg focus:outline-none focus:border-edge-strong"
                             />
                             <div className="flex flex-wrap gap-1.5">
                               {GROUP_COLORS.map((c) => (
@@ -757,15 +757,15 @@ export function DMXSidebar({
                                     .catch((err: unknown) => setGroupError(err instanceof Error ? err.message : 'Failed'))
                                     .finally(() => setRenamingGroupId(null))
                                 }}
-                                className="flex items-center justify-center w-6 h-6 rounded bg-blue-700 hover:bg-blue-600 transition-colors"
+                                className="flex items-center justify-center w-6 h-6 rounded bg-accent hover:bg-accent-hover transition-colors"
                               >
-                                <Check className="w-3 h-3 text-white" />
+                                <Check className="w-3 h-3 text-fg" />
                               </button>
                               <button
                                 onClick={() => setRenamingGroupId(null)}
-                                className="flex items-center justify-center w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 transition-colors"
+                                className="flex items-center justify-center w-6 h-6 rounded bg-surface-2 hover:bg-surface-2 transition-colors"
                               >
-                                <X className="w-3 h-3 text-slate-300" />
+                                <X className="w-3 h-3 text-fg" />
                               </button>
                             </div>
                           </div>
@@ -778,24 +778,24 @@ export function DMXSidebar({
                                 boxShadow: isSelected && group.color ? `0 0 6px ${group.color}cc` : 'none',
                               }}
                             />
-                            <span className={`text-xs truncate flex-1 transition-colors ${isSelected ? 'text-white' : 'text-slate-200'}`}>{group.name}</span>
+                            <span className={`text-xs truncate flex-1 transition-colors ${isSelected ? 'text-fg' : 'text-fg'}`}>{group.name}</span>
                             {activeGroupIds.has(group.id) && (
                               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" title="Sequence playing" />
                             )}
-                            <span className="text-[10px] text-slate-500 shrink-0">{fixtureCount}fx</span>
+                            <span className="text-[10px] text-fg-subtle shrink-0">{fixtureCount}fx</span>
                             {isSelected && (
-                              <span className="text-[9px] text-slate-400 shrink-0 font-mono">editing</span>
+                              <span className="text-[9px] text-fg-muted shrink-0 font-mono">editing</span>
                             )}
                             <button
                               onClick={(e) => { e.stopPropagation(); setRenamingGroupId(group.id); setRenameGroupValue(group.name); setRenamingGroupColor(group.color ?? GROUP_COLORS[0]) }}
-                              className="text-slate-600 hover:text-slate-300 transition-colors shrink-0"
+                              className="text-fg-subtle hover:text-fg transition-colors shrink-0"
                               title="Rename"
                             >
                               <Pencil className="w-3 h-3" />
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); onDeleteGroup?.(group.id).catch((err: unknown) => setGroupError(err instanceof Error ? err.message : 'Failed')) }}
-                              className="text-slate-700 hover:text-red-400 transition-colors shrink-0"
+                              className="text-fg hover:text-red-400 transition-colors shrink-0"
                               title="Delete group"
                             >
                               <Trash2 className="w-3 h-3" />
@@ -822,30 +822,30 @@ export function DMXSidebar({
       >
         <button
           onClick={() => { setActiveSection('cues'); if (active !== 'cues') onOpenCues() }}
-          className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 border-t border-slate-800 ${
-            active === 'cues' ? 'border-b border-slate-800' : 'hover:bg-slate-800/40'
+          className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 border-t border-edge ${
+            active === 'cues' ? 'border-b border-edge' : 'hover:bg-surface-1/40'
           }`}
         >
-          <BookOpen className={`w-3.5 h-3.5 transition-colors ${active === 'cues' ? 'text-slate-400' : 'text-slate-600'}`} />
-          <span className={`text-[10px] uppercase tracking-wider font-medium transition-colors ${active === 'cues' ? 'text-slate-400' : 'text-slate-600'}`}>
+          <BookOpen className={`w-3.5 h-3.5 transition-colors ${active === 'cues' ? 'text-fg-muted' : 'text-fg-subtle'}`} />
+          <span className={`text-[10px] uppercase tracking-wider font-medium transition-colors ${active === 'cues' ? 'text-fg-muted' : 'text-fg-subtle'}`}>
             Cues
           </span>
-          <span className={`text-[10px] transition-colors ${active === 'cues' ? 'text-slate-600' : 'text-slate-700'}`}>
+          <span className={`text-[10px] transition-colors ${active === 'cues' ? 'text-fg-subtle' : 'text-fg'}`}>
             ({cues.length})
           </span>
           {(activeCueId || editingCueId) && (
             <span className={`ml-1 w-1.5 h-1.5 rounded-full shrink-0 ${editingCueId ? 'bg-indigo-400' : 'bg-amber-400'}`} />
           )}
-          <ChevronRight className={`w-3 h-3 ml-auto transition-transform duration-300 ${active === 'cues' ? 'text-slate-500 rotate-90' : 'text-slate-700'}`} />
+          <ChevronRight className={`w-3 h-3 ml-auto transition-transform duration-300 ${active === 'cues' ? 'text-fg-subtle rotate-90' : 'text-fg'}`} />
         </button>
 
         {/* Group context selector — only shown when expanded and groups exist */}
         {active === 'cues' && groups.length > 0 && (
-          <div className="flex items-center gap-1.5 px-4 py-2 border-b border-slate-800/60 overflow-x-auto scrollbar-none shrink-0">
+          <div className="flex items-center gap-1.5 px-4 py-2 border-b border-edge/60 overflow-x-auto scrollbar-none shrink-0">
             <button
               onClick={() => onCueGroupChange?.(null)}
               className={`shrink-0 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
-                cueGroupId === null ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                cueGroupId === null ? 'bg-surface-2 text-fg' : 'text-fg-subtle hover:text-fg hover:bg-surface-1'
               }`}
             >
               All
@@ -855,7 +855,7 @@ export function DMXSidebar({
                 key={g.id}
                 onClick={() => onCueGroupChange?.(cueGroupId === g.id ? null : g.id)}
                 className={`shrink-0 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
-                  cueGroupId === g.id ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                  cueGroupId === g.id ? 'bg-surface-2 text-fg' : 'text-fg-subtle hover:text-fg hover:bg-surface-1'
                 }`}
                 style={cueGroupId === g.id && g.color ? { borderLeft: `2px solid ${g.color}`, paddingLeft: 6 } : undefined}
               >
@@ -879,7 +879,7 @@ export function DMXSidebar({
         >
           <div className="min-h-0 overflow-y-auto">
             {/* Save Cue / Update Cue */}
-            <div className="px-4 pt-3 pb-2 border-b border-slate-800/60">
+            <div className="px-4 pt-3 pb-2 border-b border-edge/60">
               {editingCueId ? (
                 <div className="flex items-center gap-1.5">
                   <span className="text-[10px] text-indigo-400 truncate flex-1 min-w-0">
@@ -888,14 +888,14 @@ export function DMXSidebar({
                   <button
                     onClick={onUpdateCue}
                     disabled={updateCueLoading}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50 shrink-0 cursor-pointer"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-indigo-600 hover:bg-indigo-500 text-fg transition-colors disabled:opacity-50 shrink-0 cursor-pointer"
                   >
                     <BookOpen className="w-3 h-3" />
                     {updateCueLoading ? 'Saving…' : 'Update Cue'}
                   </button>
                   <button
                     onClick={onExitEditCue}
-                    className="text-slate-500 hover:text-slate-300 transition-colors p-0.5 shrink-0"
+                    className="text-fg-subtle hover:text-fg transition-colors p-0.5 shrink-0"
                     title="Exit edit mode"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -906,7 +906,7 @@ export function DMXSidebar({
                   {!showSaveCueForm ? (
                     <button
                       onClick={() => { setShowSaveCueForm(true); setSaveCueError(null) }}
-                      className="flex items-center gap-1.5 w-full px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-950/70 hover:bg-blue-900/80 border border-blue-700/30 text-blue-200 transition-colors cursor-pointer"
+                      className="flex items-center gap-1.5 w-full px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/70 hover:bg-accent/80 border border-accent/30 text-accent transition-colors cursor-pointer"
                     >
                       <BookOpen className="w-3.5 h-3.5" />
                       Save Cue
@@ -923,20 +923,20 @@ export function DMXSidebar({
                           if (e.key === 'Escape') { setShowSaveCueForm(false); setNewCueName('') }
                         }}
                         placeholder="e.g. Opening Scene"
-                        className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                        className="w-full bg-surface-0 border border-edge rounded px-2.5 py-1.5 text-xs text-fg placeholder-fg-subtle focus:outline-none focus:border-accent"
                       />
                       {saveCueError && <p className="text-[10px] text-red-400">{saveCueError}</p>}
                       <div className="flex gap-2">
                         <button
                           onClick={() => { setShowSaveCueForm(false); setNewCueName('') }}
-                          className="flex-1 px-2 py-1.5 rounded text-[11px] text-slate-400 bg-slate-700 hover:bg-slate-600 transition-colors"
+                          className="flex-1 px-2 py-1.5 rounded text-[11px] text-fg-muted bg-surface-2 hover:bg-surface-2 transition-colors"
                         >
                           Cancel
                         </button>
                         <button
                           onClick={submitSaveCue}
                           disabled={saveCueLoading || !newCueName.trim()}
-                          className="flex-1 px-2 py-1.5 rounded text-[11px] font-medium bg-blue-950/70 hover:bg-blue-900/80 border border-blue-700/30 text-blue-200 transition-colors disabled:opacity-50 cursor-pointer"
+                          className="flex-1 px-2 py-1.5 rounded text-[11px] font-medium bg-accent/70 hover:bg-accent/80 border border-accent/30 text-accent transition-colors disabled:opacity-50 cursor-pointer"
                         >
                           {saveCueLoading ? 'Saving…' : 'Save'}
                         </button>
@@ -945,21 +945,21 @@ export function DMXSidebar({
                   )}
                 </>
               ) : (
-                <p className="text-[10px] text-slate-600">Click a cue to recall it · Pause signals to save</p>
+                <p className="text-[10px] text-fg-subtle">Click a cue to recall it · Pause signals to save</p>
               )}
             </div>
             {/* Fade duration setting */}
-            <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-slate-800/60">
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">Fade</span>
+            <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-edge/60">
+              <span className="text-[10px] text-fg-subtle uppercase tracking-wider font-medium">Fade</span>
               <input
                 type="number"
                 min="0"
                 step="0.5"
                 value={cueFadeDuration}
                 onChange={(e) => setCueFadeDuration(Math.max(0, parseFloat(e.target.value) || 0))}
-                className="w-14 bg-slate-800 border border-slate-700 focus:border-amber-600 rounded px-1.5 py-0.5 text-xs text-center font-mono text-slate-300 focus:text-amber-300 focus:outline-none transition-colors"
+                className="w-14 bg-surface-1 border border-edge focus:border-amber-600 rounded px-1.5 py-0.5 text-xs text-center font-mono text-fg focus:text-amber-300 focus:outline-none transition-colors"
               />
-              <span className="text-[10px] text-slate-600">sec</span>
+              <span className="text-[10px] text-fg-subtle">sec</span>
               {cueFadeDuration > 0 && (
                 <span className="ml-auto text-[9px] text-amber-600 font-medium uppercase tracking-wide">on</span>
               )}
@@ -972,7 +972,7 @@ export function DMXSidebar({
               return (
             <div className="px-4 py-3">
               {visibleCues.length === 0 ? (
-                <p className="text-xs text-slate-600">{cueEmptyMsg}</p>
+                <p className="text-xs text-fg-subtle">{cueEmptyMsg}</p>
               ) : (
                 <div className="space-y-1">
                   {visibleCues.map((cue) => {
@@ -1002,17 +1002,17 @@ export function DMXSidebar({
                             : isActive
                             ? 'bg-amber-950/40 border-amber-700/50'
                             : isDraggedOver
-                            ? 'bg-slate-700/50 border-slate-500 border-dashed'
+                            ? 'bg-surface-2/50 border-edge-strong border-dashed'
                             : draggedCueId === cue.id
                             ? 'opacity-40 border-transparent'
-                            : 'border-transparent hover:bg-slate-800/70'
+                            : 'border-transparent hover:bg-surface-1/70'
                         }`}
                       >
                         {/* Fade progress bar — only on active cue while fading */}
                         {isActive && cueFadeProgress !== null && (
-                          <div className="h-0.5 w-full bg-slate-800">
+                          <div className="h-0.5 w-full bg-surface-1">
                             <div
-                              className="h-full bg-blue-500 transition-none"
+                              className="h-full bg-accent transition-none"
                               style={{ width: `${cueFadeProgress * 100}%` }}
                             />
                           </div>
@@ -1030,13 +1030,13 @@ export function DMXSidebar({
                                 if (e.key === 'Enter') { if (renameValue.trim()) onRenameCue(cue.id, renameValue.trim()); setRenamingCueId(null) }
                                 if (e.key === 'Escape') setRenamingCueId(null)
                               }}
-                              className={`flex-1 min-w-0 bg-slate-900 border rounded px-2 py-0.5 text-xs text-white focus:outline-none ${
-                                isEditing ? 'border-indigo-500 focus:border-indigo-400' : 'border-slate-600 focus:border-amber-500'
+                              className={`flex-1 min-w-0 bg-surface-0 border rounded px-2 py-0.5 text-xs text-fg focus:outline-none ${
+                                isEditing ? 'border-indigo-500 focus:border-indigo-400' : 'border-edge-strong focus:border-amber-500'
                               }`}
                             />
                             <button
                               onMouseDown={(e) => { e.preventDefault(); if (renameValue.trim()) onRenameCue(cue.id, renameValue.trim()); setRenamingCueId(null) }}
-                              className="text-slate-400 hover:text-white transition-colors shrink-0"
+                              className="text-fg-muted hover:text-fg transition-colors shrink-0"
                             >
                               <Check className="w-3 h-3" />
                             </button>
@@ -1044,7 +1044,7 @@ export function DMXSidebar({
                         ) : (
                           <>
                             <div className="flex items-center gap-1.5">
-                              <GripVertical className="w-3 h-3 text-slate-700 group-hover:text-slate-500 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
+                              <GripVertical className="w-3 h-3 text-fg group-hover:text-fg-subtle transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
                               {isEditing ? (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setRenamingCueId(cue.id); setRenameValue(cue.name) }}
@@ -1054,7 +1054,7 @@ export function DMXSidebar({
                                   {cue.name}
                                 </button>
                               ) : (
-                                <span className={`flex-1 min-w-0 text-xs font-medium truncate ${isActive ? 'text-amber-300' : 'text-slate-200'}`}>
+                                <span className={`flex-1 min-w-0 text-xs font-medium truncate ${isActive ? 'text-amber-300' : 'text-fg'}`}>
                                   {cue.name}
                                 </span>
                               )}
@@ -1075,17 +1075,17 @@ export function DMXSidebar({
                                   </button>
                                 ) : (
                                   <>
-                                    <button onClick={(e) => { e.stopPropagation(); onEnterEditCue(cue.id) }} title="Edit cue" className="text-slate-600 hover:text-indigo-400 transition-colors">
+                                    <button onClick={(e) => { e.stopPropagation(); onEnterEditCue(cue.id) }} title="Edit cue" className="text-fg-subtle hover:text-indigo-400 transition-colors">
                                       <Pencil className="w-3 h-3" />
                                     </button>
-                                    <button onClick={(e) => { e.stopPropagation(); onDeleteCue(cue.id) }} title="Delete cue" className="text-slate-600 hover:text-red-400 transition-colors">
+                                    <button onClick={(e) => { e.stopPropagation(); onDeleteCue(cue.id) }} title="Delete cue" className="text-fg-subtle hover:text-red-400 transition-colors">
                                       <Trash2 className="w-3 h-3" />
                                     </button>
                                   </>
                                 )}
                               </div>
                             </div>
-                            <div className={`text-[10px] mt-0.5 ${isEditing ? 'text-indigo-600' : isActive ? 'text-amber-700' : 'text-slate-600'}`}>
+                            <div className={`text-[10px] mt-0.5 ${isEditing ? 'text-indigo-600' : isActive ? 'text-amber-700' : 'text-fg-subtle'}`}>
                               {isEditing ? 'Edit mode — adjust channels, then Update Cue' : isActive ? 'Active' : formatRelativeTime(cue.created_at)}
                             </div>
                             {!isEditing && cue.nodes && cue.nodes.length > 0 && (
@@ -1096,7 +1096,7 @@ export function DMXSidebar({
                                     className={`inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded font-mono ${
                                       isActive
                                         ? 'bg-amber-900/30 text-amber-600 border border-amber-800/40'
-                                        : 'bg-slate-800 text-slate-500 border border-slate-700/50'
+                                        : 'bg-surface-1 text-fg-subtle border border-edge/50'
                                     }`}
                                   >
                                     {n.node_name}
@@ -1131,15 +1131,15 @@ export function DMXSidebar({
       >
         <div
           onClick={() => { setActiveSection('sequences'); if (active !== 'sequences') onOpenSequences() }}
-          className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 border-t border-slate-800 cursor-pointer select-none ${
-            active === 'sequences' ? 'border-b border-slate-800' : 'hover:bg-slate-800/40'
+          className={`flex items-center gap-2 px-4 py-3 text-left w-full transition-colors shrink-0 border-t border-edge cursor-pointer select-none ${
+            active === 'sequences' ? 'border-b border-edge' : 'hover:bg-surface-1/40'
           }`}
         >
-          <ListOrdered className={`w-3.5 h-3.5 transition-colors ${active === 'sequences' ? 'text-slate-400' : 'text-slate-600'}`} />
-          <span className={`text-[10px] uppercase tracking-wider font-medium transition-colors ${active === 'sequences' ? 'text-slate-400' : 'text-slate-600'}`}>
+          <ListOrdered className={`w-3.5 h-3.5 transition-colors ${active === 'sequences' ? 'text-fg-muted' : 'text-fg-subtle'}`} />
+          <span className={`text-[10px] uppercase tracking-wider font-medium transition-colors ${active === 'sequences' ? 'text-fg-muted' : 'text-fg-subtle'}`}>
             Sequences
           </span>
-          <span className={`text-[10px] transition-colors ${active === 'sequences' ? 'text-slate-600' : 'text-slate-700'}`}>
+          <span className={`text-[10px] transition-colors ${active === 'sequences' ? 'text-fg-subtle' : 'text-fg'}`}>
             ({sequences.length})
           </span>
           {activeGroupIds.size > 0 && (
@@ -1147,21 +1147,21 @@ export function DMXSidebar({
           )}
           <button
             onClick={(e) => { e.stopPropagation(); onCreateSequence(cueGroupId ?? undefined) }}
-            className="ml-auto text-slate-600 hover:text-blue-400 transition-colors cursor-pointer p-0.5"
+            className="ml-auto text-fg-subtle hover:text-accent transition-colors cursor-pointer p-0.5"
             title="Add Sequence"
           >
             <Plus className="w-3.5 h-3.5" />
           </button>
-          <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${active === 'sequences' ? 'text-slate-500 rotate-90' : 'text-slate-700'}`} />
+          <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${active === 'sequences' ? 'text-fg-subtle rotate-90' : 'text-fg'}`} />
         </div>
 
         {/* Group context selector — shared with Cues */}
         {active === 'sequences' && groups.length > 0 && (
-          <div className="flex items-center gap-1.5 px-4 py-2 border-b border-slate-800/60 overflow-x-auto scrollbar-none shrink-0">
+          <div className="flex items-center gap-1.5 px-4 py-2 border-b border-edge/60 overflow-x-auto scrollbar-none shrink-0">
             <button
               onClick={() => onCueGroupChange?.(null)}
               className={`shrink-0 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
-                cueGroupId === null ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                cueGroupId === null ? 'bg-surface-2 text-fg' : 'text-fg-subtle hover:text-fg hover:bg-surface-1'
               }`}
             >
               All
@@ -1171,7 +1171,7 @@ export function DMXSidebar({
                 key={g.id}
                 onClick={() => onCueGroupChange?.(cueGroupId === g.id ? null : g.id)}
                 className={`shrink-0 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
-                  cueGroupId === g.id ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                  cueGroupId === g.id ? 'bg-surface-2 text-fg' : 'text-fg-subtle hover:text-fg hover:bg-surface-1'
                 }`}
                 style={cueGroupId === g.id && g.color ? { borderLeft: `2px solid ${g.color}`, paddingLeft: 6 } : undefined}
               >
@@ -1195,17 +1195,17 @@ export function DMXSidebar({
         >
           <div className="min-h-0 overflow-y-auto">
             {/* Fadeout duration setting */}
-            <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-slate-800/60">
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">Fade Out</span>
+            <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-edge/60">
+              <span className="text-[10px] text-fg-subtle uppercase tracking-wider font-medium">Fade Out</span>
               <input
                 type="number"
                 min="0"
                 step="0.5"
                 value={fadeOutDuration}
                 onChange={(e) => setFadeOutDuration(Math.max(0, parseFloat(e.target.value) || 0))}
-                className="w-14 bg-slate-800 border border-slate-700 focus:border-amber-600 rounded px-1.5 py-0.5 text-xs text-center font-mono text-slate-300 focus:text-amber-300 focus:outline-none transition-colors"
+                className="w-14 bg-surface-1 border border-edge focus:border-amber-600 rounded px-1.5 py-0.5 text-xs text-center font-mono text-fg focus:text-amber-300 focus:outline-none transition-colors"
               />
-              <span className="text-[10px] text-slate-600">sec</span>
+              <span className="text-[10px] text-fg-subtle">sec</span>
               {fadeOutDuration > 0 && (
                 <span className="ml-auto text-[9px] text-amber-600 font-medium uppercase tracking-wide">on</span>
               )}
@@ -1218,7 +1218,7 @@ export function DMXSidebar({
               return (
             <div className="px-3 py-3">
               {visibleSeqs.length === 0 ? (
-                <p className="text-xs text-slate-600 px-1">{seqEmptyMsg}</p>
+                <p className="text-xs text-fg-subtle px-1">{seqEmptyMsg}</p>
               ) : (
                 <div className="space-y-1.5">
                   {visibleSeqs.map((seq) => {
@@ -1256,24 +1256,24 @@ export function DMXSidebar({
                           isThisActive
                             ? 'bg-green-950/30 border-green-800/50'
                             : isDraggedOver
-                            ? 'bg-slate-700/50 border-slate-500 border-dashed'
+                            ? 'bg-surface-2/50 border-edge-strong border-dashed'
                             : draggedSeqId === seq.id
                             ? 'opacity-40 border-transparent'
-                            : 'border-transparent bg-slate-800/30 hover:bg-slate-800/60'
+                            : 'border-transparent bg-surface-1/30 hover:bg-surface-1/60'
                         }`}
                       >
                         {/* Transition progress bar */}
                         {pb && pb.phase === 'transitioning' && (
-                          <div className="h-0.5 w-full bg-slate-800">
+                          <div className="h-0.5 w-full bg-surface-1">
                             <div
-                              className="h-full bg-blue-500 transition-none"
+                              className="h-full bg-accent transition-none"
                               style={{ width: `${progressPct}%` }}
                             />
                           </div>
                         )}
                         {/* Hold progress bar */}
                         {pb && pb.phase === 'holding' && holdPct < 100 && (
-                          <div className="h-0.5 w-full bg-slate-800">
+                          <div className="h-0.5 w-full bg-surface-1">
                             <div
                               className="h-full bg-amber-500 transition-none"
                               style={{ width: `${holdPct}%` }}
@@ -1285,13 +1285,13 @@ export function DMXSidebar({
                         <div className="flex items-center gap-1 px-2 py-2">
                           {/* Drag handle — only when not expanded */}
                           {!isExpanded && (
-                            <GripVertical className="w-3 h-3 text-slate-700 group-hover/seq:text-slate-500 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
+                            <GripVertical className="w-3 h-3 text-fg group-hover/seq:text-fg-subtle transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
                           )}
 
                           {/* Expand toggle */}
                           <button
                             onClick={() => setExpandedSeqId(isExpanded ? null : seq.id)}
-                            className="shrink-0 text-slate-600 hover:text-slate-400 transition-colors"
+                            className="shrink-0 text-fg-subtle hover:text-fg-muted transition-colors"
                             title={isExpanded ? 'Collapse' : 'Expand'}
                           >
                             <ChevronRight className={`w-3 h-3 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
@@ -1310,18 +1310,18 @@ export function DMXSidebar({
                                   if (e.key === 'Enter') { if (renameSeqValue.trim()) onRenameSequence(seq.id, renameSeqValue.trim()); setRenamingSeqId(null) }
                                   if (e.key === 'Escape') setRenamingSeqId(null)
                                 }}
-                                className="flex-1 min-w-0 bg-slate-900 border border-slate-600 focus:border-slate-400 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none"
+                                className="flex-1 min-w-0 bg-surface-0 border border-edge-strong focus:border-edge-strong rounded px-1.5 py-0.5 text-xs text-fg focus:outline-none"
                               />
                               <button
                                 onMouseDown={(e) => { e.preventDefault(); if (renameSeqValue.trim()) onRenameSequence(seq.id, renameSeqValue.trim()); setRenamingSeqId(null) }}
-                                className="text-slate-400 hover:text-white transition-colors shrink-0"
+                                className="text-fg-muted hover:text-fg transition-colors shrink-0"
                               >
                                 <Check className="w-3 h-3" />
                               </button>
                             </div>
                           ) : (
                             <span
-                              className={`flex-1 min-w-0 text-xs font-medium truncate ${isThisActive ? 'text-green-300' : 'text-slate-200'}`}
+                              className={`flex-1 min-w-0 text-xs font-medium truncate ${isThisActive ? 'text-green-300' : 'text-fg'}`}
                               title={seq.name}
                             >
                               {seq.name}
@@ -1346,7 +1346,7 @@ export function DMXSidebar({
                               <button
                                 onClick={(e) => { e.stopPropagation(); onToggleLoop(seq) }}
                                 title={pb?.loop ? 'Loop on — click to disable' : 'Enable loop'}
-                                className={`p-0.5 rounded transition-colors ${pb?.loop ? 'text-blue-400 hover:text-blue-200' : 'text-slate-600 hover:text-blue-400'}`}
+                                className={`p-0.5 rounded transition-colors ${pb?.loop ? 'text-accent hover:text-accent' : 'text-fg-subtle hover:text-accent'}`}
                               >
                                 <Repeat className="w-3 h-3" />
                               </button>
@@ -1355,7 +1355,7 @@ export function DMXSidebar({
                               <button
                                 onClick={(e) => { e.stopPropagation(); isThisPlaying ? onPauseSequence(seq) : onPlaySequence(seq) }}
                                 title={isThisPlaying ? 'Pause sequence' : isThisPaused ? 'Resume sequence' : 'Play sequence'}
-                                className={`p-0.5 rounded transition-colors ${isThisPlaying ? 'text-green-400 hover:text-green-200' : 'text-slate-500 hover:text-green-400'}`}
+                                className={`p-0.5 rounded transition-colors ${isThisPlaying ? 'text-green-400 hover:text-green-200' : 'text-fg-subtle hover:text-green-400'}`}
                               >
                                 {isThisPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
                               </button>
@@ -1364,7 +1364,7 @@ export function DMXSidebar({
                               <button
                                 onClick={(e) => { e.stopPropagation(); onBlackout() }}
                                 title="Blackout — zero all fixture channels"
-                                className="p-0.5 rounded text-slate-500 hover:text-yellow-400 transition-colors"
+                                className="p-0.5 rounded text-fg-subtle hover:text-yellow-400 transition-colors"
                               >
                                 <ZapOff className="w-3 h-3" />
                               </button>
@@ -1375,14 +1375,14 @@ export function DMXSidebar({
                                   <button
                                     onClick={(e) => { e.stopPropagation(); onStopSequence(seq) }}
                                     title="Stop sequence"
-                                    className="p-0.5 rounded text-slate-500 hover:text-red-400 transition-colors"
+                                    className="p-0.5 rounded text-fg-subtle hover:text-red-400 transition-colors"
                                   >
                                     <Square className="w-3 h-3" />
                                   </button>
                                   <button
                                     onClick={(e) => { e.stopPropagation(); onFadeOut(fadeOutDuration, seq) }}
                                     title="Stop with 3s dimmer fadeout"
-                                    className="p-0.5 rounded text-slate-500 hover:text-amber-400 transition-colors"
+                                    className="p-0.5 rounded text-fg-subtle hover:text-amber-400 transition-colors"
                                   >
                                     <Sunset className="w-3 h-3" />
                                   </button>
@@ -1393,7 +1393,7 @@ export function DMXSidebar({
                               <button
                                 onClick={(e) => { e.stopPropagation(); setRenamingSeqId(seq.id); setRenameSeqValue(seq.name) }}
                                 title="Rename sequence"
-                                className="p-0.5 rounded text-slate-600 hover:text-slate-300 transition-colors opacity-0 group-hover/seq:opacity-100"
+                                className="p-0.5 rounded text-fg-subtle hover:text-fg transition-colors opacity-0 group-hover/seq:opacity-100"
                               >
                                 <Pencil className="w-3 h-3" />
                               </button>
@@ -1402,7 +1402,7 @@ export function DMXSidebar({
                               <button
                                 onClick={(e) => { e.stopPropagation(); onDeleteSequence(seq) }}
                                 title="Delete sequence"
-                                className="p-0.5 rounded text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover/seq:opacity-100"
+                                className="p-0.5 rounded text-fg-subtle hover:text-red-400 transition-colors opacity-0 group-hover/seq:opacity-100"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
@@ -1414,9 +1414,9 @@ export function DMXSidebar({
                         {isExpanded && (
                           <div className="px-2 pb-2">
                             {seq.cue_placements.length === 0 ? (
-                              <p className="text-[10px] text-slate-600 pl-4 pb-1">No cues added yet.</p>
+                              <p className="text-[10px] text-fg-subtle pl-4 pb-1">No cues added yet.</p>
                             ) : (
-                              <div className="relative ml-3 border-l border-slate-700 space-y-0.5">
+                              <div className="relative ml-3 border-l border-edge space-y-0.5">
                                 {seq.cue_placements.map((p: DMXCuePlacement, idx: number) => {
                                   const isActiveCue = pb !== null && pb.cueIndex === idx
                                   const isTransitioningHere = isActiveCue && pb?.phase === 'transitioning'
@@ -1445,21 +1445,21 @@ export function DMXSidebar({
                                       className={`group/placement flex items-center gap-1 pl-2 pr-1 py-1 rounded-r transition-colors ${
                                         isActiveCue
                                           ? isTransitioningHere
-                                            ? 'bg-blue-950/50'
+                                            ? 'bg-accent/50'
                                             : 'bg-green-950/40'
                                           : isDragOverPlacement
-                                          ? 'bg-slate-700/50 border-dashed border border-slate-500'
+                                          ? 'bg-surface-2/50 border-dashed border border-edge-strong'
                                           : isThisDragged
                                           ? 'opacity-40'
-                                          : 'hover:bg-slate-800/50'
+                                          : 'hover:bg-surface-1/50'
                                       }`}
                                     >
                                       {/* Drag handle */}
-                                      <GripVertical className="w-2.5 h-2.5 text-slate-700 group-hover/placement:text-slate-500 shrink-0 cursor-grab active:cursor-grabbing" />
+                                      <GripVertical className="w-2.5 h-2.5 text-fg group-hover/placement:text-fg-subtle shrink-0 cursor-grab active:cursor-grabbing" />
 
                                       {/* Transition time */}
                                       <div className="shrink-0 flex flex-col items-center" title="Fade-in transition time (seconds)">
-                                        <span className="text-[8px] leading-none text-blue-800 font-medium tracking-wide">fade</span>
+                                        <span className="text-[8px] leading-none text-accent font-medium tracking-wide">fade</span>
                                         {editingTransition ? (
                                           <input
                                             autoFocus
@@ -1470,12 +1470,12 @@ export function DMXSidebar({
                                             onChange={(e) => setEditingPlacement({ id: p.id, field: 'transition_time', value: e.target.value })}
                                             onBlur={() => commitPlacementEdit(seq.id, p.id)}
                                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') commitPlacementEdit(seq.id, p.id) }}
-                                            className="w-9 bg-slate-900 border border-blue-600 rounded text-[11px] text-center text-blue-300 focus:outline-none px-0.5 py-px"
+                                            className="w-9 bg-surface-0 border border-accent rounded text-[11px] text-center text-accent focus:outline-none px-0.5 py-px"
                                           />
                                         ) : (
                                           <button
                                             onClick={() => setEditingPlacement({ id: p.id, field: 'transition_time', value: String(p.transition_time) })}
-                                            className="w-9 text-[11px] text-center font-mono text-blue-700 hover:text-blue-400 hover:bg-slate-800 rounded transition-colors px-0.5 py-px"
+                                            className="w-9 text-[11px] text-center font-mono text-accent hover:text-accent hover:bg-surface-1 rounded transition-colors px-0.5 py-px"
                                           >
                                             {p.transition_time}s
                                           </button>
@@ -1485,8 +1485,8 @@ export function DMXSidebar({
                                       {/* Cue name */}
                                       <span className={`flex-1 min-w-0 text-xs truncate ${
                                         isActiveCue
-                                          ? isTransitioningHere ? 'text-blue-300' : 'text-green-300'
-                                          : 'text-slate-300'
+                                          ? isTransitioningHere ? 'text-accent' : 'text-green-300'
+                                          : 'text-fg'
                                       }`}>
                                         {p.cue_name}
                                       </span>
@@ -1504,12 +1504,12 @@ export function DMXSidebar({
                                             onChange={(e) => setEditingPlacement({ id: p.id, field: 'hold_duration', value: e.target.value })}
                                             onBlur={() => commitPlacementEdit(seq.id, p.id)}
                                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') commitPlacementEdit(seq.id, p.id) }}
-                                            className="w-9 bg-slate-900 border border-amber-600 rounded text-[11px] text-center text-amber-300 focus:outline-none px-0.5 py-px"
+                                            className="w-9 bg-surface-0 border border-amber-600 rounded text-[11px] text-center text-amber-300 focus:outline-none px-0.5 py-px"
                                           />
                                         ) : (
                                           <button
                                             onClick={() => setEditingPlacement({ id: p.id, field: 'hold_duration', value: String(p.hold_duration) })}
-                                            className="w-9 text-[11px] text-center font-mono text-amber-700 hover:text-amber-400 hover:bg-slate-800 rounded transition-colors px-0.5 py-px"
+                                            className="w-9 text-[11px] text-center font-mono text-amber-700 hover:text-amber-400 hover:bg-surface-1 rounded transition-colors px-0.5 py-px"
                                           >
                                             {p.hold_duration}s
                                           </button>
@@ -1519,7 +1519,7 @@ export function DMXSidebar({
                                       {/* Active indicator */}
                                       <span className={`w-2 h-2 rounded-full shrink-0 ${
                                         isActiveCue
-                                          ? isTransitioningHere ? 'bg-blue-400 animate-pulse' : 'bg-green-400'
+                                          ? isTransitioningHere ? 'bg-accent animate-pulse' : 'bg-green-400'
                                           : 'bg-transparent'
                                       }`} />
 
@@ -1527,7 +1527,7 @@ export function DMXSidebar({
                                       <button
                                         onClick={() => onRemoveCueFromSequence(seq.id, p.id)}
                                         title="Remove from sequence"
-                                        className="text-slate-700 hover:text-red-400 transition-colors opacity-0 group-hover/placement:opacity-100 shrink-0"
+                                        className="text-fg hover:text-red-400 transition-colors opacity-0 group-hover/placement:opacity-100 shrink-0"
                                       >
                                         <X className="w-3 h-3" />
                                       </button>
@@ -1541,7 +1541,7 @@ export function DMXSidebar({
                             <div className="mt-1.5 ml-3">
                               <button
                                 onClick={(e) => openAddCueDropdown(e, seq.id)}
-                                className="flex items-center gap-1 text-[10px] text-slate-600 hover:text-slate-300 transition-colors px-1 py-0.5 rounded hover:bg-slate-800/50"
+                                className="flex items-center gap-1 text-[10px] text-fg-subtle hover:text-fg transition-colors px-1 py-0.5 rounded hover:bg-surface-1/50"
                               >
                                 <Plus className="w-2.5 h-2.5" />
                                 Add Cue
@@ -1568,16 +1568,16 @@ export function DMXSidebar({
       <div
         ref={addCueDropdownRef}
         style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: 200, zIndex: 9999 }}
-        className="bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden"
+        className="bg-surface-1 border border-edge rounded-lg shadow-2xl overflow-hidden"
       >
-        <div className="p-1.5 border-b border-slate-700">
+        <div className="p-1.5 border-b border-edge">
           <input
             autoFocus
             type="text"
             placeholder="Search cues…"
             value={cueSearch}
             onChange={(e) => setCueSearch(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-slate-500"
+            className="w-full bg-surface-0 border border-edge rounded px-2 py-1 text-xs text-fg placeholder-fg-subtle focus:outline-none focus:border-edge-strong"
           />
         </div>
         <div className="max-h-56 overflow-y-auto">
@@ -1591,7 +1591,7 @@ export function DMXSidebar({
               return matchesGroup && matchesSearch
             })
             return filtered.length === 0 ? (
-              <p className="text-[10px] text-slate-500 px-3 py-2">
+              <p className="text-[10px] text-fg-subtle px-3 py-2">
                 {targetGroupId
                   ? `No cues in ${groups.find((g) => g.id === targetGroupId)?.name ?? 'this group'}`
                   : 'No ungrouped cues found'}
@@ -1600,7 +1600,7 @@ export function DMXSidebar({
               <button
                 key={c.id}
                 onClick={() => { onAddCueToSequence(showAddCueFor!, c.id); setShowAddCueFor(null); setDropdownPos(null); setCueSearch('') }}
-                className="w-full text-left px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors truncate"
+                className="w-full text-left px-3 py-1.5 text-xs text-fg hover:bg-surface-2 hover:text-fg transition-colors truncate"
               >
                 {c.name}
               </button>

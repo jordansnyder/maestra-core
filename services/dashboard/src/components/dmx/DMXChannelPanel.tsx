@@ -49,12 +49,12 @@ export function DMXChannelPanel({ fixture, currentState, onStateChange }: DMXCha
   if (channels.length === 0) return null
 
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+    <div className="bg-surface-1 border border-edge rounded-lg p-4">
       {/* Header */}
       <div className="flex items-center gap-2 mb-4">
         <Zap className="w-4 h-4 text-amber-400" />
-        <h3 className="text-sm font-semibold text-white">DMX Channels</h3>
-        <span className="text-xs text-slate-500 font-mono ml-auto">
+        <h3 className="text-sm font-semibold text-fg">DMX Channels</h3>
+        <span className="text-xs text-fg-subtle font-mono ml-auto">
           U{fixture.universe} · Ch {fixture.start_channel}–{fixture.start_channel + fixture.channel_count - 1}
         </span>
       </div>
@@ -75,7 +75,7 @@ export function DMXChannelPanel({ fixture, currentState, onStateChange }: DMXCha
               style={{ minWidth: 44 }}
             >
               {/* Current value */}
-              <span className="text-xs font-mono text-slate-300 tabular-nums w-8 text-center">
+              <span className="text-xs font-mono text-fg tabular-nums w-8 text-center">
                 {value}
               </span>
 
@@ -101,13 +101,13 @@ export function DMXChannelPanel({ fixture, currentState, onStateChange }: DMXCha
               </div>
 
               {/* Absolute channel number */}
-              <span className="text-[10px] text-slate-600 font-mono">
+              <span className="text-[10px] text-fg-subtle font-mono">
                 {absChannel}
               </span>
 
               {/* Variable / channel name */}
               <span
-                className="text-[10px] text-slate-400 text-center leading-tight max-w-[44px] break-words"
+                className="text-[10px] text-fg-muted text-center leading-tight max-w-[44px] break-words"
                 title={ch.label !== ch.varName ? `${ch.label} (${ch.varName})` : ch.varName}
               >
                 {ch.label}
@@ -118,7 +118,7 @@ export function DMXChannelPanel({ fixture, currentState, onStateChange }: DMXCha
       </div>
 
       {/* Percentage bar overlay — visual DMX level indicator */}
-      <div className="mt-3 pt-3 border-t border-slate-700">
+      <div className="mt-3 pt-3 border-t border-edge">
         <div className="flex gap-1.5 items-end h-4">
           {channels.map((ch) => {
             const rawValue = currentState[ch.varName]
@@ -127,11 +127,11 @@ export function DMXChannelPanel({ fixture, currentState, onStateChange }: DMXCha
             return (
               <div
                 key={ch.varName}
-                className="flex-1 bg-slate-700 rounded-sm overflow-hidden h-4"
+                className="flex-1 bg-surface-2 rounded-sm overflow-hidden h-4"
                 title={`${ch.label}: ${value} (${pct}%)`}
               >
                 <div
-                  className="bg-blue-500/70 rounded-sm transition-all duration-100"
+                  className="bg-accent/70 rounded-sm transition-all duration-100"
                   style={{ height: `${pct}%`, marginTop: `${100 - pct}%` }}
                 />
               </div>

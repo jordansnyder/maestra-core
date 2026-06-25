@@ -30,7 +30,7 @@ export function MatrixView({ devices, routes, onAddRoute, onRemoveRoute }: Matri
         {/* Column headers */}
         <div className="flex mb-0.5">
           <div className="w-40 min-w-[160px] h-[120px] flex items-end justify-end pr-3 pb-2 sticky left-0 z-10 bg-[#09090f]">
-            <div className="text-[10px] text-slate-600 font-mono text-right">
+            <div className="text-[10px] text-fg-subtle font-mono text-right">
               <div>OUTPUTS &rarr;</div>
               <div>&darr; INPUTS</div>
             </div>
@@ -51,7 +51,7 @@ export function MatrixView({ devices, routes, onAddRoute, onRemoveRoute }: Matri
         {inputs.map((inp, row) => (
           <div key={`r-${row}`} className="flex mb-px">
             <div className="w-40 min-w-[160px] h-9 flex items-center justify-end pr-3 gap-1.5 sticky left-0 z-10 bg-[#09090f]">
-              <span className="text-[9px] text-slate-500 font-mono text-right overflow-hidden text-ellipsis whitespace-nowrap">
+              <span className="text-[9px] text-fg-subtle font-mono text-right overflow-hidden text-ellipsis whitespace-nowrap">
                 {inp.device.name.split(' ').pop()} / {inp.port}
               </span>
               <span
@@ -86,7 +86,7 @@ export function MatrixView({ devices, routes, onAddRoute, onRemoveRoute }: Matri
                     />
                   )}
                   {!active && compatible && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-slate-700" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-surface-2" />
                   )}
                 </div>
               )

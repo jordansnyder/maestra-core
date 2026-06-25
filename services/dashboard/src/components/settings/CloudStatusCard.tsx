@@ -27,8 +27,8 @@ const STATUS_CONFIG: Record<
   },
   disconnected: {
     label: 'Disconnected',
-    dotClass: 'bg-slate-500',
-    textClass: 'text-slate-400',
+    dotClass: 'bg-fg-subtle',
+    textClass: 'text-fg-muted',
   },
   error: {
     label: 'Error',
@@ -59,8 +59,8 @@ function resolveStatus(config: CloudConfig, status: CloudStatus): ConnectionStat
 function StatItem({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <span className="text-base font-semibold text-slate-200">{value}</span>
-      <span className="text-xs text-slate-500">{label}</span>
+      <span className="text-base font-semibold text-fg">{value}</span>
+      <span className="text-xs text-fg-subtle">{label}</span>
     </div>
   )
 }
@@ -81,7 +81,7 @@ export function CloudStatusCard({ status, config, onRefresh }: CloudStatusCardPr
   }
 
   return (
-    <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+    <div className="bg-surface-1 rounded-lg border border-edge p-4">
       <div className="flex items-start justify-between gap-4">
         {/* Status indicator */}
         <div className="flex items-center gap-2">
@@ -92,7 +92,7 @@ export function CloudStatusCard({ status, config, onRefresh }: CloudStatusCardPr
         {/* Refresh button */}
         <button
           onClick={onRefresh}
-          className="p-1.5 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors"
+          className="p-1.5 rounded text-fg-muted hover:text-fg hover:bg-surface-2 transition-colors"
           title="Refresh status"
         >
           <RefreshCw className="w-4 h-4" />
@@ -101,20 +101,20 @@ export function CloudStatusCard({ status, config, onRefresh }: CloudStatusCardPr
 
       {/* Details */}
       <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
-        <div className="text-slate-500">Gateway</div>
-        <div className="font-mono text-slate-300 truncate" title={config.gateway_url ?? undefined}>
+        <div className="text-fg-subtle">Gateway</div>
+        <div className="font-mono text-fg truncate" title={config.gateway_url ?? undefined}>
           {truncateUrl(config.gateway_url)}
         </div>
 
-        <div className="text-slate-500">Site</div>
-        <div className="text-slate-300">{config.site_slug ?? '—'}</div>
+        <div className="text-fg-subtle">Site</div>
+        <div className="text-fg">{config.site_slug ?? '—'}</div>
 
-        <div className="text-slate-500">Last heartbeat</div>
-        <div className="text-slate-300">{getRelativeTime(status.last_heartbeat)}</div>
+        <div className="text-fg-subtle">Last heartbeat</div>
+        <div className="text-fg">{getRelativeTime(status.last_heartbeat)}</div>
       </div>
 
       {/* Stats row */}
-      <div className="mt-4 pt-4 border-t border-slate-700 flex justify-around">
+      <div className="mt-4 pt-4 border-t border-edge flex justify-around">
         <StatItem label="Messages sent" value={status.messages_sent.toLocaleString()} />
         <StatItem label="Messages received" value={status.messages_received.toLocaleString()} />
         <StatItem label="Active policies" value={status.active_policies} />

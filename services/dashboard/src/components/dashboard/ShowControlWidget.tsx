@@ -8,8 +8,8 @@ import { Card } from '@/components/Card'
 import type { ShowState, ShowPhase } from '@/lib/types'
 
 const PHASE_COLORS: Record<ShowPhase, string> = {
-  idle: 'bg-slate-400',
-  pre_show: 'bg-blue-400',
+  idle: 'bg-fg-subtle',
+  pre_show: 'bg-accent',
   active: 'bg-green-400',
   paused: 'bg-amber-400',
   post_show: 'bg-purple-400',
@@ -57,9 +57,9 @@ function getQuickActions(phase: ShowPhase, api: typeof showControlApi): QuickAct
 }
 
 const ACTION_STYLES: Record<string, string> = {
-  primary: 'bg-blue-600 hover:bg-blue-500 text-white',
+  primary: 'bg-accent hover:bg-accent-hover text-fg',
   destructive: 'bg-red-600/20 hover:bg-red-600/40 text-red-400',
-  default: 'bg-slate-700 hover:bg-slate-600 text-slate-300',
+  default: 'bg-surface-2 hover:bg-surface-2 text-fg',
 }
 
 export function ShowControlWidget() {
@@ -109,15 +109,15 @@ export function ShowControlWidget() {
   }
 
   if (loading) {
-    return <div className="h-[80px] bg-slate-700/30 rounded-lg animate-pulse" />
+    return <div className="h-[80px] bg-surface-2/30 rounded-lg animate-pulse" />
   }
 
   if (error) {
     return (
       <Card>
         <div className="flex items-center justify-between">
-          <span className="text-sm text-slate-400">{error}</span>
-          <button onClick={fetchState} className="text-xs text-blue-400 hover:text-blue-300">Retry</button>
+          <span className="text-sm text-fg-muted">{error}</span>
+          <button onClick={fetchState} className="text-xs text-accent hover:text-accent">Retry</button>
         </div>
       </Card>
     )
@@ -138,7 +138,7 @@ export function ShowControlWidget() {
           <div className={`w-4 h-4 rounded-full ${PHASE_COLORS[phase]} ${phase === 'active' ? 'animate-pulse' : ''}`} />
           <div>
             <span className="text-2xl font-bold">{PHASE_LABELS[phase]}</span>
-            {since && <p className="text-xs text-slate-500">Since {since}</p>}
+            {since && <p className="text-xs text-fg-subtle">Since {since}</p>}
           </div>
         </div>
         <div className="flex items-center gap-2">

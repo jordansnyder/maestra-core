@@ -22,8 +22,8 @@ function getCheckLabel(key: string): string {
 export function ConnectionTestResults({ result, loading = false }: ConnectionTestResultsProps) {
   if (loading) {
     return (
-      <div className="flex items-center gap-3 text-slate-400 py-4">
-        <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+      <div className="flex items-center gap-3 text-fg-muted py-4">
+        <Loader2 className="w-5 h-5 animate-spin text-accent" />
         <span className="text-sm">Testing connection...</span>
       </div>
     )
@@ -47,7 +47,7 @@ export function ConnectionTestResults({ result, loading = false }: ConnectionTes
             ) : (
               <XCircle className="w-4 h-4 text-red-400 shrink-0" />
             )}
-            <span className={`text-sm ${passed ? 'text-slate-300' : 'text-slate-400'}`}>
+            <span className={`text-sm ${passed ? 'text-fg' : 'text-fg-muted'}`}>
               {getCheckLabel(key)}
             </span>
           </div>
@@ -56,8 +56,8 @@ export function ConnectionTestResults({ result, loading = false }: ConnectionTes
 
       {/* Latency */}
       {result.latency_ms !== null && (
-        <div className="text-xs text-slate-500 pt-1">
-          Round-trip: <span className="text-slate-400 font-mono">{result.latency_ms}ms</span>
+        <div className="text-xs text-fg-subtle pt-1">
+          Round-trip: <span className="text-fg-muted font-mono">{result.latency_ms}ms</span>
         </div>
       )}
 

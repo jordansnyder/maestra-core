@@ -27,8 +27,8 @@ export function EnumControl({ variable, value, onChange, disabled, compact }: En
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
       className={compact
-        ? 'px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs text-white focus:outline-none focus:border-blue-500 disabled:opacity-50 cursor-pointer'
-        : 'w-full px-3 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed appearance-none cursor-pointer'
+        ? 'px-2 py-1 bg-surface-0 border border-edge rounded text-xs text-fg focus:outline-none focus:border-accent disabled:opacity-50 cursor-pointer'
+        : 'w-full px-3 py-3 bg-surface-0 border border-edge rounded-lg text-fg focus:outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed appearance-none cursor-pointer'
       }
       style={compact ? undefined : {
         backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,

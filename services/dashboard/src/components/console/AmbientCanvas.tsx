@@ -736,7 +736,7 @@ export function AmbientCanvas() {
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       {isEmpty && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-sm font-mono text-slate-600/30">Waiting for messages...</span>
+          <span className="text-sm font-mono text-fg-subtle/30">Waiting for messages...</span>
         </div>
       )}
     </div>

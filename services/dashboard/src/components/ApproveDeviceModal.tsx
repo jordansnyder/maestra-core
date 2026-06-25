@@ -48,30 +48,30 @@ export function ApproveDeviceModal({ device, onConfirm, onCancel }: ApproveDevic
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-surface-1 rounded-xl border border-edge p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold">Approve Device</h2>
-          <button onClick={onCancel} className="text-slate-400 hover:text-white p-1">
+          <button onClick={onCancel} className="text-fg-muted hover:text-fg p-1">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="space-y-5">
           {/* Device Info */}
-          <div className="bg-slate-900/50 rounded-lg p-4 text-sm">
+          <div className="bg-surface-0/50 rounded-lg p-4 text-sm">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <span className="text-slate-500">Hardware ID:</span>
-                <p className="text-slate-300 font-mono text-xs mt-0.5">{device.hardware_id}</p>
+                <span className="text-fg-subtle">Hardware ID:</span>
+                <p className="text-fg font-mono text-xs mt-0.5">{device.hardware_id}</p>
               </div>
               <div>
-                <span className="text-slate-500">Type:</span>
-                <p className="text-slate-300 mt-0.5">{device.device_type.replace('_', ' ')}</p>
+                <span className="text-fg-subtle">Type:</span>
+                <p className="text-fg mt-0.5">{device.device_type.replace('_', ' ')}</p>
               </div>
               {device.ip_address && (
                 <div>
-                  <span className="text-slate-500">IP Address:</span>
-                  <p className="text-slate-300 font-mono text-xs mt-0.5">{device.ip_address}</p>
+                  <span className="text-fg-subtle">IP Address:</span>
+                  <p className="text-fg font-mono text-xs mt-0.5">{device.ip_address}</p>
                 </div>
               )}
             </div>
@@ -79,25 +79,25 @@ export function ApproveDeviceModal({ device, onConfirm, onCancel }: ApproveDevic
 
           {/* Device Name */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1.5">Device Name</label>
+            <label className="block text-sm font-medium text-fg mb-1.5">Device Name</label>
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface-0 border border-edge rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent"
               placeholder="Device name"
             />
           </div>
 
           {/* Entity Binding */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1.5">
-              Bind to Entity <span className="text-slate-500">(optional)</span>
+            <label className="block text-sm font-medium text-fg mb-1.5">
+              Bind to Entity <span className="text-fg-subtle">(optional)</span>
             </label>
             <select
               value={entityId}
               onChange={e => setEntityId(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface-0 border border-edge rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent"
             >
               <option value="">None</option>
               {entities.map(entity => (
@@ -111,12 +111,12 @@ export function ApproveDeviceModal({ device, onConfirm, onCancel }: ApproveDevic
           {/* Environment Variables */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-sm font-medium text-slate-300">
-                Environment Variables <span className="text-slate-500">(optional)</span>
+              <label className="text-sm font-medium text-fg">
+                Environment Variables <span className="text-fg-subtle">(optional)</span>
               </label>
               <button
                 onClick={addEnvVar}
-                className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+                className="flex items-center gap-1 text-xs text-accent hover:text-accent"
               >
                 <Plus className="w-3 h-3" />
                 Add
@@ -131,15 +131,15 @@ export function ApproveDeviceModal({ device, onConfirm, onCancel }: ApproveDevic
                       value={env.key}
                       onChange={e => updateEnvVar(i, 'key', e.target.value)}
                       placeholder="KEY"
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-blue-500"
+                      className="flex-1 bg-surface-0 border border-edge rounded-lg px-3 py-1.5 text-xs font-mono text-fg focus:outline-none focus:border-accent"
                     />
-                    <span className="text-slate-500">=</span>
+                    <span className="text-fg-subtle">=</span>
                     <input
                       type="text"
                       value={env.value}
                       onChange={e => updateEnvVar(i, 'value', e.target.value)}
                       placeholder="value"
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-blue-500"
+                      className="flex-1 bg-surface-0 border border-edge rounded-lg px-3 py-1.5 text-xs font-mono text-fg focus:outline-none focus:border-accent"
                     />
                     <button
                       onClick={() => removeEnvVar(i)}
@@ -151,22 +151,22 @@ export function ApproveDeviceModal({ device, onConfirm, onCancel }: ApproveDevic
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-slate-500">No environment variables configured.</p>
+              <p className="text-xs text-fg-subtle">No environment variables configured.</p>
             )}
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-slate-700">
+        <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-edge">
           <button
             onClick={onCancel}
-            className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium transition-colors"
+            className="px-4 py-2 rounded-lg bg-surface-2 hover:bg-surface-2 text-sm font-medium transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
-            className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm font-medium transition-colors"
+            className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-fg text-sm font-medium transition-colors"
           >
             Approve & Configure
           </button>

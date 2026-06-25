@@ -193,7 +193,7 @@ export function DMXCanvas({
         >
           <button
             onClick={onAdjustDMX}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-900/70 border border-blue-700/60 hover:bg-blue-800/80 text-blue-200 backdrop-blur-sm transition-colors shadow-lg"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent/70 border border-accent/60 hover:bg-accent/80 text-accent backdrop-blur-sm transition-colors shadow-lg"
           >
             <SlidersHorizontal className="w-4 h-4" />
             Adjust DMX
@@ -204,8 +204,8 @@ export function DMXCanvas({
       {/* Empty state */}
       {fixtures.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ zIndex: 7 }}>
-          <div className="text-slate-700 text-sm font-medium">No fixtures yet</div>
-          <div className="text-slate-800 text-xs mt-1">Click &quot;Add Fixture&quot; to place one on the canvas</div>
+          <div className="text-fg text-sm font-medium">No fixtures yet</div>
+          <div className="text-fg text-xs mt-1">Click &quot;Add Fixture&quot; to place one on the canvas</div>
         </div>
       )}
 

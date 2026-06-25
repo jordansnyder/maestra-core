@@ -57,7 +57,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       aria-checked={checked}
       onClick={() => onChange(!checked)}
       className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-        checked ? 'bg-blue-500' : 'bg-slate-600'
+        checked ? 'bg-accent' : 'bg-surface-2'
       }`}
     >
       <span
@@ -114,7 +114,7 @@ export function PolicyEditor({ policies, onChange, showPresets = false }: Policy
               key={preset.label}
               type="button"
               onClick={() => addPreset(preset.policy)}
-              className="px-3 py-1.5 text-xs rounded-md bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 transition-colors"
+              className="px-3 py-1.5 text-xs rounded-md bg-surface-2 hover:bg-surface-2 text-fg border border-edge-strong transition-colors"
             >
               + {preset.label}
             </button>
@@ -125,20 +125,20 @@ export function PolicyEditor({ policies, onChange, showPresets = false }: Policy
       {/* Policy list */}
       <div className="space-y-2">
         {policies.length === 0 ? (
-          <div className="text-center py-6 text-slate-500 text-sm border border-dashed border-slate-700 rounded-lg">
+          <div className="text-center py-6 text-fg-subtle text-sm border border-dashed border-edge rounded-lg">
             No routing policies. Add one below or use a preset.
           </div>
         ) : (
           policies.map((policy, index) => (
             <div
               key={index}
-              className="flex items-center gap-3 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2"
+              className="flex items-center gap-3 bg-surface-0 border border-edge rounded-lg px-3 py-2"
             >
               {/* Direction badge */}
               <span
                 className={`shrink-0 px-2 py-0.5 rounded text-xs font-medium ${
                   policy.direction === 'outbound'
-                    ? 'bg-blue-900/50 text-blue-300 border border-blue-700/40'
+                    ? 'bg-accent/50 text-accent border border-accent/40'
                     : 'bg-purple-900/50 text-purple-300 border border-purple-700/40'
                 }`}
               >
@@ -151,7 +151,7 @@ export function PolicyEditor({ policies, onChange, showPresets = false }: Policy
                 onChange={(e) =>
                   updatePolicy(index, { direction: e.target.value as CloudPolicy['direction'] })
                 }
-                className="shrink-0 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="shrink-0 bg-surface-1 border border-edge rounded text-xs text-fg px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-accent"
               >
                 <option value="outbound">outbound</option>
                 <option value="inbound">inbound</option>
@@ -163,7 +163,7 @@ export function PolicyEditor({ policies, onChange, showPresets = false }: Policy
                 value={policy.subject_pattern}
                 onChange={(e) => updatePolicy(index, { subject_pattern: e.target.value })}
                 placeholder="maestra.entity.state.>"
-                className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded px-2 py-1 font-mono text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex-1 min-w-0 bg-surface-1 border border-edge rounded px-2 py-1 font-mono text-sm text-fg placeholder-fg-subtle focus:outline-none focus:ring-1 focus:ring-accent"
               />
 
               {/* Enable toggle */}
@@ -176,7 +176,7 @@ export function PolicyEditor({ policies, onChange, showPresets = false }: Policy
               <button
                 type="button"
                 onClick={() => removePolicy(index)}
-                className="shrink-0 p-1 rounded text-slate-500 hover:text-red-400 hover:bg-slate-700 transition-colors"
+                className="shrink-0 p-1 rounded text-fg-subtle hover:text-red-400 hover:bg-surface-2 transition-colors"
                 title="Remove policy"
               >
                 <Trash2 className="w-4 h-4" />
@@ -190,7 +190,7 @@ export function PolicyEditor({ policies, onChange, showPresets = false }: Policy
       <button
         type="button"
         onClick={addPolicy}
-        className="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-700 border border-dashed border-slate-700 hover:border-slate-600 rounded-lg w-full transition-colors"
+        className="flex items-center gap-2 px-3 py-2 text-sm text-fg-muted hover:text-fg hover:bg-surface-2 border border-dashed border-edge hover:border-edge-strong rounded-lg w-full transition-colors"
       >
         <Plus className="w-4 h-4" />
         Add Rule

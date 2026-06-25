@@ -239,38 +239,38 @@ export function NetworkGraph() {
     return (
       <button
         onClick={toggleOpen}
-        className="shrink-0 flex items-center justify-center w-8 bg-slate-800/50 border-l border-slate-700 hover:bg-slate-800 transition-colors"
+        className="shrink-0 flex items-center justify-center w-8 bg-surface-1/50 border-l border-edge hover:bg-surface-1 transition-colors"
         title="Open network graph"
       >
-        <ChevronLeft className="w-4 h-4 text-slate-500" />
+        <ChevronLeft className="w-4 h-4 text-fg-subtle" />
       </button>
     )
   }
 
   return (
-    <div className="shrink-0 w-96 border-l border-slate-700 flex flex-col bg-slate-900/50">
+    <div className="shrink-0 w-96 border-l border-edge flex flex-col bg-surface-0/50">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-700/50">
-        <span className="text-xs font-medium text-slate-400">Network Graph</span>
-        <button onClick={toggleOpen} className="p-1 hover:bg-slate-800 rounded transition-colors">
-          <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+      <div className="flex items-center justify-between px-3 py-2 border-b border-edge/50">
+        <span className="text-xs font-medium text-fg-muted">Network Graph</span>
+        <button onClick={toggleOpen} className="p-1 hover:bg-surface-1 rounded transition-colors">
+          <ChevronRight className="w-3.5 h-3.5 text-fg-subtle" />
         </button>
       </div>
 
       {/* Graph */}
       {nodes.length <= 1 && !apiError ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-slate-500 px-4">
+        <div className="flex-1 flex flex-col items-center justify-center text-fg-subtle px-4">
           <span className="text-xs text-center">No devices registered</span>
-          <span className="text-xs text-slate-600 mt-1 text-center">
+          <span className="text-xs text-fg-subtle mt-1 text-center">
             Register devices to see the network topology
           </span>
         </div>
       ) : apiError ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-slate-500 px-4 gap-2">
+        <div className="flex-1 flex flex-col items-center justify-center text-fg-subtle px-4 gap-2">
           <span className="text-xs">Could not load devices</span>
           <button
             onClick={() => { setApiError(false) }}
-            className="flex items-center gap-1 text-xs text-blue-400 hover:underline"
+            className="flex items-center gap-1 text-xs text-accent hover:underline"
           >
             <RefreshCw className="w-3 h-3" />
             Retry

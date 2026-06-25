@@ -21,24 +21,24 @@ export function AudioPreview({ stream }: AudioPreviewProps) {
   }, [history])
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div className="bg-surface-0 border border-edge rounded-xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-edge">
         <div className="flex items-center gap-3">
-          <h3 className="text-sm font-medium text-white">Audio Preview</h3>
+          <h3 className="text-sm font-medium text-fg">Audio Preview</h3>
           <StatusBadge status={status} />
         </div>
         {stream.config && (
-          <div className="flex items-center gap-4 text-xs text-slate-400">
+          <div className="flex items-center gap-4 text-xs text-fg-muted">
             {'sample_rate' in stream.config && (
               <span>
-                <span className="text-slate-500">Rate:</span>{' '}
+                <span className="text-fg-subtle">Rate:</span>{' '}
                 <span className="font-mono">{String(stream.config.sample_rate)} Hz</span>
               </span>
             )}
             {'channels' in stream.config && (
               <span>
-                <span className="text-slate-500">Ch:</span>{' '}
+                <span className="text-fg-subtle">Ch:</span>{' '}
                 <span className="font-mono">{String(stream.config.channels)}</span>
               </span>
             )}
@@ -48,7 +48,7 @@ export function AudioPreview({ stream }: AudioPreviewProps) {
 
       <div className="p-6">
         {status === 'connecting' && (
-          <div className="flex items-center justify-center h-48 text-slate-500 text-sm">
+          <div className="flex items-center justify-center h-48 text-fg-subtle text-sm">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
               Connecting to audio stream...
@@ -66,7 +66,7 @@ export function AudioPreview({ stream }: AudioPreviewProps) {
           <div className="space-y-6">
             {/* Level Meters */}
             <div className="space-y-3">
-              <div className="text-xs text-slate-500 uppercase tracking-wider">Level</div>
+              <div className="text-xs text-fg-subtle uppercase tracking-wider">Level</div>
               <LevelMeter
                 label="RMS"
                 level={audioData?.rms_level ?? 0}
@@ -84,8 +84,8 @@ export function AudioPreview({ stream }: AudioPreviewProps) {
             {/* Level History Waveform */}
             {levelHistory.length > 0 && (
               <div className="space-y-2">
-                <div className="text-xs text-slate-500 uppercase tracking-wider">Level History</div>
-                <div className="flex items-end gap-px h-16 bg-slate-950 rounded-lg p-2">
+                <div className="text-xs text-fg-subtle uppercase tracking-wider">Level History</div>
+                <div className="flex items-end gap-px h-16 bg-surface-0 rounded-lg p-2">
                   {levelHistory.map((level, i) => (
                     <div
                       key={i}
@@ -103,24 +103,24 @@ export function AudioPreview({ stream }: AudioPreviewProps) {
 
             {/* Numeric readout */}
             <div className="grid grid-cols-2 gap-4 text-center">
-              <div className="bg-slate-950 rounded-lg p-3">
+              <div className="bg-surface-0 rounded-lg p-3">
                 <div className="text-2xl font-mono text-cyan-300">
                   {audioData ? audioData.rms_db.toFixed(1) : '--'}
                 </div>
-                <div className="text-xs text-slate-500 mt-1">RMS (dB)</div>
+                <div className="text-xs text-fg-subtle mt-1">RMS (dB)</div>
               </div>
-              <div className="bg-slate-950 rounded-lg p-3">
+              <div className="bg-surface-0 rounded-lg p-3">
                 <div className="text-2xl font-mono text-yellow-300">
                   {audioData ? audioData.peak_db.toFixed(1) : '--'}
                 </div>
-                <div className="text-xs text-slate-500 mt-1">Peak (dB)</div>
+                <div className="text-xs text-fg-subtle mt-1">Peak (dB)</div>
               </div>
             </div>
           </div>
         )}
 
         {status === 'idle' && !audioData && (
-          <div className="flex items-center justify-center h-48 text-slate-500 text-sm">
+          <div className="flex items-center justify-center h-48 text-fg-subtle text-sm">
             Click to preview live audio levels
           </div>
         )}
@@ -145,21 +145,21 @@ function LevelMeter({
 
   return (
     <div className="flex items-center gap-3">
-      <span className="text-xs text-slate-400 w-8 font-mono">{label}</span>
-      <div className="flex-1 h-4 bg-slate-950 rounded-full overflow-hidden">
+      <span className="text-xs text-fg-muted w-8 font-mono">{label}</span>
+      <div className="flex-1 h-4 bg-surface-0 rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-75 ${barColor}`}
           style={{ width: `${width}%` }}
         />
       </div>
-      <span className="text-xs text-slate-400 font-mono w-16 text-right">{db.toFixed(1)} dB</span>
+      <span className="text-xs text-fg-muted font-mono w-16 text-right">{db.toFixed(1)} dB</span>
     </div>
   )
 }
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    idle: 'bg-slate-500/20 text-slate-400',
+    idle: 'bg-fg-subtle/20 text-fg-muted',
     connecting: 'bg-yellow-500/20 text-yellow-300',
     connected: 'bg-green-500/20 text-green-300',
     error: 'bg-red-500/20 text-red-400',

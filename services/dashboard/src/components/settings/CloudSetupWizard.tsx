@@ -83,17 +83,17 @@ function StepIndicator({
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
                   isCompleted
-                    ? 'bg-green-500 text-white'
+                    ? 'bg-green-500 text-fg'
                     : isCurrent
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-slate-700 text-slate-400'
+                    ? 'bg-accent text-fg'
+                    : 'bg-surface-2 text-fg-muted'
                 }`}
               >
                 {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : step.id + 1}
               </div>
               <span
                 className={`text-xs whitespace-nowrap hidden sm:block ${
-                  isCurrent ? 'text-slate-200' : 'text-slate-500'
+                  isCurrent ? 'text-fg' : 'text-fg-subtle'
                 }`}
               >
                 {step.label}
@@ -102,7 +102,7 @@ function StepIndicator({
             {!isLast && (
               <div
                 className={`h-px flex-1 mx-2 mb-4 transition-colors ${
-                  completedSteps.has(step.id) ? 'bg-green-600' : 'bg-slate-700'
+                  completedSteps.has(step.id) ? 'bg-green-600' : 'bg-surface-2'
                 }`}
               />
             )}
@@ -239,10 +239,10 @@ export function CloudSetupWizard({
   }
 
   return (
-    <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+    <div className="bg-surface-1 rounded-lg border border-edge p-6">
       <div className="mb-6">
-        <h2 className="text-lg font-semibold text-slate-100">Cloud Gateway Setup</h2>
-        <p className="text-sm text-slate-400 mt-1">
+        <h2 className="text-lg font-semibold text-fg">Cloud Gateway Setup</h2>
+        <p className="text-sm text-fg-muted mt-1">
           Connect this Maestra instance to a cloud gateway for remote access and multi-site
           orchestration.
         </p>
@@ -263,7 +263,7 @@ export function CloudSetupWizard({
         {currentStep === 0 && (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">
+              <label className="block text-sm font-medium text-fg mb-1">
                 Gateway URL
               </label>
               <input
@@ -271,9 +271,9 @@ export function CloudSetupWizard({
                 value={gatewayUrl}
                 onChange={(e) => setGatewayUrl(e.target.value)}
                 placeholder="https://gateway.maestra.cloud"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full bg-surface-0 border border-edge rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:ring-1 focus:ring-accent"
               />
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-fg-subtle">
                 Enter the URL of your Maestra cloud gateway instance.
               </p>
             </div>
@@ -285,32 +285,32 @@ export function CloudSetupWizard({
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Site Name</label>
+                <label className="block text-sm font-medium text-fg mb-1">Site Name</label>
                 <input
                   type="text"
                   value={siteName}
                   onChange={(e) => handleSiteNameChange(e.target.value)}
                   placeholder="My Studio"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full bg-surface-0 border border-edge rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:ring-1 focus:ring-accent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Slug</label>
+                <label className="block text-sm font-medium text-fg mb-1">Slug</label>
                 <input
                   type="text"
                   value={siteSlug}
                   onChange={(e) => setSiteSlug(e.target.value)}
                   placeholder="my-studio"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 font-mono text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full bg-surface-0 border border-edge rounded-lg px-3 py-2 font-mono text-sm text-fg placeholder-fg-subtle focus:outline-none focus:ring-1 focus:ring-accent"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Region</label>
+              <label className="block text-sm font-medium text-fg mb-1">Region</label>
               <select
                 value={siteRegion}
                 onChange={(e) => setSiteRegion(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full bg-surface-0 border border-edge rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:ring-1 focus:ring-accent"
               >
                 {REGIONS.map((r) => (
                   <option key={r.value} value={r.value}>
@@ -320,16 +320,16 @@ export function CloudSetupWizard({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">
+              <label className="block text-sm font-medium text-fg mb-1">
                 Description{' '}
-                <span className="text-slate-500 font-normal">(optional)</span>
+                <span className="text-fg-subtle font-normal">(optional)</span>
               </label>
               <input
                 type="text"
                 value={siteDescription}
                 onChange={(e) => setSiteDescription(e.target.value)}
                 placeholder="Main performance studio"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full bg-surface-0 border border-edge rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:ring-1 focus:ring-accent"
               />
             </div>
           </div>
@@ -338,7 +338,7 @@ export function CloudSetupWizard({
         {/* Step 2: Certificates */}
         {currentStep === 2 && (
           <div className="space-y-4">
-            <div className="bg-slate-900 rounded-lg border border-slate-700 p-4 text-sm text-slate-400 space-y-2">
+            <div className="bg-surface-0 rounded-lg border border-edge p-4 text-sm text-fg-muted space-y-2">
               <p>
                 Maestra uses mutual TLS (mTLS) to authenticate both the gateway and this site. Issuing
                 certificates will generate a client certificate and private key for secure communication.
@@ -357,7 +357,7 @@ export function CloudSetupWizard({
         {/* Step 3: Routing Policies */}
         {currentStep === 3 && (
           <div className="space-y-3">
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-fg-muted">
               Configure which NATS subjects are routed to/from the cloud gateway.
             </p>
             {/* Quick preset buttons */}
@@ -367,7 +367,7 @@ export function CloudSetupWizard({
                   key={preset.label}
                   type="button"
                   onClick={() => addPresetPolicy(preset.policy)}
-                  className="px-3 py-1.5 text-xs rounded-md bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600 transition-colors"
+                  className="px-3 py-1.5 text-xs rounded-md bg-surface-2 hover:bg-surface-2 text-fg border border-edge-strong transition-colors"
                 >
                   + {preset.label}
                 </button>
@@ -380,7 +380,7 @@ export function CloudSetupWizard({
         {/* Step 4: Test & Activate */}
         {currentStep === 4 && (
           <div className="space-y-4">
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-fg-muted">
               Run a connection test to verify everything is configured correctly, then activate the
               gateway agent.
             </p>
@@ -388,7 +388,7 @@ export function CloudSetupWizard({
               type="button"
               onClick={handleTestConnection}
               disabled={testLoading}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-surface-2 hover:bg-surface-2 text-fg rounded-lg transition-colors disabled:opacity-50"
             >
               {testLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Radio className="w-4 h-4" />}
               Run Test
@@ -407,12 +407,12 @@ export function CloudSetupWizard({
       </div>
 
       {/* Navigation */}
-      <div className="flex items-center justify-between mt-8 pt-4 border-t border-slate-700">
+      <div className="flex items-center justify-between mt-8 pt-4 border-t border-edge">
         <button
           type="button"
           onClick={() => { setCurrentStep((s) => Math.max(0, s - 1)); setError(null) }}
           disabled={currentStep === 0 || loading}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-slate-200 disabled:opacity-40 transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-fg-muted hover:text-fg disabled:opacity-40 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           Back
@@ -424,7 +424,7 @@ export function CloudSetupWizard({
               type="button"
               onClick={handleStep0}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-fg rounded-lg transition-colors disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Connect
@@ -436,7 +436,7 @@ export function CloudSetupWizard({
               type="button"
               onClick={handleStep1}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-fg rounded-lg transition-colors disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Register
@@ -448,7 +448,7 @@ export function CloudSetupWizard({
               type="button"
               onClick={handleStep2}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-fg rounded-lg transition-colors disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Issue Certificates
@@ -460,7 +460,7 @@ export function CloudSetupWizard({
               type="button"
               onClick={handleStep3}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-fg rounded-lg transition-colors disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Save Policies
@@ -472,7 +472,7 @@ export function CloudSetupWizard({
               type="button"
               onClick={handleActivate}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 hover:bg-green-500 text-fg rounded-lg transition-colors disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
               Activate

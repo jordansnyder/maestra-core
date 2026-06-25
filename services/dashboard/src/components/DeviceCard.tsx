@@ -4,10 +4,10 @@ import { DEVICE_TYPE_ICONS, DEFAULT_DEVICE_ICON, Trash2, Zap } from './icons'
 
 const STATUS_DOT_COLORS: Record<string, string> = {
   online: 'bg-green-400',
-  offline: 'bg-slate-500',
+  offline: 'bg-fg-subtle',
   error: 'bg-red-400',
   maintenance: 'bg-amber-400',
-  pending: 'bg-blue-400',
+  pending: 'bg-accent',
 }
 
 interface DeviceCardProps {
@@ -26,17 +26,17 @@ export function DeviceCard({ device, onDelete, onClick }: DeviceCardProps) {
 
   return (
     <Card
-      className="hover:border-slate-600 transition-colors cursor-pointer"
+      className="hover:border-edge-strong transition-colors cursor-pointer"
       onClick={() => onClick?.(device)}
     >
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4 flex-1">
-          <div className="w-10 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0">
-            <Icon className="w-5 h-5 text-slate-300" />
+          <div className="w-10 h-10 rounded-lg bg-surface-2/50 flex items-center justify-center shrink-0">
+            <Icon className="w-5 h-5 text-fg" />
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${STATUS_DOT_COLORS[device.status] || 'bg-slate-500'}`} />
+              <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${STATUS_DOT_COLORS[device.status] || 'bg-fg-subtle'}`} />
               <h3 className="font-semibold text-lg">{device.name}</h3>
               {device.device_type === 'artnet_node' && (
                 <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25">
@@ -45,7 +45,7 @@ export function DeviceCard({ device, onDelete, onClick }: DeviceCardProps) {
                 </span>
               )}
             </div>
-            <p className="text-sm text-slate-400 mb-2">{device.device_type.replace(/_/g, ' ')}</p>
+            <p className="text-sm text-fg-muted mb-2">{device.device_type.replace(/_/g, ' ')}</p>
           </div>
         </div>
         {onDelete && (
@@ -58,38 +58,38 @@ export function DeviceCard({ device, onDelete, onClick }: DeviceCardProps) {
         )}
       </div>
 
-      <div className="mt-4 pt-4 border-t border-slate-700 grid grid-cols-2 gap-4 text-sm">
+      <div className="mt-4 pt-4 border-t border-edge grid grid-cols-2 gap-4 text-sm">
         <div>
-          <span className="text-slate-500">MAC Address:</span>
-          <p className="text-slate-300 font-mono text-xs mt-1 uppercase">{device.hardware_id}</p>
+          <span className="text-fg-subtle">MAC Address:</span>
+          <p className="text-fg font-mono text-xs mt-1 uppercase">{device.hardware_id}</p>
         </div>
         <div>
-          <span className="text-slate-500">Last Seen:</span>
-          <p className="text-slate-300 text-xs mt-1">{lastSeen}</p>
+          <span className="text-fg-subtle">Last Seen:</span>
+          <p className="text-fg text-xs mt-1">{lastSeen}</p>
         </div>
         {device.ip_address && (
           <div>
-            <span className="text-slate-500">IP Address:</span>
-            <p className="text-slate-300 font-mono text-xs mt-1">{device.ip_address}</p>
+            <span className="text-fg-subtle">IP Address:</span>
+            <p className="text-fg font-mono text-xs mt-1">{device.ip_address}</p>
           </div>
         )}
         {device.firmware_version && (
           <div>
-            <span className="text-slate-500">Firmware:</span>
-            <p className="text-slate-300 text-xs mt-1">{device.firmware_version}</p>
+            <span className="text-fg-subtle">Firmware:</span>
+            <p className="text-fg text-xs mt-1">{device.firmware_version}</p>
           </div>
         )}
       </div>
 
       {/* Config Key Pills */}
       {configKeys.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-slate-700">
-          <span className="text-slate-500 text-xs">Config: </span>
+        <div className="mt-3 pt-3 border-t border-edge">
+          <span className="text-fg-subtle text-xs">Config: </span>
           <div className="inline-flex flex-wrap gap-1 mt-1">
             {configKeys.map(key => (
               <span
                 key={key}
-                className="px-1.5 py-0.5 bg-slate-700/50 rounded text-[10px] font-mono text-slate-400"
+                className="px-1.5 py-0.5 bg-surface-2/50 rounded text-[10px] font-mono text-fg-muted"
               >
                 {key}
               </span>

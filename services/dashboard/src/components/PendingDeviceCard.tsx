@@ -26,21 +26,21 @@ export function PendingDeviceCard({ device, onApprove, onReject, onBlock }: Pend
           </div>
           <div className="flex-1">
             <h3 className="font-semibold text-lg mb-1">{device.name}</h3>
-            <p className="text-sm text-slate-400 mb-2">{device.device_type.replace('_', ' ')}</p>
+            <p className="text-sm text-fg-muted mb-2">{device.device_type.replace('_', ' ')}</p>
             <StatusBadge status="pending" />
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => onApprove(device)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-fg text-sm font-medium transition-colors"
           >
             <Check className="w-3.5 h-3.5" />
             Approve
           </button>
           <button
             onClick={() => onReject(device)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-2 hover:bg-surface-2 text-fg text-sm font-medium transition-colors"
           >
             <X className="w-3.5 h-3.5" />
             Reject
@@ -55,25 +55,25 @@ export function PendingDeviceCard({ device, onApprove, onReject, onBlock }: Pend
         </div>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-slate-700 grid grid-cols-3 gap-4 text-sm">
+      <div className="mt-4 pt-4 border-t border-edge grid grid-cols-3 gap-4 text-sm">
         <div>
-          <span className="text-slate-500">Hardware ID:</span>
-          <p className="text-slate-300 font-mono text-xs mt-1">{device.hardware_id}</p>
+          <span className="text-fg-subtle">Hardware ID:</span>
+          <p className="text-fg font-mono text-xs mt-1">{device.hardware_id}</p>
         </div>
         <div>
-          <span className="text-slate-500">Discovered:</span>
-          <p className="text-slate-300 text-xs mt-1">{discoveredAt}</p>
+          <span className="text-fg-subtle">Discovered:</span>
+          <p className="text-fg text-xs mt-1">{discoveredAt}</p>
         </div>
         {device.ip_address && (
           <div>
-            <span className="text-slate-500">IP Address:</span>
-            <p className="text-slate-300 font-mono text-xs mt-1">{device.ip_address}</p>
+            <span className="text-fg-subtle">IP Address:</span>
+            <p className="text-fg font-mono text-xs mt-1">{device.ip_address}</p>
           </div>
         )}
         {device.firmware_version && (
           <div>
-            <span className="text-slate-500">Firmware:</span>
-            <p className="text-slate-300 text-xs mt-1">{device.firmware_version}</p>
+            <span className="text-fg-subtle">Firmware:</span>
+            <p className="text-fg text-xs mt-1">{device.firmware_version}</p>
           </div>
         )}
       </div>

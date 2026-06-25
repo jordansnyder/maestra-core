@@ -50,20 +50,20 @@ export function VectorControl({ variable, value, onChange, disabled, compact }: 
   if (compact) {
     return (
       <div className="flex items-center gap-1 text-xs font-mono">
-        <span className="text-slate-500">{xLabel}:</span>
+        <span className="text-fg-subtle">{xLabel}:</span>
         <input type="number" value={localValue.x} min={min} max={max}
           onChange={(e) => handleChange('x', parseFloat(e.target.value) || 0)} onBlur={handleBlur}
-          disabled={disabled} className="w-14 px-1 py-0.5 bg-slate-900 border border-slate-700 rounded text-center focus:outline-none focus:border-blue-500 disabled:opacity-50" />
-        <span className="text-slate-500">{yLabel}:</span>
+          disabled={disabled} className="w-14 px-1 py-0.5 bg-surface-0 border border-edge rounded text-center focus:outline-none focus:border-accent disabled:opacity-50" />
+        <span className="text-fg-subtle">{yLabel}:</span>
         <input type="number" value={localValue.y} min={min} max={max}
           onChange={(e) => handleChange('y', parseFloat(e.target.value) || 0)} onBlur={handleBlur}
-          disabled={disabled} className="w-14 px-1 py-0.5 bg-slate-900 border border-slate-700 rounded text-center focus:outline-none focus:border-blue-500 disabled:opacity-50" />
+          disabled={disabled} className="w-14 px-1 py-0.5 bg-surface-0 border border-edge rounded text-center focus:outline-none focus:border-accent disabled:opacity-50" />
         {is3D && (
           <>
-            <span className="text-slate-500">{zLabel}:</span>
+            <span className="text-fg-subtle">{zLabel}:</span>
             <input type="number" value={localValue.z ?? 0} min={min} max={max}
               onChange={(e) => handleChange('z', parseFloat(e.target.value) || 0)} onBlur={handleBlur}
-              disabled={disabled} className="w-14 px-1 py-0.5 bg-slate-900 border border-slate-700 rounded text-center focus:outline-none focus:border-blue-500 disabled:opacity-50" />
+              disabled={disabled} className="w-14 px-1 py-0.5 bg-surface-0 border border-edge rounded text-center focus:outline-none focus:border-accent disabled:opacity-50" />
           </>
         )}
       </div>
@@ -73,23 +73,23 @@ export function VectorControl({ variable, value, onChange, disabled, compact }: 
   return (
     <div className={`grid gap-3 ${is3D ? 'grid-cols-3' : 'grid-cols-2'}`}>
       <div>
-        <label className="block text-xs text-slate-500 mb-1">{xLabel}</label>
+        <label className="block text-xs text-fg-subtle mb-1">{xLabel}</label>
         <input type="number" value={localValue.x} min={min} max={max}
           onChange={(e) => handleChange('x', parseFloat(e.target.value) || 0)} onBlur={handleBlur}
-          disabled={disabled} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-center font-mono focus:outline-none focus:border-blue-500 disabled:opacity-50" />
+          disabled={disabled} className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg text-center font-mono focus:outline-none focus:border-accent disabled:opacity-50" />
       </div>
       <div>
-        <label className="block text-xs text-slate-500 mb-1">{yLabel}</label>
+        <label className="block text-xs text-fg-subtle mb-1">{yLabel}</label>
         <input type="number" value={localValue.y} min={min} max={max}
           onChange={(e) => handleChange('y', parseFloat(e.target.value) || 0)} onBlur={handleBlur}
-          disabled={disabled} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-center font-mono focus:outline-none focus:border-blue-500 disabled:opacity-50" />
+          disabled={disabled} className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg text-center font-mono focus:outline-none focus:border-accent disabled:opacity-50" />
       </div>
       {is3D && (
         <div>
-          <label className="block text-xs text-slate-500 mb-1">{zLabel}</label>
+          <label className="block text-xs text-fg-subtle mb-1">{zLabel}</label>
           <input type="number" value={localValue.z ?? 0} min={min} max={max}
             onChange={(e) => handleChange('z', parseFloat(e.target.value) || 0)} onBlur={handleBlur}
-            disabled={disabled} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-center font-mono focus:outline-none focus:border-blue-500 disabled:opacity-50" />
+            disabled={disabled} className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg text-center font-mono focus:outline-none focus:border-accent disabled:opacity-50" />
         </div>
       )}
     </div>

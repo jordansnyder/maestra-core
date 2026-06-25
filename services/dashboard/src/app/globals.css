@@ -1,15 +1,61 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Design tokens ──────────────────────────────────────────────────────── */
-:root {
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 15, 23, 42;
-  --background-end-rgb: 30, 41, 59;
+/* ─── Design tokens ──────────────────────────────────────────────────────────
+   Two themes share one identity (Space Grotesk + JetBrains Mono, red-orange
+   accent, sharp corners). Only surfaces, text, and borders invert. Components
+   reference these via the Tailwind semantic colors (bg-surface-1, text-fg,
+   border-edge, bg-accent, text-success, …) so the theme toggle just swaps the
+   variable values. Color channels are space-separated RGB triplets so Tailwind
+   alpha utilities (bg-surface-1/50) work.
+   ──────────────────────────────────────────────────────────────────────────── */
+:root,
+[data-theme='light'] {
+  /* Light theme = the full maestra.cc brand (warm paper / ink / red) */
+  --surface-0: 244 241 234;   /* #F4F1EA paper — page background */
+  --surface-1: 235 231 221;   /* #EBE7DD paper-2 — cards, panels */
+  --surface-2: 252 251 247;   /* #FCFBF7 — elevated: modals, popovers */
+  --text-primary: 10 10 10;   /* #0A0A0A ink */
+  --text-secondary: 107 102 96; /* #6B6660 ash */
+  --text-muted: 140 134 126;  /* #8C867E */
+  --border: 214 208 196;      /* warm hairline */
+  --border-strong: 188 181 168;
+  --accent: 226 70 46;        /* #E2462E */
+  --accent-hover: 198 56 35;  /* #C63823 */
+  --accent-contrast: 244 241 234; /* paper text on accent fills */
+  --success: 29 122 77;       /* #1D7A4D */
+  --warning: 176 120 18;      /* #B07812 */
+  --danger: 176 48 28;        /* #B0301C — deeper than accent for destructive */
+  --info: 90 107 120;         /* #5A6B78 muted steel (brand has no blue) */
 
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  /* Dark theme = the "sibling" — same identity on a warm near-black base */
+  --surface-0: 14 13 12;      /* #0E0D0C */
+  --surface-1: 26 24 22;      /* #1A1816 */
+  --surface-2: 35 32 29;      /* #23201D */
+  --text-primary: 244 241 234; /* paper */
+  --text-secondary: 168 162 154; /* #A8A29A */
+  --text-muted: 122 117 110;  /* #7A756E */
+  --border: 42 39 36;         /* #2A2724 */
+  --border-strong: 58 54 50;  /* #3A3632 */
+  --accent: 242 84 60;        /* #F2543C — brightened for dark legibility */
+  --accent-hover: 255 107 84; /* #FF6B54 */
+  --accent-contrast: 14 13 12;
+  --success: 63 190 130;      /* #3FBE82 */
+  --warning: 232 181 74;      /* #E8B54A */
+  --danger: 239 83 80;        /* #EF5350 */
+  --info: 143 163 176;        /* #8FA3B0 */
+
+  color-scheme: dark;
+}
+
+:root {
   /* Sidebar dimensions — referenced by Tailwind (w-sidebar-nav, w-sidebar-dmx)
      and by components that need inline CSS (e.g. DMXChannelModal positioning) */
   --sidebar-nav-width: 14rem;    /* 224px — left navigation sidebar (w-56) */
@@ -23,18 +69,14 @@
   --breakpoint-mobile: 768px;
 }
 
-/* ─── Global styles ──────────────────────────────────────────────────────── */
+/* ─── Global styles ──────────────────────────────────────────────────────────  */
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background: rgb(var(--surface-0));
+  color: rgb(var(--text-primary));
+  font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
 }
 
-/* Custom scrollbar for dark theme */
+/* Themed scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -43,11 +85,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2a2a3a;
+  background: rgb(var(--border-strong));
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a3a4a;
+  background: rgb(var(--text-muted));
 }
 
 /* Toast animations */
@@ -60,14 +102,22 @@ body {
   to { opacity: 0; }
 }
 
-/* ─── Reusable component classes ─────────────────────────────────────────── */
+/* ─── Reusable component classes ─────────────────────────────────────────────  */
 @layer components {
+  /**
+   * HUD micro-label — uppercase monospace, used for section headers and
+   * metadata labels (the editorial "System / Services" look).
+   */
+  .hud {
+    @apply font-mono uppercase tracking-hud text-[11px] text-fg-muted;
+  }
+
   /**
    * Full-screen modal backdrop with centered, safe-padded content.
    * Use: <div class="modal-backdrop"> <div class="modal-panel max-w-lg"> … </div> </div>
    */
   .modal-backdrop {
-    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4;
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4;
   }
 
   /**
@@ -75,7 +125,7 @@ body {
    * max-w-lg) and any additional layout classes (flex flex-col, max-h-[90vh]).
    */
   .modal-panel {
-    @apply w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl;
+    @apply w-full bg-surface-2 border border-edge shadow-2xl;
   }
 
   /**
@@ -83,7 +133,7 @@ body {
    * Sits beneath the sidebar (z-40) so the drawer itself (z-50) renders above.
    */
   .nav-overlay-backdrop {
-    @apply fixed inset-0 bg-black/60 backdrop-blur-sm md:hidden;
+    @apply fixed inset-0 bg-black/50 backdrop-blur-sm md:hidden;
     z-index: var(--z-nav-backdrop);
   }
 }

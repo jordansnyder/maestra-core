@@ -25,6 +25,7 @@ import { getServiceLinks } from '@/lib/hosts'
 import { useSystemHealth } from '@/hooks/useSystemHealth'
 import { useEffect, useState } from 'react'
 import { cloudApi } from '@/lib/api'
+import { ThemeToggle } from './ThemeToggle'
 
 interface NavItem {
   href: string
@@ -96,23 +97,26 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const sidebarContent = (
     <>
       {/* Logo */}
-      <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+      <div className="px-5 py-4 border-b border-edge flex items-center justify-between">
         <Link href="/" onClick={onClose} className="flex items-center gap-2">
-          <span className="text-xl text-purple-400">{'\u2726'}</span>
-          <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+          <span className="text-xl text-accent">{'\u2726'}</span>
+          <span className="text-lg font-bold tracking-display text-fg">
             Maestra
           </span>
         </Link>
-        {/* Close button — mobile only */}
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="md:hidden text-slate-500 hover:text-white transition-colors p-0.5"
-            aria-label="Close navigation"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          {/* Close button — mobile only */}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="md:hidden text-fg-subtle hover:text-fg transition-colors p-0.5"
+              aria-label="Close navigation"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Navigation */}
@@ -127,10 +131,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               key={item.href}
               href={item.href}
               onClick={onClose}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center gap-3 px-3 py-2 text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-slate-800 text-white'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  ? 'bg-surface-2 text-fg'
+                  : 'text-fg-muted hover:text-fg hover:bg-surface-1'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -141,40 +145,40 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       </nav>
 
       {/* System health */}
-      <div className="px-3 py-3 border-t border-slate-800">
-        <span className="px-3 text-[10px] uppercase tracking-wider text-slate-600 font-medium">
+      <div className="px-3 py-3 border-t border-edge">
+        <span className="hud px-3">
           System
         </span>
         <div className="mt-2 px-3 space-y-1.5">
           {services.map((service) => (
             <div key={service.name} className="flex items-center justify-between text-xs">
-              <span className="text-slate-400">{service.name}</span>
+              <span className="text-fg-muted">{service.name}</span>
               <span
                 className={`w-2 h-2 rounded-full ${
                   service.status === 'healthy'
-                    ? 'bg-green-500'
+                    ? 'bg-success'
                     : service.status === 'unhealthy'
-                    ? 'bg-red-500'
-                    : 'bg-yellow-500 animate-pulse'
+                    ? 'bg-danger'
+                    : 'bg-warning animate-pulse'
                 }`}
               />
             </div>
           ))}
           {cloudStatus !== 'none' && (
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400 flex items-center gap-1.5">
+              <span className="text-fg-muted flex items-center gap-1.5">
                 <Cloud className="w-3 h-3" />
                 Cloud Gateway
               </span>
               <span
                 className={`w-2 h-2 rounded-full ${
                   cloudStatus === 'connected'
-                    ? 'bg-green-500'
+                    ? 'bg-success'
                     : cloudStatus === 'connecting'
-                    ? 'bg-yellow-500 animate-pulse'
+                    ? 'bg-warning animate-pulse'
                     : cloudStatus === 'error'
-                    ? 'bg-red-500'
-                    : 'bg-slate-500'
+                    ? 'bg-danger'
+                    : 'bg-fg-subtle'
                 }`}
               />
             </div>
@@ -183,8 +187,8 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       </div>
 
       {/* External service links */}
-      <div className="px-3 py-4 border-t border-slate-800 space-y-1">
-        <span className="px-3 text-[10px] uppercase tracking-wider text-slate-600 font-medium">
+      <div className="px-3 py-4 border-t border-edge space-y-1">
+        <span className="hud px-3">
           Services
         </span>
         {getServiceLinkItems().map((link) => {
@@ -195,7 +199,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               href={link.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-300 transition-colors"
+              className="flex items-center gap-3 px-3 py-1.5 text-xs text-fg-subtle hover:text-fg transition-colors"
             >
               <Icon className="w-3.5 h-3.5" />
               <span className="flex-1">{link.label}</span>
@@ -214,7 +218,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         transform transition-transform duration-300 ease-in-out
         md:relative md:translate-x-0 md:z-auto md:transition-none
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        bg-slate-900 border-r border-slate-800 flex flex-col shrink-0
+        bg-surface-1 border-r border-edge flex flex-col shrink-0
       `}
     >
       {sidebarContent}

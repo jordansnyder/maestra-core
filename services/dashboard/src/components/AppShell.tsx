@@ -6,6 +6,7 @@ import { useOnboarding } from '@/hooks/useOnboarding'
 import { useSystemHealth } from '@/hooks/useSystemHealth'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { Menu, Server, MessageSquare, Database, Cloud, Wifi } from '@/components/icons'
+import { ThemeToggle } from './ThemeToggle'
 
 /** Silently tracks page visits to auto-complete onboarding checklist steps */
 function OnboardingTracker() {
@@ -14,9 +15,9 @@ function OnboardingTracker() {
 }
 
 const DOT_COLORS: Record<string, string> = {
-  healthy: 'bg-green-500',
-  unhealthy: 'bg-red-500',
-  checking: 'bg-slate-600 animate-pulse',
+  healthy: 'bg-success',
+  unhealthy: 'bg-danger',
+  checking: 'bg-fg-subtle animate-pulse',
 }
 
 const SERVICE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -44,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [lastMessage])
 
   return (
-    <div className="flex h-screen bg-slate-900 text-white overflow-hidden">
+    <div className="flex h-screen bg-surface-0 text-fg overflow-hidden">
       {/* Mobile backdrop */}
       {mobileSidebarOpen && (
         <div
@@ -58,21 +59,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Mobile top bar — hamburger + logo + system health dots */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-800 bg-slate-900 md:hidden shrink-0">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-edge bg-surface-1 md:hidden shrink-0">
           <button
             onClick={() => setMobileSidebarOpen(true)}
-            className="text-slate-400 hover:text-white transition-colors p-0.5"
+            className="text-fg-muted hover:text-fg transition-colors p-0.5"
             aria-label="Open navigation"
           >
             <Menu className="w-5 h-5" />
           </button>
 
-          <span className="text-base font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+          <span className="text-base font-bold tracking-display text-fg">
             Maestra
           </span>
 
           {/* System health status dots */}
           <div className="ml-auto flex items-center gap-2.5">
+            <ThemeToggle />
             {services.map((service) => {
               const Icon = SERVICE_ICONS[service.name]
               return (
@@ -82,8 +84,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   title={`${service.name}: ${service.status}`}
                   aria-label={`${service.name}: ${service.status}`}
                 >
-                  {Icon && <Icon className="w-3 h-3 text-slate-500" />}
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${DOT_COLORS[service.status] ?? 'bg-slate-600'}`} />
+                  {Icon && <Icon className="w-3 h-3 text-fg-subtle" />}
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${DOT_COLORS[service.status] ?? 'bg-fg-subtle'}`} />
                 </div>
               )
             })}
@@ -93,8 +95,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               title={`WebSocket: ${wsConnected ? 'connected' : 'disconnected'}`}
               aria-label={`WebSocket: ${wsConnected ? 'connected' : 'disconnected'}`}
             >
-              <Wifi className="w-3 h-3 text-slate-500" />
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${wsConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
+              <Wifi className="w-3 h-3 text-fg-subtle" />
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${wsConnected ? 'bg-success' : 'bg-danger animate-pulse'}`} />
             </div>
           </div>
         </div>

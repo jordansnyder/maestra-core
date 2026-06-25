@@ -16,6 +16,7 @@ on:
           - processing
           - maxmsp
           - touchdesigner
+          - openframeworks
           - all
       version:
         description: 'Version (semver, e.g., 0.2.0)'
@@ -90,6 +91,7 @@ jobs:
             create_tag processing
             create_tag maxmsp
             create_tag touchdesigner
+            create_tag openframeworks
           else
             create_tag "${{ inputs.sdk }}"
           fi
@@ -119,6 +121,7 @@ jobs:
             echo "- \`processing/v${{ inputs.version }}\` → GitHub Release" >> "$GITHUB_STEP_SUMMARY"
             echo "- \`maxmsp/v${{ inputs.version }}\` → GitHub Release" >> "$GITHUB_STEP_SUMMARY"
             echo "- \`touchdesigner/v${{ inputs.version }}\` → GitHub Release" >> "$GITHUB_STEP_SUMMARY"
+            echo "- \`openframeworks/v${{ inputs.version }}\` → GitHub Release" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Tag created: \`${{ inputs.sdk }}/v${{ inputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
           fi

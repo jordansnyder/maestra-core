@@ -350,6 +350,30 @@ release-td: ## Release TouchDesigner SDK as GitHub Release (VERSION=x.y.z)
 	@git push && git push origin "touchdesigner/v$(VERSION)"
 	@echo "✅ TouchDesigner SDK v$(VERSION) tagged. GitHub Release workflow triggered."
 
+release-processing: ## Release Processing SDK as GitHub Release (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh processing $(VERSION)
+	@git add sdks/processing/MaestraClient/library.properties
+	@git commit -m "chore: bump Processing SDK to v$(VERSION)"
+	@git tag "processing/v$(VERSION)" -m "Processing SDK v$(VERSION)"
+	@git push && git push origin "processing/v$(VERSION)"
+	@echo "✅ Processing SDK v$(VERSION) tagged. GitHub Release workflow triggered."
+
+release-maxmsp: ## Release Max/MSP SDK as GitHub Release (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh maxmsp $(VERSION)
+	@git add sdks/maxmsp/package-info.json
+	@git commit -m "chore: bump Max/MSP SDK to v$(VERSION)"
+	@git tag "maxmsp/v$(VERSION)" -m "Max/MSP SDK v$(VERSION)"
+	@git push && git push origin "maxmsp/v$(VERSION)"
+	@echo "✅ Max/MSP SDK v$(VERSION) tagged. GitHub Release workflow triggered."
+
+release-of: ## Release OpenFrameworks addon as GitHub Release (VERSION=x.y.z)
+	@scripts/bump-sdk-version.sh openframeworks $(VERSION)
+	@git add sdks/openframeworks/ofxMaestra/addon_config.mk
+	@git commit -m "chore: bump OpenFrameworks SDK to v$(VERSION)"
+	@git tag "openframeworks/v$(VERSION)" -m "OpenFrameworks SDK v$(VERSION)"
+	@git push && git push origin "openframeworks/v$(VERSION)"
+	@echo "✅ OpenFrameworks SDK v$(VERSION) tagged. GitHub Release workflow triggered."
+
 release-all: ## Release all SDKs (VERSION=x.y.z)
 	@scripts/bump-sdk-version.sh all $(VERSION)
 	@git add sdks/
@@ -360,6 +384,9 @@ release-all: ## Release all SDKs (VERSION=x.y.z)
 	@git tag "unity/v$(VERSION)" -m "Unity SDK v$(VERSION)"
 	@git tag "unreal/v$(VERSION)" -m "Unreal Plugin v$(VERSION)"
 	@git tag "touchdesigner/v$(VERSION)" -m "TouchDesigner SDK v$(VERSION)"
+	@git tag "processing/v$(VERSION)" -m "Processing SDK v$(VERSION)"
+	@git tag "maxmsp/v$(VERSION)" -m "Max/MSP SDK v$(VERSION)"
+	@git tag "openframeworks/v$(VERSION)" -m "OpenFrameworks SDK v$(VERSION)"
 	@git push && git push origin --tags
 	@echo "✅ All SDKs tagged at v$(VERSION). Publish workflows triggered."
 
@@ -369,4 +396,4 @@ release-all: ## Release all SDKs (VERSION=x.y.z)
 .PHONY: backup-db restore-db test-mqtt test-mqtt-state test-osc test-osc-state watch stats update
 .PHONY: deploy-test deploy-prod stop-test stop-prod logs-test logs-prod
 .PHONY: up-dmx dev-dmx logs-dmx build-dmx test-dmx sync-ofl ofl-status update-ip
-.PHONY: release-python release-js release-arduino release-unity release-unreal release-td release-all
+.PHONY: release-python release-js release-arduino release-unity release-unreal release-td release-processing release-maxmsp release-of release-all

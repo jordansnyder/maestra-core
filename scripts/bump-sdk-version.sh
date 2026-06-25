@@ -10,7 +10,7 @@
 #   ./scripts/bump-sdk-version.sh js 1.0.0
 #   ./scripts/bump-sdk-version.sh all 0.2.0
 #
-# Supported SDKs: python, js, unity, unreal, arduino, processing, maxmsp, touchdesigner, all
+# Supported SDKs: python, js, unity, unreal, arduino, processing, maxmsp, touchdesigner, openframeworks, all
 
 set -euo pipefail
 
@@ -18,7 +18,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 if [[ $# -ne 2 ]]; then
     echo "Usage: $0 <sdk> <version>"
-    echo "SDKs: python, js, unity, unreal, arduino, processing, maxmsp, touchdesigner, all"
+    echo "SDKs: python, js, unity, unreal, arduino, processing, maxmsp, touchdesigner, openframeworks, all"
     exit 1
 fi
 
@@ -110,6 +110,15 @@ bump_touchdesigner() {
     echo "  TouchDesigner → $VERSION (version tracked via Git tag only)"
 }
 
+bump_openframeworks() {
+    local file="$REPO_ROOT/sdks/openframeworks/ofxMaestra/addon_config.mk"
+    # ADDON_VERSION is a custom meta key (openFrameworks ignores unknown keys);
+    # the publish workflow asserts it matches the git tag.
+    sed -i.bak -E "s/^([[:space:]]*ADDON_VERSION[[:space:]]*=[[:space:]]*).*/\1$VERSION/" "$file"
+    rm -f "$file.bak"
+    echo "  OpenFrameworks SDK → $VERSION ($file)"
+}
+
 echo "Bumping SDK version to $VERSION:"
 
 case "$SDK" in
@@ -121,6 +130,7 @@ case "$SDK" in
     processing)    bump_processing ;;
     maxmsp)        bump_maxmsp ;;
     touchdesigner) bump_touchdesigner ;;
+    openframeworks) bump_openframeworks ;;
     all)
         bump_python
         bump_js
@@ -130,10 +140,11 @@ case "$SDK" in
         bump_processing
         bump_maxmsp
         bump_touchdesigner
+        bump_openframeworks
         ;;
     *)
         echo "Error: Unknown SDK '$SDK'"
-        echo "Valid SDKs: python, js, unity, unreal, arduino, processing, maxmsp, touchdesigner, all"
+        echo "Valid SDKs: python, js, unity, unreal, arduino, processing, maxmsp, touchdesigner, openframeworks, all"
         exit 1
         ;;
 esac

@@ -4,6 +4,7 @@ meta:
 	ADDON_AUTHOR = Maestra Team
 	ADDON_TAGS = "mqtt" "iot" "state-management" "creative-coding"
 	ADDON_URL = https://github.com/jordansnyder/maestra-core
+	ADDON_VERSION = 0.1.0
 
 common:
 	ADDON_DEPENDENCIES = ofxMQTT

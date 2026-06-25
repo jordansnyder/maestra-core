@@ -1,0 +1,61 @@
+name: Publish OpenFrameworks SDK (GitHub Release)
+
+on:
+  push:
+    tags:
+      - 'openframeworks/v*'
+
+permissions:
+  contents: write  # Needed to create releases
+
+jobs:
+  publish:
+    name: Package and release OpenFrameworks addon
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#openframeworks/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify manifest version matches tag
+        run: |
+          manifest="sdks/openframeworks/ofxMaestra/addon_config.mk"
+          file_version="$(grep -E '^\s*ADDON_VERSION' "$manifest" | sed -E 's/.*=\s*//' | tr -d '[:space:]')"
+          if [ "$file_version" != "${{ steps.version.outputs.version }}" ]; then
+            echo "::error::Tag version (${{ steps.version.outputs.version }}) does not match ADDON_VERSION ($file_version) in $manifest"
+            exit 1
+          fi
+          echo "Manifest version matches tag: $file_version"
+
+      - name: Package addon as zip
+        run: |
+          cd sdks/openframeworks
+          zip -r "../../ofxMaestra-${{ steps.version.outputs.version }}.zip" ofxMaestra/
+          cd ../..
+          echo "Created ofxMaestra-${{ steps.version.outputs.version }}.zip"
+          ls -lh "ofxMaestra-${{ steps.version.outputs.version }}.zip"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "OpenFrameworks SDK v${{ steps.version.outputs.version }}"
+          body: |
+            ## Maestra OpenFrameworks addon (ofxMaestra) — v${{ steps.version.outputs.version }}
+
+            ### Installation
+            1. Download and extract `ofxMaestra-${{ steps.version.outputs.version }}.zip`
+            2. Copy the `ofxMaestra/` folder into your openFrameworks `addons/` directory
+            3. Also install the `ofxMQTT` dependency into `addons/`
+            4. Regenerate your project with the openFrameworks Project Generator (or add
+               `ofxMaestra` and `ofxMQTT` to your `addons.make`)
+
+            See the [OpenFrameworks integration guide](https://maestra.cc/docs) for full setup instructions.
+
+            ### Dependencies
+            - `ofxMQTT` (libmosquitto-based MQTT addon)
+          files: |
+            ofxMaestra-${{ steps.version.outputs.version }}.zip
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}

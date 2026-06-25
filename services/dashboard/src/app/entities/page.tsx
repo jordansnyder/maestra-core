@@ -89,18 +89,18 @@ export default function EntitiesPage() {
   }
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-slate-900 to-slate-800 text-white">
+    <div className="min-h-full bg-gradient-to-br from-surface-0 to-surface-1 text-fg">
       <div className="container mx-auto px-6 py-8">
         {/* Header */}
         <header className="mb-8">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Entities</h1>
-              <p className="text-sm text-slate-400 mt-1">Manage spaces, rooms, installations, and devices</p>
+              <p className="text-sm text-fg-muted mt-1">Manage spaces, rooms, installations, and devices</p>
             </div>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover rounded-lg text-sm font-medium transition-colors"
             >
               <Plus className="w-4 h-4" />
               Create Entity
@@ -111,20 +111,20 @@ export default function EntitiesPage() {
         {/* Filters */}
         <div className="mb-6 flex flex-wrap gap-3">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-subtle" />
             <input
               type="text"
               placeholder="Search entities..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+              className="pl-9 pr-4 py-2 bg-surface-1 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
             />
           </div>
 
           <select
             value={selectedType}
             onChange={(e) => setSelectedType(e.target.value)}
-            className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+            className="px-4 py-2 bg-surface-1 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
           >
             <option value="">All Types</option>
             {entityTypes.map((type) => (
@@ -134,16 +134,16 @@ export default function EntitiesPage() {
             ))}
           </select>
 
-          <div className="flex bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+          <div className="flex bg-surface-1 border border-edge rounded-lg overflow-hidden">
             <button
               onClick={() => setViewMode('list')}
-              className={`px-4 py-2 text-sm ${viewMode === 'list' ? 'bg-blue-600' : 'hover:bg-slate-700'}`}
+              className={`px-4 py-2 text-sm ${viewMode === 'list' ? 'bg-accent' : 'hover:bg-surface-2'}`}
             >
               List
             </button>
             <button
               onClick={() => setViewMode('tree')}
-              className={`px-4 py-2 text-sm ${viewMode === 'tree' ? 'bg-blue-600' : 'hover:bg-slate-700'}`}
+              className={`px-4 py-2 text-sm ${viewMode === 'tree' ? 'bg-accent' : 'hover:bg-surface-2'}`}
             >
               Tree
             </button>
@@ -160,7 +160,7 @@ export default function EntitiesPage() {
         {/* Loading */}
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full" />
+            <div className="animate-spin w-8 h-8 border-4 border-accent border-t-transparent rounded-full" />
           </div>
         )}
 
@@ -235,30 +235,30 @@ function EntityList({
         return (
           <div
             key={entity.id}
-            className="bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-slate-600 transition-colors"
+            className="bg-surface-1 border border-edge rounded-lg p-4 hover:border-edge-strong transition-colors"
           >
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0 mt-0.5">
-                  <Icon className="w-4.5 h-4.5 text-slate-400" />
+                <div className="w-9 h-9 rounded-lg bg-surface-2/50 flex items-center justify-center shrink-0 mt-0.5">
+                  <Icon className="w-4.5 h-4.5 text-fg-muted" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full shrink-0 ${
-                      entity.status === 'active' ? 'bg-green-400' : entity.status === 'warning' ? 'bg-amber-400' : 'bg-slate-500'
+                      entity.status === 'active' ? 'bg-green-400' : entity.status === 'warning' ? 'bg-amber-400' : 'bg-fg-subtle'
                     }`} />
                     <Link
                       href={`/entities/${entity.id}`}
-                      className="text-lg font-semibold hover:text-blue-400 transition-colors truncate"
+                      className="text-lg font-semibold hover:text-accent transition-colors truncate"
                     >
                       {entity.name}
                     </Link>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs px-2 py-0.5 bg-slate-700 rounded">
+                    <span className="text-xs px-2 py-0.5 bg-surface-2 rounded">
                       {getTypeName(entity.entity_type_id)}
                     </span>
-                    <span className="text-xs text-slate-500 font-mono">{entity.slug}</span>
+                    <span className="text-xs text-fg-subtle font-mono">{entity.slug}</span>
                     {isDmxLinked && (
                       <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25">
                         <Zap className="w-2.5 h-2.5" />
@@ -267,20 +267,20 @@ function EntityList({
                     )}
                   </div>
                   {entity.description && (
-                    <p className="text-sm text-slate-400 mt-2 line-clamp-1">{entity.description}</p>
+                    <p className="text-sm text-fg-muted mt-2 line-clamp-1">{entity.description}</p>
                   )}
                   {Object.keys(entity.state).length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
                       {Object.entries(entity.state).slice(0, 3).map(([key, val]) => (
                         <span key={key} className="text-xs">
-                          <span className="text-slate-500">{key}: </span>
-                          <span className="text-slate-300 font-mono">
+                          <span className="text-fg-subtle">{key}: </span>
+                          <span className="text-fg font-mono">
                             {typeof val === 'object' ? '{...}' : String(val)}
                           </span>
                         </span>
                       ))}
                       {Object.keys(entity.state).length > 3 && (
-                        <span className="text-xs text-slate-600">+{Object.keys(entity.state).length - 3} more</span>
+                        <span className="text-xs text-fg-subtle">+{Object.keys(entity.state).length - 3} more</span>
                       )}
                     </div>
                   )}
@@ -289,7 +289,7 @@ function EntityList({
               <div className="flex items-center gap-1.5">
                 <Link
                   href={`/entities/${entity.id}`}
-                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                  className="p-1.5 text-fg-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors"
                 >
                   <Pencil className="w-4 h-4" />
                 </Link>
@@ -331,7 +331,7 @@ function EntityTree({
   }
 
   return (
-    <div className={level > 0 ? 'ml-6 border-l border-slate-700 pl-4' : ''}>
+    <div className={level > 0 ? 'ml-6 border-l border-edge pl-4' : ''}>
       {nodes.map((node) => {
         const Icon = getEntityIconByName(node.entity_type_name)
         const isDmxLinked = dmxLinkedIds.has(node.id)
@@ -339,16 +339,16 @@ function EntityTree({
           <div key={node.id} className="py-2">
             <Link
               href={`/entities/${node.id}`}
-              className="flex items-center gap-2 hover:text-blue-400 transition-colors"
+              className="flex items-center gap-2 hover:text-accent transition-colors"
             >
-              <Icon className="w-4 h-4 text-slate-400" />
+              <Icon className="w-4 h-4 text-fg-muted" />
               <span className="font-medium">{node.name}</span>
-              <span className="text-xs text-slate-500 font-mono">({node.slug})</span>
+              <span className="text-xs text-fg-subtle font-mono">({node.slug})</span>
               <span
                 className={`text-xs px-2 py-0.5 rounded ${
                   node.status === 'active'
                     ? 'bg-green-900/50 text-green-400'
-                    : 'bg-slate-700 text-slate-400'
+                    : 'bg-surface-2 text-fg-muted'
                 }`}
               >
                 {node.status}
@@ -420,7 +420,7 @@ function CreateEntityModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md shadow-2xl">
+      <div className="bg-surface-1 border border-edge rounded-lg p-6 w-full max-w-md shadow-2xl">
         <h2 className="text-xl font-bold mb-4">Create Entity</h2>
 
         {error && (
@@ -437,7 +437,7 @@ function CreateEntityModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
             />
           </div>
 
@@ -447,7 +447,7 @@ function CreateEntityModal({
               value={typeId}
               onChange={(e) => setTypeId(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
             >
               <option value="">Select type...</option>
               {entityTypes.map((type) => (
@@ -463,7 +463,7 @@ function CreateEntityModal({
             <select
               value={parentId}
               onChange={(e) => setParentId(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
             >
               <option value="">No parent (root entity)</option>
               {entities.map((entity) => (
@@ -480,7 +480,7 @@ function CreateEntityModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
             />
           </div>
 
@@ -490,7 +490,7 @@ function CreateEntityModal({
               value={initialState}
               onChange={(e) => setInitialState(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg font-mono text-sm focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg font-mono text-sm focus:outline-none focus:border-accent"
             />
           </div>
 
@@ -498,14 +498,14 @@ function CreateEntityModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition-colors"
+              className="px-4 py-2 bg-surface-2 hover:bg-surface-2 rounded-lg text-sm transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              className="px-4 py-2 bg-accent hover:bg-accent-hover rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
             >
               {submitting ? 'Creating...' : 'Create'}
             </button>

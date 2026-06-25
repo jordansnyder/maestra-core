@@ -82,7 +82,7 @@ export function DMXGatewaySettings() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-slate-500">
+      <div className="flex items-center justify-center py-20 text-fg-subtle">
         Loading DMX gateway data...
       </div>
     )
@@ -103,18 +103,18 @@ export function DMXGatewaySettings() {
   const playStateColor =
     playback?.play_state === 'playing' ? 'text-green-400' :
     playback?.play_state === 'paused'  ? 'text-yellow-400' :
-                                          'text-slate-500'
+                                          'text-fg-subtle'
 
   return (
     <div className="space-y-6">
 
       {/* Overview */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+      <div className="bg-surface-1 rounded-lg border border-edge p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">Overview</h2>
+          <h2 className="text-lg font-semibold text-fg">Overview</h2>
           <button
             onClick={refresh}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-2 transition-colors"
           >
             <RefreshCw className="w-3 h-3" />
             Refresh
@@ -127,13 +127,13 @@ export function DMXGatewaySettings() {
           <Stat label="Routable" value={routableFixtures.length} hint="linked to an entity" />
         </div>
         {playback && (
-          <div className="mt-4 pt-4 border-t border-slate-700 flex items-center gap-2 text-sm">
-            <span className="text-slate-500">Playback</span>
+          <div className="mt-4 pt-4 border-t border-edge flex items-center gap-2 text-sm">
+            <span className="text-fg-subtle">Playback</span>
             <span className={`font-medium capitalize ${playStateColor}`}>
               {playback.play_state}
             </span>
             {playback.play_state !== 'stopped' && (
-              <span className="text-slate-600 text-xs">
+              <span className="text-fg-subtle text-xs">
                 — cue {playback.cue_index + 1}, {playback.phase}
               </span>
             )}
@@ -142,28 +142,28 @@ export function DMXGatewaySettings() {
       </div>
 
       {/* Art-Net Nodes */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Art-Net Nodes</h2>
+      <div className="bg-surface-1 rounded-lg border border-edge p-6">
+        <h2 className="text-lg font-semibold text-fg mb-4">Art-Net Nodes</h2>
         {nodes.length === 0 ? (
-          <p className="text-sm text-slate-500">No Art-Net nodes configured. Add one from the DMX page.</p>
+          <p className="text-sm text-fg-subtle">No Art-Net nodes configured. Add one from the DMX page.</p>
         ) : (
           <div className="space-y-3">
             {nodes.map((node) => {
               const nodeFixtures = fixtures.filter((f) => f.node_id === node.id)
               return (
-                <div key={node.id} className="rounded-md border border-slate-700 p-4">
+                <div key={node.id} className="rounded-md border border-edge p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <div className="text-sm font-medium text-slate-200">{node.name}</div>
-                      <div className="text-xs font-mono text-slate-400 mt-0.5">
+                      <div className="text-sm font-medium text-fg">{node.name}</div>
+                      <div className="text-xs font-mono text-fg-muted mt-0.5">
                         {node.ip_address}:{node.artnet_port ?? 6454}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-fg-subtle">
                         {nodeFixtures.length} fixture{nodeFixtures.length !== 1 ? 's' : ''}
                       </div>
-                      <div className="text-xs text-slate-600 mt-0.5">
+                      <div className="text-xs text-fg-subtle mt-0.5">
                         {node.universes?.length ?? 0} universe{(node.universes?.length ?? 0) !== 1 ? 's' : ''}
                       </div>
                     </div>
@@ -173,7 +173,7 @@ export function DMXGatewaySettings() {
                       {node.universes.map((u) => (
                         <span
                           key={u.id}
-                          className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-slate-900 border border-slate-700 text-slate-400"
+                          className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-surface-0 border border-edge text-fg-muted"
                         >
                           <span
                             className="w-2 h-2 rounded-full shrink-0"
@@ -193,15 +193,15 @@ export function DMXGatewaySettings() {
       </div>
 
       {/* Fixture summary */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Fixtures</h2>
+      <div className="bg-surface-1 rounded-lg border border-edge p-6">
+        <h2 className="text-lg font-semibold text-fg mb-4">Fixtures</h2>
         {fixtures.length === 0 ? (
-          <p className="text-sm text-slate-500">No fixtures configured.</p>
+          <p className="text-sm text-fg-subtle">No fixtures configured.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-700">
+                <tr className="text-left text-xs text-fg-subtle border-b border-edge">
                   <th className="pb-2 font-medium">Name</th>
                   <th className="pb-2 font-medium">Node</th>
                   <th className="pb-2 font-medium text-center">Universe</th>
@@ -209,20 +209,20 @@ export function DMXGatewaySettings() {
                   <th className="pb-2 font-medium text-center">Entity</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-edge">
                 {fixtures.map((f) => {
                   const node = nodes.find((n) => n.id === f.node_id)
                   return (
-                    <tr key={f.id} className="text-slate-300">
-                      <td className="py-2 pr-4 font-medium text-slate-200">{f.name}</td>
-                      <td className="py-2 pr-4 text-slate-400 text-xs">{node?.name ?? '—'}</td>
-                      <td className="py-2 pr-4 text-center font-mono text-xs text-slate-400">{f.universe}</td>
-                      <td className="py-2 pr-4 text-center font-mono text-xs text-slate-400">{f.start_channel}</td>
+                    <tr key={f.id} className="text-fg">
+                      <td className="py-2 pr-4 font-medium text-fg">{f.name}</td>
+                      <td className="py-2 pr-4 text-fg-muted text-xs">{node?.name ?? '—'}</td>
+                      <td className="py-2 pr-4 text-center font-mono text-xs text-fg-muted">{f.universe}</td>
+                      <td className="py-2 pr-4 text-center font-mono text-xs text-fg-muted">{f.start_channel}</td>
                       <td className="py-2 text-center">
                         {f.entity_id ? (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-800/50">linked</span>
                         ) : (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-600 border border-slate-700">none</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-0 text-fg-subtle border border-edge">none</span>
                         )}
                       </td>
                     </tr>
@@ -235,16 +235,16 @@ export function DMXGatewaySettings() {
       </div>
 
       {/* Playback Engine Configuration */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-        <h2 className="text-lg font-semibold text-white mb-1">Playback Engine</h2>
-        <p className="text-sm text-slate-400 mb-4">
+      <div className="bg-surface-1 rounded-lg border border-edge p-6">
+        <h2 className="text-lg font-semibold text-fg mb-1">Playback Engine</h2>
+        <p className="text-sm text-fg-muted mb-4">
           Controls how frequently the engine interpolates and sends DMX state updates during cue fades and sequence playback.
         </p>
         <div className="flex items-end gap-3">
           <div>
-            <label className="block text-xs text-slate-500 mb-1.5">
+            <label className="block text-xs text-fg-subtle mb-1.5">
               Tick Interval (ms)
-              <span className="text-slate-600 ml-1">— min 10, max 1000</span>
+              <span className="text-fg-subtle ml-1">— min 10, max 1000</span>
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -255,9 +255,9 @@ export function DMXGatewaySettings() {
                 value={intervalDraft}
                 onChange={(e) => setIntervalDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSaveInterval() }}
-                className="w-24 bg-slate-900 border border-slate-600 focus:border-blue-500 rounded px-3 py-1.5 text-sm font-mono text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+                className="w-24 bg-surface-0 border border-edge-strong focus:border-accent rounded px-3 py-1.5 text-sm font-mono text-fg focus:outline-none focus:ring-1 focus:ring-accent transition-colors"
               />
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-fg-subtle">
                 {intervalDraft && !isNaN(parseFloat(intervalDraft))
                   ? `≈ ${Math.round(1000 / parseFloat(intervalDraft))} Hz`
                   : ''}
@@ -273,43 +273,43 @@ export function DMXGatewaySettings() {
               parseFloat(intervalDraft) > 1000 ||
               parseFloat(intervalDraft) === intervalMs
             }
-            className="px-4 py-1.5 text-sm font-medium rounded-md bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 transition-colors"
+            className="px-4 py-1.5 text-sm font-medium rounded-md bg-accent hover:bg-accent-hover text-fg disabled:opacity-40 transition-colors"
           >
             {intervalSaving ? 'Saving…' : 'Apply'}
           </button>
         </div>
         {intervalMs !== null && (
-          <p className="text-xs text-slate-600 mt-2">
+          <p className="text-xs text-fg-subtle mt-2">
             Current: {intervalMs} ms ({Math.round(1000 / intervalMs)} Hz)
           </p>
         )}
       </div>
 
       {/* Actions */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-        <h2 className="text-lg font-semibold text-white mb-2">Actions</h2>
-        <p className="text-sm text-slate-400 mb-4">
+      <div className="bg-surface-1 rounded-lg border border-edge p-6">
+        <h2 className="text-lg font-semibold text-fg mb-2">Actions</h2>
+        <p className="text-sm text-fg-muted mb-4">
           Global controls that apply across all nodes and fixtures.
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={handleBlackout}
             disabled={blackingOut || fixtures.length === 0}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-slate-700 hover:bg-yellow-900/40 hover:text-yellow-300 border border-slate-600 hover:border-yellow-700/50 text-slate-300 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-surface-2 hover:bg-yellow-900/40 hover:text-yellow-300 border border-edge-strong hover:border-yellow-700/50 text-fg disabled:opacity-40 transition-colors"
           >
             <ZapOff className="w-4 h-4" />
             {blackingOut ? 'Sending Blackout…' : 'Blackout All Fixtures'}
           </button>
           <Link
             href="/dmx"
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-300 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-surface-2 hover:bg-surface-2 border border-edge-strong text-fg transition-colors"
           >
             <ExternalLink className="w-4 h-4" />
             Open DMX Page
           </Link>
         </div>
         {blackoutResult && (
-          <p className="text-xs text-slate-400 mt-3">{blackoutResult}</p>
+          <p className="text-xs text-fg-muted mt-3">{blackoutResult}</p>
         )}
       </div>
 
@@ -320,9 +320,9 @@ export function DMXGatewaySettings() {
 function Stat({ label, value, hint }: { label: string; value: number; hint?: string }) {
   return (
     <div>
-      <span className="text-slate-500 text-xs">{label}</span>
-      {hint && <span className="text-slate-700 text-[10px] ml-1">({hint})</span>}
-      <p className="text-2xl font-semibold text-white mt-1">{value}</p>
+      <span className="text-fg-subtle text-xs">{label}</span>
+      {hint && <span className="text-fg text-[10px] ml-1">({hint})</span>}
+      <p className="text-2xl font-semibold text-fg mt-1">{value}</p>
     </div>
   )
 }

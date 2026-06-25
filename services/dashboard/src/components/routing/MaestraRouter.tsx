@@ -161,30 +161,30 @@ export function MaestraRouter() {
 
   if (loading) {
     return (
-      <div className="flex flex-col h-full font-mono text-slate-200 items-center justify-center bg-[#09090f]">
+      <div className="flex flex-col h-full font-mono text-fg items-center justify-center bg-[#09090f]">
         <div className="animate-spin w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full mb-4" />
-        <span className="text-slate-500 text-sm">Loading routing state...</span>
+        <span className="text-fg-subtle text-sm">Loading routing state...</span>
       </div>
     )
   }
 
   if (error && devices.length === 0) {
     return (
-      <div className="flex flex-col h-full font-mono text-slate-200 items-center justify-center bg-[#09090f]">
+      <div className="flex flex-col h-full font-mono text-fg items-center justify-center bg-[#09090f]">
         <div className="text-red-400 mb-2">Failed to load routing state</div>
-        <div className="text-slate-500 text-sm">{error}</div>
+        <div className="text-fg-subtle text-sm">{error}</div>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-full font-mono text-slate-200">
+    <div className="flex flex-col h-full font-mono text-fg">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 bg-[#0c0c16]">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-edge bg-[#0c0c16]">
         <div className="flex items-center gap-3">
           <span className="text-xl text-purple-400">{'\u2726'}</span>
-          <span className="text-base font-bold tracking-tight text-slate-100">MAESTRA</span>
-          <span className="text-[11px] text-slate-600 font-normal">/ Device Router</span>
+          <span className="text-base font-bold tracking-tight text-fg">MAESTRA</span>
+          <span className="text-[11px] text-fg-subtle font-normal">/ Device Router</span>
         </div>
 
         {/* View switcher */}
@@ -195,8 +195,8 @@ export function MaestraRouter() {
               onClick={() => setView(v.id)}
               className={`flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-[11px] font-mono cursor-pointer transition-all duration-200 ${
                 view === v.id
-                  ? 'bg-[#1e1e32] border border-slate-700 text-slate-200'
-                  : 'bg-transparent border border-transparent text-slate-600 hover:text-slate-400'
+                  ? 'bg-[#1e1e32] border border-edge text-fg'
+                  : 'bg-transparent border border-transparent text-fg-subtle hover:text-fg-muted'
               }`}
             >
               <span className="text-sm">{v.icon}</span>
@@ -206,7 +206,7 @@ export function MaestraRouter() {
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-[11px] text-slate-600">
+          <span className="text-[11px] text-fg-subtle">
             {routes.length} routes &middot; {devices.length} devices
           </span>
           <button
@@ -214,7 +214,7 @@ export function MaestraRouter() {
             className={`rounded-md px-3 py-1 text-[10px] font-mono cursor-pointer transition-colors ${
               showPresets
                 ? 'bg-purple-900/40 border border-purple-800/40 text-purple-300'
-                : 'bg-[#12121f] border border-slate-800 text-slate-400 hover:text-slate-200'
+                : 'bg-[#12121f] border border-edge text-fg-muted hover:text-fg'
             }`}
           >
             Presets
@@ -230,7 +230,7 @@ export function MaestraRouter() {
 
       {/* Preset Panel (slide-down) */}
       {showPresets && (
-        <div className="px-5 py-3 border-b border-slate-800 bg-[#0c0c16] flex items-center gap-4 flex-wrap">
+        <div className="px-5 py-3 border-b border-edge bg-[#0c0c16] flex items-center gap-4 flex-wrap">
           {/* Existing presets */}
           {presets.map((preset) => (
             <div
@@ -238,14 +238,14 @@ export function MaestraRouter() {
               className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-[11px] font-mono border ${
                 preset.is_active
                   ? 'bg-purple-900/30 border-purple-700/40 text-purple-300'
-                  : 'bg-[#12121f] border-slate-800 text-slate-400'
+                  : 'bg-[#12121f] border-edge text-fg-muted'
               }`}
             >
               <span className="font-medium">{preset.name}</span>
-              <span className="text-slate-600">{preset.route_count}r</span>
+              <span className="text-fg-subtle">{preset.route_count}r</span>
               <button
                 onClick={() => recallPreset(preset.id)}
-                className="text-blue-400 hover:text-blue-300 transition-colors"
+                className="text-accent hover:text-accent transition-colors"
                 title="Recall this preset"
               >
                 Load
@@ -275,7 +275,7 @@ export function MaestraRouter() {
               value={newPresetName}
               onChange={(e) => setNewPresetName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSavePreset()}
-              className="bg-[#12121f] border border-slate-800 rounded-md px-2 py-1 text-[11px] font-mono text-slate-300 placeholder-slate-600 focus:outline-none focus:border-purple-700 w-40"
+              className="bg-[#12121f] border border-edge rounded-md px-2 py-1 text-[11px] font-mono text-fg placeholder-fg-subtle focus:outline-none focus:border-purple-700 w-40"
             />
             <button
               onClick={handleSavePreset}
@@ -337,7 +337,7 @@ export function MaestraRouter() {
       )}
 
       {/* Status bar */}
-      <div className="flex items-center justify-between px-5 py-1.5 border-t border-slate-800 bg-[#0c0c16] text-[10px] text-slate-600">
+      <div className="flex items-center justify-between px-5 py-1.5 border-t border-edge bg-[#0c0c16] text-[10px] text-fg-subtle">
         <span>{STATUS_HINTS[view]}</span>
         <span>Maestra v0.1 &middot; Device Ecosystem Router</span>
       </div>

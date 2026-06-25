@@ -10,7 +10,7 @@ interface BlockedDevicesListProps {
 export function BlockedDevicesList({ devices, onUnblock }: BlockedDevicesListProps) {
   if (devices.length === 0) {
     return (
-      <div className="text-center py-12 text-slate-500">
+      <div className="text-center py-12 text-fg-subtle">
         <p>No blocked devices.</p>
       </div>
     )
@@ -19,20 +19,20 @@ export function BlockedDevicesList({ devices, onUnblock }: BlockedDevicesListPro
   return (
     <div className="space-y-3">
       {devices.map(device => (
-        <Card key={device.id} className="hover:border-slate-600 transition-colors">
+        <Card key={device.id} className="hover:border-edge-strong transition-colors">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <p className="font-mono text-sm text-slate-300">{device.hardware_id}</p>
+              <p className="font-mono text-sm text-fg">{device.hardware_id}</p>
               {device.reason && (
-                <p className="text-xs text-slate-500 mt-1">Reason: {device.reason}</p>
+                <p className="text-xs text-fg-subtle mt-1">Reason: {device.reason}</p>
               )}
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-fg-subtle mt-1">
                 Blocked: {new Date(device.blocked_at).toLocaleString()}
               </p>
             </div>
             <button
               onClick={() => onUnblock(device.hardware_id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-medium transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-2 hover:bg-surface-2 text-fg text-sm font-medium transition-colors"
             >
               <Unlock className="w-3.5 h-3.5" />
               Unblock

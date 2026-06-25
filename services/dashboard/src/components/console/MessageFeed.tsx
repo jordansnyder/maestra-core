@@ -12,7 +12,7 @@ const BADGE_STYLES: Record<Protocol, string> = {
   mqtt:     'bg-emerald-500/20 text-emerald-400',
   ws:       'bg-violet-500/20 text-violet-400',
   dmx:      'bg-amber-500/20 text-amber-400',
-  internal: 'bg-slate-500/20 text-slate-400',
+  internal: 'bg-fg-subtle/20 text-fg-muted',
 }
 
 const BADGE_LABELS: Record<Protocol, string> = {
@@ -46,7 +46,7 @@ function JsonColorized({ data }: { data: unknown }) {
       const keyMatch = remaining.match(/^(\s*)"((?:[^"\\]|\\.)*)"(\s*:\s*)/)
       if (keyMatch) {
         parts.push(<span key={partIdx++}>{keyMatch[1]}</span>)
-        parts.push(<span key={partIdx++} className="text-slate-400">&quot;{keyMatch[2]}&quot;</span>)
+        parts.push(<span key={partIdx++} className="text-fg-muted">&quot;{keyMatch[2]}&quot;</span>)
         parts.push(<span key={partIdx++}>{keyMatch[3]}</span>)
         remaining = remaining.slice(keyMatch[0].length)
 
@@ -59,7 +59,7 @@ function JsonColorized({ data }: { data: unknown }) {
           } else if (val === 'true' || val === 'false') {
             parts.push(<span key={partIdx++} className="text-violet-400">{val}</span>)
           } else if (val === 'null') {
-            parts.push(<span key={partIdx++} className="text-slate-500">{val}</span>)
+            parts.push(<span key={partIdx++} className="text-fg-subtle">{val}</span>)
           } else {
             parts.push(<span key={partIdx++} className="text-cyan-400">{val}</span>)
           }
@@ -78,7 +78,7 @@ function JsonColorized({ data }: { data: unknown }) {
           } else if (val === 'true' || val === 'false') {
             parts.push(<span key={partIdx++} className="text-violet-400">{val}</span>)
           } else if (val === 'null') {
-            parts.push(<span key={partIdx++} className="text-slate-500">{val}</span>)
+            parts.push(<span key={partIdx++} className="text-fg-subtle">{val}</span>)
           } else {
             parts.push(<span key={partIdx++} className="text-cyan-400">{val}</span>)
           }
@@ -208,13 +208,13 @@ export function MessageFeed() {
   // Empty state
   if (filtered.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
+      <div className="flex-1 flex flex-col items-center justify-center text-fg-subtle">
         <div className="flex items-center gap-2 mb-2">
-          <span className="w-2 h-2 rounded-full bg-slate-600 animate-pulse" />
+          <span className="w-2 h-2 rounded-full bg-surface-2 animate-pulse" />
           <span className="text-sm">Listening for messages...</span>
         </div>
-        <span className="text-xs text-slate-600 font-mono">
-          Run <code className="px-1 py-0.5 bg-slate-800 rounded">make test-mqtt</code> to generate traffic
+        <span className="text-xs text-fg-subtle font-mono">
+          Run <code className="px-1 py-0.5 bg-surface-1 rounded">make test-mqtt</code> to generate traffic
         </span>
       </div>
     )
@@ -248,9 +248,9 @@ export function MessageFeed() {
                     width: '100%',
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
-                  className="flex items-center gap-2 px-4 h-8 border-t border-dashed border-slate-600"
+                  className="flex items-center gap-2 px-4 h-8 border-t border-dashed border-edge-strong"
                 >
-                  <span className="text-xs font-mono text-slate-500">{formatTimestamp(msg.timestamp)}</span>
+                  <span className="text-xs font-mono text-fg-subtle">{formatTimestamp(msg.timestamp)}</span>
                   <span className={`text-xs font-mono ${msg.dividerText === 'Connection lost' ? 'text-yellow-400' : 'text-green-400'}`}>
                     [{msg.dividerText}]
                   </span>
@@ -272,9 +272,9 @@ export function MessageFeed() {
                     width: '100%',
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
-                  className="flex items-center gap-2 px-4 h-8 border-t border-dashed border-slate-600"
+                  className="flex items-center gap-2 px-4 h-8 border-t border-dashed border-edge-strong"
                 >
-                  <span className="text-xs font-mono text-slate-500">
+                  <span className="text-xs font-mono text-fg-subtle">
                     {msg.pauseCount} messages received while paused
                   </span>
                 </div>
@@ -299,18 +299,18 @@ export function MessageFeed() {
                 {/* Message row */}
                 <button
                   onClick={() => toggleExpand(msg.id)}
-                  className="flex items-center gap-2 px-4 w-full h-10 text-left hover:bg-slate-800/50 transition-colors"
+                  className="flex items-center gap-2 px-4 w-full h-10 text-left hover:bg-surface-1/50 transition-colors"
                 >
-                  <span className="text-xs font-mono text-slate-500 shrink-0 w-20">
+                  <span className="text-xs font-mono text-fg-subtle shrink-0 w-20">
                     {formatTimestamp(msg.timestamp)}
                   </span>
                   <span className={`text-xs font-medium px-1.5 py-0.5 rounded shrink-0 ${BADGE_STYLES[msg.protocol]}`}>
                     {BADGE_LABELS[msg.protocol]}
                   </span>
-                  <span className="text-xs font-mono text-slate-300 truncate max-w-[300px]" title={msg.subject}>
+                  <span className="text-xs font-mono text-fg truncate max-w-[300px]" title={msg.subject}>
                     {msg.subject}
                   </span>
-                  <span className="text-xs font-mono text-slate-600 truncate flex-1">
+                  <span className="text-xs font-mono text-fg-subtle truncate flex-1">
                     {payloadPreview(msg.payload)}
                   </span>
                   {msg.truncated && (
@@ -320,12 +320,12 @@ export function MessageFeed() {
 
                 {/* Expanded payload */}
                 {isExpanded && (
-                  <div className="mx-4 mb-2 p-3 bg-slate-900 rounded border border-slate-700 max-h-[400px] overflow-y-auto">
+                  <div className="mx-4 mb-2 p-3 bg-surface-0 rounded border border-edge max-h-[400px] overflow-y-auto">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-slate-500 font-mono">{msg.subject}</span>
+                      <span className="text-xs text-fg-subtle font-mono">{msg.subject}</span>
                       <button
                         onClick={(e) => { e.stopPropagation(); copyPayload(msg.payload) }}
-                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                        className="flex items-center gap-1 text-xs text-fg-subtle hover:text-fg transition-colors"
                       >
                         <Copy className="w-3 h-3" />
                         Copy
@@ -336,17 +336,17 @@ export function MessageFeed() {
                     </pre>
                     {/* Entity/device links */}
                     {msg.sourceNode && (
-                      <div className="mt-2 pt-2 border-t border-slate-700">
-                        <span className="text-xs text-slate-500">Source: </span>
-                        <Link href={`/entities/${msg.sourceNode}`} className="text-xs text-blue-400 hover:underline">
+                      <div className="mt-2 pt-2 border-t border-edge">
+                        <span className="text-xs text-fg-subtle">Source: </span>
+                        <Link href={`/entities/${msg.sourceNode}`} className="text-xs text-accent hover:underline">
                           {msg.sourceNode}
                         </Link>
                       </div>
                     )}
                     {msg.targetNode && (
                       <div className="mt-1">
-                        <span className="text-xs text-slate-500">Target: </span>
-                        <Link href={`/entities/${msg.targetNode}`} className="text-xs text-blue-400 hover:underline">
+                        <span className="text-xs text-fg-subtle">Target: </span>
+                        <Link href={`/entities/${msg.targetNode}`} className="text-xs text-accent hover:underline">
                           {msg.targetNode}
                         </Link>
                       </div>
@@ -366,7 +366,7 @@ export function MessageFeed() {
             setAutoScroll(true)
             if (parentRef.current) parentRef.current.scrollTop = parentRef.current.scrollHeight
           }}
-          className="absolute bottom-4 right-4 flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-full shadow-lg hover:bg-blue-500 transition-colors z-10"
+          className="absolute bottom-4 right-4 flex items-center gap-1 px-3 py-1.5 bg-accent text-fg text-xs rounded-full shadow-lg hover:bg-accent-hover transition-colors z-10"
         >
           <ChevronDown className="w-3 h-3" />
           Jump to latest

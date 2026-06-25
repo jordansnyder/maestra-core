@@ -8,7 +8,7 @@ import { getDocsUrl } from '@/lib/hosts'
 
 // Protocol badge colors
 const PROTOCOL_COLORS: Record<string, string> = {
-  udp: 'bg-blue-500/20 text-blue-300',
+  udp: 'bg-accent/20 text-accent',
   tcp: 'bg-green-500/20 text-green-300',
   ndi: 'bg-purple-500/20 text-purple-300',
   srt: 'bg-orange-500/20 text-orange-300',
@@ -56,24 +56,24 @@ export function StreamRegistry({ streams, streamTypes }: StreamRegistryProps) {
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
       {streams.map((stream) => {
         const Icon = STREAM_TYPE_ICONS[stream.stream_type] || DEFAULT_STREAM_ICON
-        const protocolClass = PROTOCOL_COLORS[stream.protocol] || 'bg-slate-500/20 text-slate-300'
+        const protocolClass = PROTOCOL_COLORS[stream.protocol] || 'bg-fg-subtle/20 text-fg'
 
         return (
           <Link key={stream.id} href={`/streams/${stream.id}`}>
             <div
-              className="bg-slate-900 border border-slate-800 rounded-xl p-4 hover:border-purple-500/50 transition-colors cursor-pointer"
+              className="bg-surface-0 border border-edge rounded-xl p-4 hover:border-purple-500/50 transition-colors cursor-pointer"
             >
               {/* Header */}
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-slate-800">
+                  <div className="p-2 rounded-lg bg-surface-1">
                     <Icon className="w-5 h-5 text-purple-400" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-medium text-white truncate max-w-[180px]">
+                    <h3 className="text-sm font-medium text-fg truncate max-w-[180px]">
                       {stream.name}
                     </h3>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-fg-subtle">
                       {typeDisplayName(stream.stream_type)}
                     </p>
                   </div>
@@ -102,45 +102,45 @@ export function StreamRegistry({ streams, streamTypes }: StreamRegistryProps) {
               {/* Details */}
               <div className="space-y-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Publisher</span>
-                  <span className="text-slate-300 font-mono truncate max-w-[160px]">
+                  <span className="text-fg-subtle">Publisher</span>
+                  <span className="text-fg font-mono truncate max-w-[160px]">
                     {stream.publisher_id}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Endpoint</span>
-                  <span className="text-slate-300 font-mono">
+                  <span className="text-fg-subtle">Endpoint</span>
+                  <span className="text-fg font-mono">
                     {stream.address}:{stream.port}
                   </span>
                 </div>
                 {stream.multicast_group && (
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Multicast</span>
-                    <span className="text-slate-300 font-mono">
+                    <span className="text-fg-subtle">Multicast</span>
+                    <span className="text-fg font-mono">
                       {stream.multicast_group}:{stream.multicast_port}
                     </span>
                   </div>
                 )}
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Protocol</span>
+                  <span className="text-fg-subtle">Protocol</span>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase ${protocolClass}`}>
                     {stream.protocol}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Advertised</span>
-                  <span className="text-slate-400">{formatAge(stream.advertised_at)}</span>
+                  <span className="text-fg-subtle">Advertised</span>
+                  <span className="text-fg-muted">{formatAge(stream.advertised_at)}</span>
                 </div>
               </div>
 
               {/* Config preview */}
               {Object.keys(stream.config).length > 0 && (
-                <div className="mt-3 pt-3 border-t border-slate-800">
+                <div className="mt-3 pt-3 border-t border-edge">
                   <div className="flex flex-wrap gap-1.5">
                     {Object.entries(stream.config).slice(0, 4).map(([key, val]) => (
                       <span
                         key={key}
-                        className="px-2 py-0.5 text-[10px] bg-slate-800 text-slate-400 rounded"
+                        className="px-2 py-0.5 text-[10px] bg-surface-1 text-fg-muted rounded"
                       >
                         {key}: {String(val)}
                       </span>

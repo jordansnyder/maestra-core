@@ -61,29 +61,29 @@ export function SensorPreview({ stream }: SensorPreviewProps) {
   }, [sensorData])
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div className="bg-surface-0 border border-edge rounded-xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-edge">
         <div className="flex items-center gap-3">
-          <h3 className="text-sm font-medium text-white">Spectrum Preview</h3>
+          <h3 className="text-sm font-medium text-fg">Spectrum Preview</h3>
           <StatusBadge status={status} />
         </div>
         {metrics && (
-          <div className="flex items-center gap-4 text-xs text-slate-400">
+          <div className="flex items-center gap-4 text-xs text-fg-muted">
             <span>
-              <span className="text-slate-500">Center:</span>{' '}
+              <span className="text-fg-subtle">Center:</span>{' '}
               <span className="text-cyan-300 font-mono">{metrics.centerMHz} MHz</span>
             </span>
             <span>
-              <span className="text-slate-500">BW:</span>{' '}
+              <span className="text-fg-subtle">BW:</span>{' '}
               <span className="font-mono">{metrics.bandwidthMHz} MHz</span>
             </span>
             <span>
-              <span className="text-slate-500">Peak:</span>{' '}
+              <span className="text-fg-subtle">Peak:</span>{' '}
               <span className="text-yellow-300 font-mono">{metrics.peakDb} dB</span>
             </span>
             <span>
-              <span className="text-slate-500">SNR:</span>{' '}
+              <span className="text-fg-subtle">SNR:</span>{' '}
               <span className="text-green-300 font-mono">{metrics.snrDb} dB</span>
             </span>
           </div>
@@ -93,7 +93,7 @@ export function SensorPreview({ stream }: SensorPreviewProps) {
       {/* Chart */}
       <div className="p-4">
         {status === 'connecting' && (
-          <div className="flex items-center justify-center h-64 text-slate-500 text-sm">
+          <div className="flex items-center justify-center h-64 text-fg-subtle text-sm">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
               Connecting to stream...
@@ -154,7 +154,7 @@ export function SensorPreview({ stream }: SensorPreviewProps) {
         )}
 
         {status === 'idle' && chartData.length === 0 && (
-          <div className="flex items-center justify-center h-64 text-slate-500 text-sm">
+          <div className="flex items-center justify-center h-64 text-fg-subtle text-sm">
             Click &ldquo;Start Preview&rdquo; to view live spectrum data
           </div>
         )}
@@ -162,7 +162,7 @@ export function SensorPreview({ stream }: SensorPreviewProps) {
 
       {/* Footer metrics */}
       {metrics && (
-        <div className="flex items-center gap-6 px-4 py-2 border-t border-slate-800 text-xs text-slate-500">
+        <div className="flex items-center gap-6 px-4 py-2 border-t border-edge text-xs text-fg-subtle">
           <span>FFT: {metrics.bins} bins</span>
           <span>Noise floor: {metrics.noiseDb} dB</span>
         </div>
@@ -173,7 +173,7 @@ export function SensorPreview({ stream }: SensorPreviewProps) {
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    idle: 'bg-slate-500/20 text-slate-400',
+    idle: 'bg-fg-subtle/20 text-fg-muted',
     connecting: 'bg-yellow-500/20 text-yellow-300',
     connected: 'bg-green-500/20 text-green-300',
     error: 'bg-red-500/20 text-red-400',

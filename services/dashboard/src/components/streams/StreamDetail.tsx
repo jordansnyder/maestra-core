@@ -24,8 +24,8 @@ export function StreamDetail({ stream, sessions, subscribers, streamTypes }: Str
       {/* Right column — Metadata */}
       <div className="space-y-5">
         {/* Stream Info Card */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-          <h3 className="text-sm font-medium text-white mb-3">Stream Info</h3>
+        <div className="bg-surface-0 border border-edge rounded-xl p-4">
+          <h3 className="text-sm font-medium text-fg mb-3">Stream Info</h3>
           <div className="space-y-2.5 text-xs">
             <InfoRow label="Type" value={typeInfo?.display_name || stream.stream_type} />
             <InfoRow label="Protocol" value={stream.protocol.toUpperCase()} />
@@ -44,13 +44,13 @@ export function StreamDetail({ stream, sessions, subscribers, streamTypes }: Str
 
         {/* Config Card */}
         {Object.keys(stream.config).length > 0 && (
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <h3 className="text-sm font-medium text-white mb-3">Configuration</h3>
+          <div className="bg-surface-0 border border-edge rounded-xl p-4">
+            <h3 className="text-sm font-medium text-fg mb-3">Configuration</h3>
             <div className="space-y-2 text-xs">
               {Object.entries(stream.config).map(([key, val]) => (
                 <div key={key} className="flex items-start justify-between gap-2">
-                  <span className="text-slate-500 shrink-0">{key}</span>
-                  <span className="text-slate-300 font-mono text-right break-all">
+                  <span className="text-fg-subtle shrink-0">{key}</span>
+                  <span className="text-fg font-mono text-right break-all">
                     {typeof val === 'object' ? JSON.stringify(val) : String(val)}
                   </span>
                 </div>
@@ -61,13 +61,13 @@ export function StreamDetail({ stream, sessions, subscribers, streamTypes }: Str
 
         {/* Metadata Card */}
         {Object.keys(stream.metadata).length > 0 && (
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <h3 className="text-sm font-medium text-white mb-3">Metadata</h3>
+          <div className="bg-surface-0 border border-edge rounded-xl p-4">
+            <h3 className="text-sm font-medium text-fg mb-3">Metadata</h3>
             <div className="space-y-2 text-xs">
               {Object.entries(stream.metadata).map(([key, val]) => (
                 <div key={key} className="flex items-start justify-between gap-2">
-                  <span className="text-slate-500 shrink-0">{key}</span>
-                  <span className="text-slate-300 font-mono text-right break-all">
+                  <span className="text-fg-subtle shrink-0">{key}</span>
+                  <span className="text-fg font-mono text-right break-all">
                     {typeof val === 'object' ? JSON.stringify(val) : String(val)}
                   </span>
                 </div>
@@ -77,9 +77,9 @@ export function StreamDetail({ stream, sessions, subscribers, streamTypes }: Str
         )}
 
         {/* Active Sessions Card */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+        <div className="bg-surface-0 border border-edge rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-white">Active Sessions</h3>
+            <h3 className="text-sm font-medium text-fg">Active Sessions</h3>
             {sessions.length > 0 && (
               <span className="px-2 py-0.5 text-[10px] font-medium bg-green-500/20 text-green-300 rounded-full">
                 {sessions.length}
@@ -88,16 +88,16 @@ export function StreamDetail({ stream, sessions, subscribers, streamTypes }: Str
           </div>
 
           {sessions.length === 0 ? (
-            <p className="text-xs text-slate-500">No active sessions</p>
+            <p className="text-xs text-fg-subtle">No active sessions</p>
           ) : (
             <div className="space-y-2">
               {sessions.map((session) => (
                 <div
                   key={session.session_id}
-                  className="p-2.5 bg-slate-800/50 rounded-lg space-y-1.5"
+                  className="p-2.5 bg-surface-1/50 rounded-lg space-y-1.5"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-300 font-mono truncate max-w-[150px]">
+                    <span className="text-xs text-fg font-mono truncate max-w-[150px]">
                       {session.consumer_id}
                     </span>
                     <button
@@ -113,7 +113,7 @@ export function StreamDetail({ stream, sessions, subscribers, streamTypes }: Str
                       Stop
                     </button>
                   </div>
-                  <div className="flex items-center justify-between text-[10px] text-slate-500">
+                  <div className="flex items-center justify-between text-[10px] text-fg-subtle">
                     <span>{session.consumer_address}</span>
                     <span>{formatAge(session.started_at)}</span>
                   </div>
@@ -125,9 +125,9 @@ export function StreamDetail({ stream, sessions, subscribers, streamTypes }: Str
 
         {/* Active Subscribers Card (multicast streams) */}
         {stream.delivery_mode === 'multicast' && (
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="bg-surface-0 border border-edge rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-white">Multicast Subscribers</h3>
+              <h3 className="text-sm font-medium text-fg">Multicast Subscribers</h3>
               {subscribers.length > 0 && (
                 <span className="px-2 py-0.5 text-[10px] font-medium bg-purple-500/20 text-purple-300 rounded-full">
                   {subscribers.length}
@@ -136,20 +136,20 @@ export function StreamDetail({ stream, sessions, subscribers, streamTypes }: Str
             </div>
 
             {subscribers.length === 0 ? (
-              <p className="text-xs text-slate-500">No active subscribers</p>
+              <p className="text-xs text-fg-subtle">No active subscribers</p>
             ) : (
               <div className="space-y-2">
                 {subscribers.map((sub) => (
                   <div
                     key={sub.subscriber_id}
-                    className="p-2.5 bg-slate-800/50 rounded-lg space-y-1.5"
+                    className="p-2.5 bg-surface-1/50 rounded-lg space-y-1.5"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-300 font-mono truncate max-w-[180px]">
+                      <span className="text-xs text-fg font-mono truncate max-w-[180px]">
                         {sub.consumer_id}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                    <div className="flex items-center justify-between text-[10px] text-fg-subtle">
                       <span>{sub.consumer_address}</span>
                       <span>{formatAge(sub.joined_at)}</span>
                     </div>
@@ -162,9 +162,9 @@ export function StreamDetail({ stream, sessions, subscribers, streamTypes }: Str
 
         {/* Type Info Card */}
         {typeInfo && typeInfo.description && (
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <h3 className="text-sm font-medium text-white mb-2">About {typeInfo.display_name}</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">{typeInfo.description}</p>
+          <div className="bg-surface-0 border border-edge rounded-xl p-4">
+            <h3 className="text-sm font-medium text-fg mb-2">About {typeInfo.display_name}</h3>
+            <p className="text-xs text-fg-muted leading-relaxed">{typeInfo.description}</p>
           </div>
         )}
       </div>
@@ -175,8 +175,8 @@ export function StreamDetail({ stream, sessions, subscribers, streamTypes }: Str
 function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-slate-500">{label}</span>
-      <span className={`text-slate-300 truncate max-w-[180px] ${mono ? 'font-mono' : ''}`}>
+      <span className="text-fg-subtle">{label}</span>
+      <span className={`text-fg truncate max-w-[180px] ${mono ? 'font-mono' : ''}`}>
         {value}
       </span>
     </div>

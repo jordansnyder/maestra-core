@@ -24,12 +24,12 @@ class PanelErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-2 p-4">
+        <div className="flex-1 flex flex-col items-center justify-center text-fg-subtle gap-2 p-4">
           <span className="text-sm">Something went wrong in {this.props.name}</span>
-          <span className="text-xs text-slate-600 font-mono">{this.state.error?.message}</span>
+          <span className="text-xs text-fg-subtle font-mono">{this.state.error?.message}</span>
           <button
             onClick={() => this.setState({ hasError: false })}
-            className="px-3 py-1 text-xs bg-slate-800 rounded hover:bg-slate-700 transition-colors"
+            className="px-3 py-1 text-xs bg-surface-1 rounded hover:bg-surface-2 transition-colors"
           >
             Retry
           </button>

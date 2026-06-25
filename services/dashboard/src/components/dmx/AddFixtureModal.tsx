@@ -398,13 +398,13 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
     <div className="modal-backdrop">
       <div className="modal-panel max-w-lg flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-edge shrink-0">
           <div>
-            <h2 className="text-sm font-semibold text-white">
+            <h2 className="text-sm font-semibold text-fg">
               {isEditing ? 'Edit Fixture' : isCopying ? 'Copy Fixture' : 'Add DMX Fixture'}
             </h2>
             {!isEditing && (
-              <p className="text-[10px] text-slate-500 mt-0.5">
+              <p className="text-[10px] text-fg-subtle mt-0.5">
                 {isCopying
                   ? copyOf!.entity_id
                     ? 'A new linked entity will be created automatically'
@@ -413,7 +413,7 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
               </p>
             )}
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -428,31 +428,31 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
 
             {/* ── OFL Fixture Library (add/copy mode only) ─────────────────── */}
             {!isEditing && (
-              <div className="space-y-3 pb-3 border-b border-slate-800">
-                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-medium">
+              <div className="space-y-3 pb-3 border-b border-edge">
+                <div className="text-[10px] uppercase tracking-wider text-fg-subtle font-medium">
                   Fixture Library
                 </div>
 
                 {/* Manufacturer picker */}
                 <div ref={mfrDropdownRef} className="relative">
-                  <label className="block text-xs text-slate-400 mb-1">Manufacturer</label>
+                  <label className="block text-xs text-fg-muted mb-1">Manufacturer</label>
                   <div className="relative">
                     <input
                       value={mfrSearch}
                       onChange={(e) => { setMfrSearch(e.target.value); setMfrOpen(true) }}
                       onFocus={() => setMfrOpen(true)}
                       placeholder="Search manufacturers…"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 pr-8"
+                      className="w-full bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-accent pr-8"
                     />
-                    <ChevronDown className="absolute right-2.5 top-2.5 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+                    <ChevronDown className="absolute right-2.5 top-2.5 w-3.5 h-3.5 text-fg-subtle pointer-events-none" />
                   </div>
                   {mfrOpen && (
-                    <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden">
+                    <div className="absolute z-50 w-full mt-1 bg-surface-1 border border-edge rounded-lg shadow-xl overflow-hidden">
                       <div className="max-h-48 overflow-y-auto">
                         {mfrLoading ? (
-                          <div className="px-3 py-3 text-xs text-slate-600 text-center">Loading…</div>
+                          <div className="px-3 py-3 text-xs text-fg-subtle text-center">Loading…</div>
                         ) : manufacturers.length === 0 ? (
-                          <div className="px-3 py-3 text-xs text-slate-600 text-center">
+                          <div className="px-3 py-3 text-xs text-fg-subtle text-center">
                             No manufacturers found — run make sync-ofl first
                           </div>
                         ) : (
@@ -463,13 +463,13 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
                               onClick={() => handleSelectMfr(mfr)}
                               className={`w-full text-left px-3 py-2 text-xs transition-colors ${
                                 selectedMfr?.key === mfr.key
-                                  ? 'bg-blue-600/30 text-white'
-                                  : 'hover:bg-slate-700/60 text-slate-300'
+                                  ? 'bg-accent/30 text-fg'
+                                  : 'hover:bg-surface-2/60 text-fg'
                               }`}
                             >
                               <span className="font-medium">{mfr.name}</span>
                               {mfr.fixture_count !== undefined && (
-                                <span className="ml-1.5 text-slate-500">({mfr.fixture_count})</span>
+                                <span className="ml-1.5 text-fg-subtle">({mfr.fixture_count})</span>
                               )}
                             </button>
                           ))
@@ -482,24 +482,24 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
                 {/* Model picker — only when manufacturer selected */}
                 {selectedMfr && (
                   <div ref={fixtureDropdownRef} className="relative">
-                    <label className="block text-xs text-slate-400 mb-1">Model</label>
+                    <label className="block text-xs text-fg-muted mb-1">Model</label>
                     <div className="relative">
                       <input
                         value={fixtureSearch}
                         onChange={(e) => { setFixtureSearch(e.target.value); setFixtureOpen(true) }}
                         onFocus={() => setFixtureOpen(true)}
                         placeholder={`Search ${selectedMfr.name} fixtures…`}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 pr-8"
+                        className="w-full bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-accent pr-8"
                       />
-                      <ChevronDown className="absolute right-2.5 top-2.5 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+                      <ChevronDown className="absolute right-2.5 top-2.5 w-3.5 h-3.5 text-fg-subtle pointer-events-none" />
                     </div>
                     {fixtureOpen && (
-                      <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden">
+                      <div className="absolute z-50 w-full mt-1 bg-surface-1 border border-edge rounded-lg shadow-xl overflow-hidden">
                         <div className="max-h-48 overflow-y-auto">
                           {fixtureLoading ? (
-                            <div className="px-3 py-3 text-xs text-slate-600 text-center">Loading…</div>
+                            <div className="px-3 py-3 text-xs text-fg-subtle text-center">Loading…</div>
                           ) : oflFixtures.length === 0 ? (
-                            <div className="px-3 py-3 text-xs text-slate-600 text-center">No fixtures found</div>
+                            <div className="px-3 py-3 text-xs text-fg-subtle text-center">No fixtures found</div>
                           ) : (
                             oflFixtures.map((f) => (
                               <button
@@ -508,12 +508,12 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
                                 onClick={() => handleSelectOFLFixture(f)}
                                 className={`w-full text-left px-3 py-2 text-xs transition-colors ${
                                   selectedOFLFixture?.id === f.id
-                                    ? 'bg-blue-600/30 text-white'
-                                    : 'hover:bg-slate-700/60 text-slate-300'
+                                    ? 'bg-accent/30 text-fg'
+                                    : 'hover:bg-surface-2/60 text-fg'
                                 }`}
                               >
                                 <div className="font-medium">{f.name}</div>
-                                <div className="text-[10px] text-slate-500">
+                                <div className="text-[10px] text-fg-subtle">
                                   {f.categories.slice(0, 2).join(', ')}
                                   {f.channel_count_min !== undefined && f.channel_count_min !== null && (
                                     <> · {f.channel_count_min === f.channel_count_max
@@ -534,14 +534,14 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
                 {/* Mode picker — only when OFL fixture selected with multiple modes */}
                 {selectedOFLFixture && selectedOFLFixture.modes.length > 1 && (
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">Channel Mode</label>
+                    <label className="block text-xs text-fg-muted mb-1">Channel Mode</label>
                     <select
                       value={selectedMode?.shortName ?? ''}
                       onChange={(e) => {
                         const mode = selectedOFLFixture.modes.find((m) => m.shortName === e.target.value)
                         if (mode) handleSelectMode(mode)
                       }}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                      className="w-full bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent"
                     >
                       {selectedOFLFixture.modes.map((mode) => (
                         <option key={mode.shortName} value={mode.shortName}>
@@ -554,15 +554,15 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
 
                 {/* Mode channel preview */}
                 {selectedMode && (
-                  <div className="bg-slate-800/50 rounded-lg p-3">
-                    <div className="text-xs text-slate-500 mb-2">
+                  <div className="bg-surface-1/50 rounded-lg p-3">
+                    <div className="text-xs text-fg-subtle mb-2">
                       {selectedMode.channel_count} channels — {selectedMode.name}
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {selectedMode.channels.map((ch, i) => (
                         <span
                           key={i}
-                          className="text-[10px] bg-slate-700 px-1.5 py-0.5 rounded text-slate-300"
+                          className="text-[10px] bg-surface-2 px-1.5 py-0.5 rounded text-fg"
                         >
                           {i + 1}: {ch.name}
                         </span>
@@ -576,22 +576,22 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
             {/* Name / label / mode */}
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <label className="block text-xs text-slate-400 mb-1">
+                <label className="block text-xs text-fg-muted mb-1">
                   Fixture Name <span className="text-red-400">*</span>
                 </label>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Front Wash Left"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-accent"
                   required
                   autoFocus={isEditing}
                 />
               </div>
               <div className="col-span-2">
-                <label className="block text-xs text-slate-400 mb-1">
+                <label className="block text-xs text-fg-muted mb-1">
                   Entity Slug
-                  <span className="ml-2 text-slate-600 font-normal">used as the linked entity identifier</span>
+                  <span className="ml-2 text-fg-subtle font-normal">used as the linked entity identifier</span>
                 </label>
                 <input
                   value={entitySlug}
@@ -600,16 +600,16 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
                     setSlugManuallyEdited(true)
                   }}
                   placeholder="e.g. front-wash-left"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+                  className="w-full bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-accent font-mono"
                 />
               </div>
               {groups.length > 0 && (
                 <div className="col-span-2">
-                  <label className="block text-xs text-slate-400 mb-1">Group</label>
+                  <label className="block text-xs text-fg-muted mb-1">Group</label>
                   <select
                     value={groupId}
                     onChange={(e) => setGroupId(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent"
                   >
                     <option value="">Ungrouped</option>
                     {groups.map((g) => (
@@ -620,7 +620,7 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
               )}
               {isEditing && editOFLFixture && editOFLFixture.modes.length > 0 && (
                 <div className="col-span-2">
-                  <label className="block text-xs text-slate-400 mb-1 flex items-center gap-2">
+                  <label className="block text-xs text-fg-muted mb-1 flex items-center gap-2">
                     Fixture Mode
                     <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-900/40 border border-emerald-800/50 text-emerald-400 normal-case tracking-normal">
                       OFL
@@ -632,7 +632,7 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
                       const mode = editOFLFixture.modes.find((m) => m.shortName === e.target.value)
                       if (mode) handleSelectMode(mode)
                     }}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent"
                   >
                     {editOFLFixture.modes.map((mode) => (
                       <option key={mode.shortName} value={mode.shortName}>
@@ -647,13 +647,13 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
             {/* Art-Net node / universe / channel */}
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-3">
-                <label className="block text-xs text-slate-400 mb-1">
+                <label className="block text-xs text-fg-muted mb-1">
                   Art-Net Node <span className="text-red-400">*</span>
                 </label>
                 <select
                   value={nodeId}
                   onChange={(e) => setNodeId(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent"
                   required
                 >
                   {nodes.map((n) => (
@@ -665,11 +665,11 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
               </div>
 
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Universe</label>
+                <label className="block text-xs text-fg-muted mb-1">Universe</label>
                 <select
                   value={universe}
                   onChange={(e) => setUniverse(Number(e.target.value))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent"
                 >
                   {selectedNode?.universes.length ? (
                     selectedNode.universes.map((u) => (
@@ -686,26 +686,26 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
               </div>
 
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Start Channel</label>
+                <label className="block text-xs text-fg-muted mb-1">Start Channel</label>
                 <input
                   type="text"
                   inputMode="numeric"
                   value={startChannel}
                   onChange={(e) => setStartChannel(e.target.value)}
                   placeholder="1"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+                  className="w-full bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-accent font-mono"
                 />
               </div>
 
               <div>
-                <label className="block text-xs text-slate-400 mb-1">End Channel</label>
+                <label className="block text-xs text-fg-muted mb-1">End Channel</label>
                 <input
                   type="text"
                   inputMode="numeric"
                   value={endChannel}
                   onChange={(e) => setEndChannel(e.target.value)}
                   placeholder="1"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+                  className="w-full bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-accent font-mono"
                 />
               </div>
             </div>
@@ -721,7 +721,7 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
               const count = ec - sc + 1
               const overflows = ec > 512
               return (
-                <p className={`text-[10px] font-mono -mt-2 ${overflows ? 'text-red-400' : 'text-slate-500'}`}>
+                <p className={`text-[10px] font-mono -mt-2 ${overflows ? 'text-red-400' : 'text-fg-subtle'}`}>
                   {count} channel{count !== 1 ? 's' : ''}{overflows ? ' — exceeds 512!' : ''}
                 </p>
               )
@@ -742,14 +742,14 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
                     <ExternalLink className="w-3 h-3 text-amber-600 group-hover:text-amber-400 shrink-0 ml-2" />
                   </a>
                 ) : (
-                  <div className="mb-3 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                  <div className="mb-3 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-1/50 border border-edge/50">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-                    <span className="text-[10px] text-slate-600">No entity linked</span>
+                    <span className="text-[10px] text-fg-subtle">No entity linked</span>
                   </div>
                 )}
-                <label className="block text-xs text-slate-400 mb-1">
+                <label className="block text-xs text-fg-muted mb-1">
                   Linked Entity
-                  <span className="ml-1.5 text-slate-600 font-normal normal-case tracking-normal">
+                  <span className="ml-1.5 text-fg-subtle font-normal normal-case tracking-normal">
                     — drives DMX channels from entity state changes
                   </span>
                 </label>
@@ -757,29 +757,29 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
                   <button
                     type="button"
                     onClick={() => { setEntityOpen((v) => !v); setEntitySearch('') }}
-                    className="w-full flex items-center justify-between bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-left focus:outline-none focus:border-blue-500 transition-colors hover:border-slate-600"
+                    className="w-full flex items-center justify-between bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-left focus:outline-none focus:border-accent transition-colors hover:border-edge-strong"
                   >
                     {selectedEntity ? (
                       <span className="flex flex-col min-w-0">
-                        <span className="text-white truncate">{selectedEntity.name}</span>
-                        <span className="text-[10px] text-slate-500 font-mono truncate">{selectedEntity.slug}</span>
+                        <span className="text-fg truncate">{selectedEntity.name}</span>
+                        <span className="text-[10px] text-fg-subtle font-mono truncate">{selectedEntity.slug}</span>
                       </span>
                     ) : (
-                      <span className="text-slate-600">None — no entity linked</span>
+                      <span className="text-fg-subtle">None — no entity linked</span>
                     )}
-                    <ChevronDown className={`w-3.5 h-3.5 text-slate-500 shrink-0 ml-2 transition-transform duration-150 ${entityOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-3.5 h-3.5 text-fg-subtle shrink-0 ml-2 transition-transform duration-150 ${entityOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {entityOpen && (
-                    <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden">
-                      <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-700">
-                        <Search className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    <div className="absolute z-50 w-full mt-1 bg-surface-1 border border-edge rounded-lg shadow-xl overflow-hidden">
+                      <div className="flex items-center gap-2 px-3 py-2 border-b border-edge">
+                        <Search className="w-3.5 h-3.5 text-fg-subtle shrink-0" />
                         <input
                           autoFocus
                           value={entitySearch}
                           onChange={(e) => setEntitySearch(e.target.value)}
                           placeholder="Search by name, slug, or path…"
-                          className="flex-1 bg-transparent text-sm text-white placeholder-slate-600 focus:outline-none"
+                          className="flex-1 bg-transparent text-sm text-fg placeholder-fg-subtle focus:outline-none"
                         />
                       </div>
                       <div className="max-h-48 overflow-y-auto">
@@ -787,13 +787,13 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
                           type="button"
                           onClick={() => { setEntityId(''); setEntityOpen(false) }}
                           className={`w-full text-left px-3 py-2 text-xs transition-colors ${
-                            !entityId ? 'bg-slate-700 text-slate-300' : 'text-slate-500 hover:bg-slate-700/50'
+                            !entityId ? 'bg-surface-2 text-fg' : 'text-fg-subtle hover:bg-surface-2/50'
                           }`}
                         >
                           None — no entity linked
                         </button>
                         {filteredEntities.length === 0 ? (
-                          <div className="px-3 py-3 text-xs text-slate-600 text-center">
+                          <div className="px-3 py-3 text-xs text-fg-subtle text-center">
                             {entities.length === 0 ? 'Loading entities…' : 'No entities match'}
                           </div>
                         ) : (
@@ -805,11 +805,11 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
                                 type="button"
                                 onClick={() => { setEntityId(entity.id); setEntityOpen(false) }}
                                 className={`w-full text-left px-3 py-2 transition-colors ${
-                                  isSelected ? 'bg-blue-600/30 text-white' : 'hover:bg-slate-700/50 text-slate-300'
+                                  isSelected ? 'bg-accent/30 text-fg' : 'hover:bg-surface-2/50 text-fg'
                                 }`}
                               >
                                 <div className="text-xs font-medium truncate">{entity.name}</div>
-                                <div className="text-[10px] font-mono text-slate-500 truncate">
+                                <div className="text-[10px] font-mono text-fg-subtle truncate">
                                   {entity.path ?? entity.slug}
                                 </div>
                               </button>
@@ -825,13 +825,13 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
 
             {/* OFL channel preview in edit mode */}
             {isEditing && selectedMode && selectedMode.channels.length > 0 && (
-              <div className="bg-slate-800/50 rounded-lg p-3">
-                <div className="text-xs text-slate-500 mb-2">
+              <div className="bg-surface-1/50 rounded-lg p-3">
+                <div className="text-xs text-fg-subtle mb-2">
                   {selectedMode.channel_count} channels — {selectedMode.name}
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {selectedMode.channels.map((ch, i) => (
-                    <span key={i} className="text-[10px] bg-slate-700 px-1.5 py-0.5 rounded text-slate-300">
+                    <span key={i} className="text-[10px] bg-surface-2 px-1.5 py-0.5 rounded text-fg">
                       {i + 1}: {ch.name}
                     </span>
                   ))}
@@ -844,14 +844,14 @@ export function AddFixtureModal({ nodes, fixtures, groups = [], fixture, copyOf,
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 rounded-lg text-sm text-slate-400 bg-slate-800 hover:bg-slate-700 transition-colors"
+                className="flex-1 px-4 py-2 rounded-lg text-sm text-fg-muted bg-surface-1 hover:bg-surface-2 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50"
+                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-accent hover:bg-accent-hover text-fg transition-colors disabled:opacity-50"
               >
                 {submitting
                   ? (isEditing ? 'Saving…' : 'Creating…')

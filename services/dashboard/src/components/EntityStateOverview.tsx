@@ -20,7 +20,7 @@ interface EntityStateOverviewProps {
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  string: 'bg-blue-500/20 text-blue-400',
+  string: 'bg-accent/20 text-accent',
   number: 'bg-purple-500/20 text-purple-400',
   boolean: 'bg-orange-500/20 text-orange-400',
   array: 'bg-cyan-500/20 text-cyan-400',
@@ -29,7 +29,7 @@ const TYPE_COLORS: Record<string, string> = {
   vector3: 'bg-green-500/20 text-green-400',
   range: 'bg-yellow-500/20 text-yellow-400',
   enum: 'bg-indigo-500/20 text-indigo-400',
-  object: 'bg-slate-500/20 text-slate-300',
+  object: 'bg-fg-subtle/20 text-fg',
 }
 
 function inferType(value: unknown): VariableType {
@@ -127,15 +127,15 @@ export function EntityStateOverview({ entity, onStateChange }: EntityStateOvervi
   }
 
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 sm:p-6">
+    <div className="bg-surface-1 border border-edge rounded-lg p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4 sm:mb-5">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold">State</h2>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-fg-subtle">
             {stateEntries.length} field{stateEntries.length !== 1 ? 's' : ''}
           </span>
         </div>
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-fg-subtle">
           Updated {new Date(entity.state_updated_at).toLocaleString()}
         </span>
       </div>
@@ -146,7 +146,7 @@ export function EntityStateOverview({ entity, onStateChange }: EntityStateOvervi
         </div>
       )}
 
-      <div className="divide-y divide-slate-700/50">
+      <div className="divide-y divide-edge/50">
         {stateEntries.map(([key, value]) => {
           const variable = getVariableForKey(key, value)
           const isUpdating = updating === key
@@ -155,35 +155,35 @@ export function EntityStateOverview({ entity, onStateChange }: EntityStateOvervi
           return (
             <div
               key={key}
-              className={`${isUpdating ? 'bg-blue-500/5' : ''}`}
+              className={`${isUpdating ? 'bg-accent/5' : ''}`}
             >
               {wide ? (
                 <div className="px-4 py-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="font-mono text-sm text-slate-200">{key}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${TYPE_COLORS[variable.type] || 'bg-slate-700 text-slate-400'}`}>
+                    <span className="font-mono text-sm text-fg">{key}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${TYPE_COLORS[variable.type] || 'bg-surface-2 text-fg-muted'}`}>
                       {variable.type}
                     </span>
                     {isUpdating && (
-                      <span className="text-xs text-blue-400 animate-pulse">saving...</span>
+                      <span className="text-xs text-accent animate-pulse">saving...</span>
                     )}
                   </div>
                   {variable.description && (
-                    <p className="text-xs text-slate-500 mb-2">{variable.description}</p>
+                    <p className="text-xs text-fg-subtle mb-2">{variable.description}</p>
                   )}
                   {renderControl(variable, value, key)}
                 </div>
               ) : (
                 <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 h-[44px]">
-                  <span className="font-mono text-sm text-slate-200 truncate w-28 sm:w-44 shrink-0" title={key}>{key}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono shrink-0 ${TYPE_COLORS[variable.type] || 'bg-slate-700 text-slate-400'}`}>
+                  <span className="font-mono text-sm text-fg truncate w-28 sm:w-44 shrink-0" title={key}>{key}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono shrink-0 ${TYPE_COLORS[variable.type] || 'bg-surface-2 text-fg-muted'}`}>
                     {variable.type}
                   </span>
                   <div className="flex-1 flex items-center min-w-0">
                     {renderControl(variable, value, key)}
                   </div>
                   {isUpdating && (
-                    <span className="text-xs text-blue-400 animate-pulse shrink-0">saving...</span>
+                    <span className="text-xs text-accent animate-pulse shrink-0">saving...</span>
                   )}
                 </div>
               )}

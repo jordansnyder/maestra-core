@@ -179,7 +179,7 @@ export function NodeGraphView({ devices, routes, onAddRoute, onRemoveRoute, init
 
       {/* Zoom indicator */}
       {zoom !== 1 && (
-        <div className="absolute top-4 right-4 z-10 text-[10px] font-mono text-slate-600 bg-[#12121f] rounded px-2 py-0.5 border border-slate-800">
+        <div className="absolute top-4 right-4 z-10 text-[10px] font-mono text-fg-subtle bg-[#12121f] rounded px-2 py-0.5 border border-edge">
           {Math.round(zoom * 100)}%
         </div>
       )}
@@ -238,7 +238,7 @@ export function NodeGraphView({ devices, routes, onAddRoute, onRemoveRoute, init
             >
               <span className="text-base">{device.icon}</span>
               <div>
-                <div className="text-xs font-semibold text-slate-200 font-mono tracking-tight">{device.name}</div>
+                <div className="text-xs font-semibold text-fg font-mono tracking-tight">{device.name}</div>
                 <div className="text-[9px] uppercase tracking-[1.5px] font-mono" style={{ color: device.color }}>{device.type}</div>
               </div>
             </div>
@@ -265,7 +265,7 @@ export function NodeGraphView({ devices, routes, onAddRoute, onRemoveRoute, init
                           boxShadow: isHovered ? `0 0 8px ${SIGNAL_TYPES[sig].color}` : 'none',
                         }}
                       />
-                      <span className="text-[10px] text-slate-500 font-mono">{inp}</span>
+                      <span className="text-[10px] text-fg-subtle font-mono">{inp}</span>
                     </div>
                   )
                 })}
@@ -283,7 +283,7 @@ export function NodeGraphView({ devices, routes, onAddRoute, onRemoveRoute, init
                       onMouseEnter={() => setHoveredPort({ deviceId: device.id, portName: out })}
                       onMouseLeave={() => setHoveredPort(null)}
                     >
-                      <span className="text-[10px] text-slate-500 font-mono">{out}</span>
+                      <span className="text-[10px] text-fg-subtle font-mono">{out}</span>
                       <div
                         className="port-circle w-2.5 h-2.5 rounded-full transition-all duration-150"
                         style={{

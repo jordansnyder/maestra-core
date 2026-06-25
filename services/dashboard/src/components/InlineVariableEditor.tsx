@@ -55,13 +55,13 @@ export function InlineVariableEditor({ variable, defaultDirection, onSave, onCan
     setConfig(prev => ({ ...prev, [key]: value }))
   }
 
-  const inputClass = 'px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm focus:outline-none focus:border-blue-500'
+  const inputClass = 'px-2 py-1.5 bg-surface-0 border border-edge rounded text-sm focus:outline-none focus:border-accent'
 
   return (
-    <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 space-y-3">
+    <div className="bg-surface-0/50 border border-edge rounded-lg p-4 space-y-3">
       <div className="grid grid-cols-3 gap-3">
         <div>
-          <label className="block text-xs text-slate-500 mb-1">Name</label>
+          <label className="block text-xs text-fg-subtle mb-1">Name</label>
           <input
             type="text"
             value={name}
@@ -72,7 +72,7 @@ export function InlineVariableEditor({ variable, defaultDirection, onSave, onCan
           />
         </div>
         <div>
-          <label className="block text-xs text-slate-500 mb-1">Type</label>
+          <label className="block text-xs text-fg-subtle mb-1">Type</label>
           <select
             value={type}
             onChange={e => { setType(e.target.value as VariableType); setConfig({}) }}
@@ -84,12 +84,12 @@ export function InlineVariableEditor({ variable, defaultDirection, onSave, onCan
           </select>
         </div>
         <div>
-          <label className="block text-xs text-slate-500 mb-1">Direction</label>
+          <label className="block text-xs text-fg-subtle mb-1">Direction</label>
           <div className="flex gap-2 mt-1">
             <button
               onClick={() => setDirection('input')}
               className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                direction === 'input' ? 'bg-green-600/30 text-green-400 border border-green-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'
+                direction === 'input' ? 'bg-green-600/30 text-green-400 border border-green-500/30' : 'bg-surface-1 text-fg-muted border border-edge'
               }`}
             >
               Input
@@ -97,7 +97,7 @@ export function InlineVariableEditor({ variable, defaultDirection, onSave, onCan
             <button
               onClick={() => setDirection('output')}
               className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                direction === 'output' ? 'bg-blue-600/30 text-blue-400 border border-blue-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'
+                direction === 'output' ? 'bg-accent/30 text-accent border border-accent/30' : 'bg-surface-1 text-fg-muted border border-edge'
               }`}
             >
               Output
@@ -110,17 +110,17 @@ export function InlineVariableEditor({ variable, defaultDirection, onSave, onCan
       {(type === 'range' || type === 'number') && (
         <div className="flex gap-3">
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Min</label>
+            <label className="block text-xs text-fg-subtle mb-1">Min</label>
             <input type="number" value={(config.min as number) ?? ''} onChange={e => updateConfig('min', parseFloat(e.target.value) || 0)}
               className={`w-20 ${inputClass}`} />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Max</label>
+            <label className="block text-xs text-fg-subtle mb-1">Max</label>
             <input type="number" value={(config.max as number) ?? ''} onChange={e => updateConfig('max', parseFloat(e.target.value) || 100)}
               className={`w-20 ${inputClass}`} />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Step</label>
+            <label className="block text-xs text-fg-subtle mb-1">Step</label>
             <input type="number" value={(config.step as number) ?? ''} onChange={e => updateConfig('step', parseFloat(e.target.value) || 1)}
               className={`w-20 ${inputClass}`} />
           </div>
@@ -129,7 +129,7 @@ export function InlineVariableEditor({ variable, defaultDirection, onSave, onCan
 
       {type === 'enum' && (
         <div>
-          <label className="block text-xs text-slate-500 mb-1">Options (JSON array)</label>
+          <label className="block text-xs text-fg-subtle mb-1">Options (JSON array)</label>
           <input
             type="text"
             value={JSON.stringify(config.options || [])}
@@ -144,7 +144,7 @@ export function InlineVariableEditor({ variable, defaultDirection, onSave, onCan
 
       {type === 'color' && (
         <div>
-          <label className="block text-xs text-slate-500 mb-1">Format</label>
+          <label className="block text-xs text-fg-subtle mb-1">Format</label>
           <select value={(config.format as string) || 'hex'} onChange={e => updateConfig('format', e.target.value)}
             className={`${inputClass}`}>
             <option value="hex">Hex</option>
@@ -157,32 +157,32 @@ export function InlineVariableEditor({ variable, defaultDirection, onSave, onCan
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-slate-500 mb-1">Description</label>
+          <label className="block text-xs text-fg-subtle mb-1">Description</label>
           <input type="text" value={description} onChange={e => setDescription(e.target.value)}
             placeholder="What this variable does" className={`w-full ${inputClass}`} />
         </div>
         <div className="flex gap-4 items-end">
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Default</label>
+            <label className="block text-xs text-fg-subtle mb-1">Default</label>
             <input type="text" value={defaultValue} onChange={e => setDefaultValue(e.target.value)}
               placeholder="value" className={`w-24 ${inputClass} font-mono`} />
           </div>
           {direction === 'input' && (
             <label className="flex items-center gap-2 pb-1.5 cursor-pointer">
               <input type="checkbox" checked={required} onChange={e => setRequired(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-600 bg-slate-900 accent-blue-500" />
-              <span className="text-xs text-slate-400">Required</span>
+                className="w-4 h-4 rounded border-edge-strong bg-surface-0 accent-blue-500" />
+              <span className="text-xs text-fg-muted">Required</span>
             </label>
           )}
         </div>
       </div>
 
       <div className="flex justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs font-medium transition-colors">
+        <button onClick={onCancel} className="px-3 py-1.5 bg-surface-2 hover:bg-surface-2 rounded text-xs font-medium transition-colors">
           Cancel
         </button>
         <button onClick={handleSave} disabled={!name.trim()}
-          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded text-xs font-medium transition-colors disabled:opacity-50">
+          className="px-3 py-1.5 bg-accent hover:bg-accent-hover rounded text-xs font-medium transition-colors disabled:opacity-50">
           {variable ? 'Save' : 'Add Variable'}
         </button>
       </div>

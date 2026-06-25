@@ -166,18 +166,18 @@ export default function DevicesPage() {
   ]
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-slate-900 to-slate-800 text-white">
+    <div className="min-h-full bg-gradient-to-br from-surface-0 to-surface-1 text-fg">
       <div className="container mx-auto px-6 py-8">
         {/* Header */}
         <header className="mb-8">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Devices</h1>
-              <p className="text-sm text-slate-400 mt-1">Register, discover, and manage fleet devices</p>
+              <p className="text-sm text-fg-muted mt-1">Register, discover, and manage fleet devices</p>
             </div>
             <button
               onClick={() => setShowRegisterForm(!showRegisterForm)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover rounded-lg text-sm font-medium transition-colors"
             >
               <Plus className="w-4 h-4" />
               {showRegisterForm ? 'Cancel' : 'Register Device'}
@@ -206,7 +206,7 @@ export default function DevicesPage() {
                     required
                     value={registerForm.name}
                     onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
                     placeholder="My Arduino Sensor"
                   />
                 </div>
@@ -215,7 +215,7 @@ export default function DevicesPage() {
                   <select
                     value={registerForm.device_type}
                     onChange={(e) => setRegisterForm({ ...registerForm, device_type: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
                   >
                     <option value="arduino">Arduino</option>
                     <option value="raspberry_pi">Raspberry Pi</option>
@@ -234,7 +234,7 @@ export default function DevicesPage() {
                     required
                     value={registerForm.hardware_id}
                     onChange={(e) => setRegisterForm({ ...registerForm, hardware_id: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
                     placeholder="e.g., MAC address, serial number"
                   />
                 </div>
@@ -244,7 +244,7 @@ export default function DevicesPage() {
                     type="text"
                     value={registerForm.ip_address}
                     onChange={(e) => setRegisterForm({ ...registerForm, ip_address: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
                     placeholder="192.168.1.100"
                   />
                 </div>
@@ -260,15 +260,15 @@ export default function DevicesPage() {
         )}
 
         {/* Tabs */}
-        <div className="flex items-center gap-1 mb-6 border-b border-slate-700">
+        <div className="flex items-center gap-1 mb-6 border-b border-edge">
           {tabs.map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab.key
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-slate-400 hover:text-slate-300'
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-fg-muted hover:text-fg'
               }`}
             >
               {tab.label}
@@ -276,7 +276,7 @@ export default function DevicesPage() {
                 <span className={`ml-2 px-1.5 py-0.5 rounded-full text-xs ${
                   tab.key === 'pending' && tab.count > 0
                     ? 'bg-amber-500/20 text-amber-400'
-                    : 'bg-slate-700 text-slate-400'
+                    : 'bg-surface-2 text-fg-muted'
                 }`}>
                   {tab.count}
                 </span>
@@ -291,19 +291,19 @@ export default function DevicesPage() {
             {/* Filters */}
             <div className="flex flex-wrap gap-3 mb-6">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-subtle" />
                 <input
                   type="text"
                   placeholder="Search devices..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                  className="pl-9 pr-4 py-2 bg-surface-1 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
                 />
               </div>
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
-                className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                className="px-4 py-2 bg-surface-1 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
               >
                 <option value="">All Types</option>
                 {deviceTypes.map((type) => (
@@ -315,7 +315,7 @@ export default function DevicesPage() {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                className="px-4 py-2 bg-surface-1 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
               >
                 <option value="">All Status</option>
                 <option value="online">Online</option>
@@ -327,7 +327,7 @@ export default function DevicesPage() {
 
             {loading && (
               <div className="flex items-center justify-center py-12">
-                <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full" />
+                <div className="animate-spin w-8 h-8 border-4 border-accent border-t-transparent rounded-full" />
               </div>
             )}
 
@@ -350,7 +350,7 @@ export default function DevicesPage() {
                   secondaryAction={{ label: 'Read the Device Guide', href: getDocsUrl('/guides/device-registration/') }}
                 />
               ) : (
-                <p className="text-slate-400 text-center py-12">
+                <p className="text-fg-muted text-center py-12">
                   No devices match your filters.
                 </p>
               )
@@ -370,7 +370,7 @@ export default function DevicesPage() {
         {activeTab === 'pending' && (
           <>
             {pendingDevices.length === 0 ? (
-              <div className="text-center py-12 text-slate-500">
+              <div className="text-center py-12 text-fg-subtle">
                 <p className="text-lg mb-2">No pending devices</p>
                 <p className="text-sm">Devices discovered via mDNS on your network will appear here for approval.</p>
               </div>

@@ -114,65 +114,65 @@ function PanTiltJoystick({ panValue, tiltValue, padSize, onChange }: PanTiltJoys
       <div
         ref={padRef}
         onMouseDown={handleMouseDown}
-        className="relative rounded-xl border border-slate-700 bg-slate-800/80 cursor-crosshair select-none touch-none overflow-hidden"
+        className="relative rounded-xl border border-edge bg-surface-1/80 cursor-crosshair select-none touch-none overflow-hidden"
         style={{ width: padSize, height: padSize }}
       >
         {/* Grid — thirds */}
         {[1, 2].map((n) => (
           <div key={`h${n}`}
-            className="absolute left-0 right-0 border-t border-slate-700/40 pointer-events-none"
+            className="absolute left-0 right-0 border-t border-edge/40 pointer-events-none"
             style={{ top: `${(n / 3) * 100}%` }}
           />
         ))}
         {[1, 2].map((n) => (
           <div key={`v${n}`}
-            className="absolute top-0 bottom-0 border-l border-slate-700/40 pointer-events-none"
+            className="absolute top-0 bottom-0 border-l border-edge/40 pointer-events-none"
             style={{ left: `${(n / 3) * 100}%` }}
           />
         ))}
 
         {/* Center crosshair */}
-        <div className="absolute top-1/2 left-0 right-0 border-t border-slate-600/60 pointer-events-none" />
-        <div className="absolute left-1/2 top-0 bottom-0 border-l border-slate-600/60 pointer-events-none" />
+        <div className="absolute top-1/2 left-0 right-0 border-t border-edge-strong/60 pointer-events-none" />
+        <div className="absolute left-1/2 top-0 bottom-0 border-l border-edge-strong/60 pointer-events-none" />
 
         {/* Position dot with ring — container sized to ring, flex-centers the dot */}
         <div
-          className="absolute pointer-events-none flex items-center justify-center rounded-full bg-blue-500/20"
+          className="absolute pointer-events-none flex items-center justify-center rounded-full bg-accent/20"
           style={{ width: 32, height: 32, left: dotLeft, top: dotTop, transform: 'translate(-50%, -50%)' }}
         >
-          <div className="w-5 h-5 rounded-full bg-blue-500 border-2 border-white shadow-lg shadow-blue-500/40" />
+          <div className="w-5 h-5 rounded-full bg-accent border-2 border-white shadow-lg shadow-blue-500/40" />
         </div>
 
         {/* Axis labels */}
         <div className="absolute bottom-1.5 left-0 right-0 flex justify-between px-2 pointer-events-none">
-          <span className="text-[9px] text-slate-600 font-mono">PAN 0</span>
-          <span className="text-[9px] text-slate-500 font-mono uppercase tracking-widest">← pan →</span>
-          <span className="text-[9px] text-slate-600 font-mono">255</span>
+          <span className="text-[9px] text-fg-subtle font-mono">PAN 0</span>
+          <span className="text-[9px] text-fg-subtle font-mono uppercase tracking-widest">← pan →</span>
+          <span className="text-[9px] text-fg-subtle font-mono">255</span>
         </div>
         <div className="absolute left-1.5 top-0 bottom-0 flex flex-col justify-between py-5 pointer-events-none">
-          <span className="text-[9px] text-slate-600 font-mono" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>0</span>
-          <span className="text-[9px] text-slate-500 font-mono" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>TILT</span>
-          <span className="text-[9px] text-slate-600 font-mono" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>255</span>
+          <span className="text-[9px] text-fg-subtle font-mono" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>0</span>
+          <span className="text-[9px] text-fg-subtle font-mono" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>TILT</span>
+          <span className="text-[9px] text-fg-subtle font-mono" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>255</span>
         </div>
       </div>
 
       {/* Value readout + center button */}
       <div className="flex items-center gap-6">
         <div className="text-center min-w-[48px]">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wider">Pan</div>
-          <div className="text-sm text-blue-400 font-mono font-semibold tabular-nums">{panValue}</div>
+          <div className="text-[10px] text-fg-subtle uppercase tracking-wider">Pan</div>
+          <div className="text-sm text-accent font-mono font-semibold tabular-nums">{panValue}</div>
         </div>
         <button
           onClick={() => onChangeRef.current(127, 127)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 bg-slate-800 hover:bg-slate-700 hover:text-white border border-slate-700 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-fg-muted bg-surface-1 hover:bg-surface-2 hover:text-fg border border-edge transition-colors"
           title="Center (127, 127)"
         >
           <Crosshair className="w-3.5 h-3.5" />
           Center
         </button>
         <div className="text-center min-w-[48px]">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wider">Tilt</div>
-          <div className="text-sm text-blue-400 font-mono font-semibold tabular-nums">{tiltValue}</div>
+          <div className="text-[10px] text-fg-subtle uppercase tracking-wider">Tilt</div>
+          <div className="text-sm text-accent font-mono font-semibold tabular-nums">{tiltValue}</div>
         </div>
       </div>
     </div>
@@ -365,7 +365,7 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
 
       {/* Modal — bottom sheet on mobile, canvas-inset on desktop */}
       <div
-        className="relative pointer-events-auto flex flex-col bg-slate-900 border border-slate-700 shadow-2xl"
+        className="relative pointer-events-auto flex flex-col bg-surface-0 border border-edge shadow-2xl"
         style={isMobile
           ? { width: '100%', maxHeight: '85vh', borderRadius: '1rem 1rem 0 0', borderBottom: 'none' }
           : {
@@ -379,33 +379,33 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 shrink-0">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-edge shrink-0">
           <div className="flex items-center gap-2.5">
-            <SlidersHorizontal className="w-4 h-4 text-blue-400" />
+            <SlidersHorizontal className="w-4 h-4 text-accent" />
             <div>
-              <div className="text-sm font-semibold text-white flex items-center gap-2">
+              <div className="text-sm font-semibold text-fg flex items-center gap-2">
                 DMX Channels
                 {fixtures.length > 1 && (
-                  <span className="text-xs font-normal text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded-full">
+                  <span className="text-xs font-normal text-fg-subtle bg-surface-1 px-1.5 py-0.5 rounded-full">
                     {fixtures.length} fixtures
                   </span>
                 )}
               </div>
               {primary?.fixture_mode && (
-                <div className="text-[10px] text-slate-500 mt-px">{primary.fixture_mode}</div>
+                <div className="text-[10px] text-fg-subtle mt-px">{primary.fixture_mode}</div>
               )}
             </div>
           </div>
           <div className="flex items-center gap-2">
             {/* Pan/Tilt toggle — only shown when fixture has both channels */}
             {hasPanTilt && !loading && (
-              <div className="flex items-center rounded-lg bg-slate-800 border border-slate-700 p-0.5">
+              <div className="flex items-center rounded-lg bg-surface-1 border border-edge p-0.5">
                 <button
                   onClick={() => setViewMode('sliders')}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-colors ${
                     viewMode === 'sliders'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-accent text-fg'
+                      : 'text-fg-muted hover:text-fg'
                   }`}
                 >
                   <SlidersHorizontal className="w-3 h-3" />
@@ -415,8 +415,8 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
                   onClick={() => setViewMode('joystick')}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-colors ${
                     viewMode === 'joystick'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-accent text-fg'
+                      : 'text-fg-muted hover:text-fg'
                   }`}
                 >
                   <Move className="w-3 h-3" />
@@ -427,7 +427,7 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
             <button
               onClick={handleZeroAll}
               title="Zero all channels"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-slate-400 bg-slate-800 hover:bg-slate-700 hover:text-white transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-fg-muted bg-surface-1 hover:bg-surface-2 hover:text-fg transition-colors"
             >
               <RotateCcw className="w-3 h-3" />
               <span className="hidden sm:inline">Zero All</span>
@@ -435,12 +435,12 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
             <button
               onClick={handleCancelAndReset}
               title="Cancel and restore original values (Esc)"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-slate-400 bg-slate-800 hover:bg-red-900/60 hover:text-red-300 hover:border-red-700/50 border border-transparent transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-fg-muted bg-surface-1 hover:bg-red-900/60 hover:text-red-300 hover:border-red-700/50 border border-transparent transition-colors"
             >
               <Undo2 className="w-3 h-3" />
               <span className="hidden sm:inline">Cancel & Reset</span>
             </button>
-            <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
+            <button onClick={onClose} className="text-fg-subtle hover:text-fg transition-colors">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -450,11 +450,11 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
         <div className={`flex-1 overflow-auto px-5 py-4 ${viewMode === 'joystick' ? 'flex items-center justify-center' : 'overflow-x-auto overflow-y-hidden'}`}>
           {loading ? (
             <div className="h-full flex items-center justify-center">
-              <span className="text-sm text-slate-600">Loading…</span>
+              <span className="text-sm text-fg-subtle">Loading…</span>
             </div>
           ) : channels.length === 0 ? (
             <div className="h-full flex items-center justify-center">
-              <span className="text-sm text-slate-600">
+              <span className="text-sm text-fg-subtle">
                 No channel map — select a fixture mode when adding the fixture
               </span>
             </div>
@@ -470,11 +470,11 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
               {channels.map(([key, ch]) => {
                 const val = values[key] ?? 0
                 const label = (ch as ChannelMapping).label ?? key
-                const arrowBtn = 'flex items-center justify-center w-6 h-5 rounded text-slate-500 hover:text-white hover:bg-slate-700 transition-colors shrink-0'
+                const arrowBtn = 'flex items-center justify-center w-6 h-5 rounded text-fg-subtle hover:text-fg hover:bg-surface-2 transition-colors shrink-0'
                 return (
                   <div key={key} className="flex flex-col items-center gap-1" style={{ width: 44 }}>
                     {/* Value readout */}
-                    <div className="text-xs font-mono font-medium text-blue-400 tabular-nums text-center w-full">
+                    <div className="text-xs font-mono font-medium text-accent tabular-nums text-center w-full">
                       {val}
                     </div>
 
@@ -516,13 +516,13 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
                     </button>
 
                     {/* Channel offset */}
-                    <div className="text-[9px] font-mono text-slate-600 text-center">
+                    <div className="text-[9px] font-mono text-fg-subtle text-center">
                       Ch {ch.offset}
                     </div>
 
                     {/* Channel label */}
                     <div
-                      className="text-[9px] text-slate-400 text-center leading-tight"
+                      className="text-[9px] text-fg-muted text-center leading-tight"
                       style={{ maxWidth: 44, overflowWrap: 'break-word' }}
                     >
                       {label}
@@ -536,9 +536,9 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
 
         {/* Footer — fixture list when multi-selected */}
         {fixtures.length > 1 && (
-          <div className="px-5 py-2 border-t border-slate-800 shrink-0 flex flex-wrap gap-1.5">
+          <div className="px-5 py-2 border-t border-edge shrink-0 flex flex-wrap gap-1.5">
             {fixtures.map((f) => (
-              <span key={f.id} className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">
+              <span key={f.id} className="text-[10px] bg-surface-1 text-fg-muted px-2 py-0.5 rounded-full">
                 {f.name}
               </span>
             ))}

@@ -54,6 +54,9 @@ db_mod.DeviceProvisionDB = _make_stub_class("DeviceProvisionDB", [
 db_mod.StreamTypeDB = _make_stub_class("StreamTypeDB", [
     "id", "name", "display_name", "description", "icon",
     "default_config", "stream_type_metadata", "created_at", "updated_at"])
+db_mod.OscMappingDB = _make_stub_class("OscMappingDB", [
+    "id", "osc_address", "entity_slug", "state_key", "state_keys",
+    "operation", "enabled", "description", "created_at", "updated_at"])
 sys.modules["database"] = db_mod
 
 # state_manager.py
@@ -71,11 +74,18 @@ stm_mod.stream_manager = type("STM", (), {
 })()
 sys.modules["stream_manager"] = stm_mod
 
-# redis_client.py
+# redis_client.py — stub every public helper so routers/state_manager can
+# import by name without a live Redis. Keep in sync with redis_client.py's
+# module-level functions.
 rc_mod = types.ModuleType("redis_client")
 rc_mod.init_redis = None
 rc_mod.close_redis = None
 rc_mod.get_redis = lambda: None
+rc_mod.cache_entity_state = None
+rc_mod.get_cached_entity_state = None
+rc_mod.invalidate_entity_state_cache = None
+rc_mod.cache_entity_metadata = None
+rc_mod.get_cached_entity_metadata = None
 sys.modules["redis_client"] = rc_mod
 
 # cloud_manager.py — depends on httpx and redis.asyncio

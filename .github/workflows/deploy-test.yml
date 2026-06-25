@@ -73,6 +73,18 @@ jobs:
             sleep 5
           done
 
+          # Check dashboard — it runs `next dev`, which boots and then
+          # compiles the page on first request, so it lags the API.
+          echo "Checking Dashboard..."
+          for i in {1..24}; do
+            if curl -s -o /dev/null http://localhost:3001; then
+              echo "Dashboard is responding"
+              break
+            fi
+            echo "Waiting for Dashboard... ($i/24)"
+            sleep 5
+          done
+
       - name: Show container status on failure
         if: failure()
         run: |
@@ -87,9 +99,10 @@ jobs:
 
       - name: Run smoke tests
         run: |
-          # Basic health checks
+          # Basic health checks. Retry the dashboard on connection errors —
+          # next dev can still be compiling the first request.
           curl -f http://localhost:8080/health || exit 1
-          curl -f http://localhost:3001 || exit 1
+          curl -f --retry 12 --retry-delay 5 --retry-all-errors http://localhost:3001 || exit 1
           echo "Smoke tests passed!"
 
       - name: Cleanup old images

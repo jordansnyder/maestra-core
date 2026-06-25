@@ -116,7 +116,7 @@ export default function StreamDetailPage() {
               <StreamIcon className="w-6 h-6 text-purple-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">{stream.name}</h1>
+              <h1 className="text-2xl font-bold tracking-display">{stream.name}</h1>
               <div className="flex items-center gap-3 mt-2">
                 <span className="text-sm px-2 py-0.5 bg-surface-2 rounded">
                   {getTypeDisplayName(stream.stream_type)}

@@ -476,7 +476,7 @@ export default function DMXPage() {
           <div className="w-16 h-16 rounded-full bg-amber-900/30 border border-amber-800/50 flex items-center justify-center">
             <Zap className="w-7 h-7 text-amber-400" />
           </div>
-          <h1 className="text-xl font-semibold text-fg">Set Up DMX Lighting</h1>
+          <h1 className="text-xl font-semibold tracking-display text-fg">Set Up DMX Lighting</h1>
           <p className="text-fg-muted text-sm max-w-md">
             Configure an Art-Net node (hardware DMX converter) to get started. Maestra will send DMX universe data
             to this device over your local network.

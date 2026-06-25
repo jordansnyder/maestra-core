@@ -172,7 +172,7 @@ export default function DevicesPage() {
         <header className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold">Devices</h1>
+              <h1 className="text-2xl font-bold tracking-display">Devices</h1>
               <p className="text-sm text-fg-muted mt-1">Register, discover, and manage fleet devices</p>
             </div>
             <button

@@ -291,7 +291,7 @@ export default function EntityDetailPage() {
               </div>
               <div>
                 <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold">{entity.name}</h1>
+                  <h1 className="text-2xl font-bold tracking-display">{entity.name}</h1>
                   {isDmxLinked && (
                     <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-900/40 border border-amber-800/50 text-amber-400 text-xs font-medium">
                       <Zap className="w-3 h-3" />

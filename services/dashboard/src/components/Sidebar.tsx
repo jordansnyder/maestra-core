@@ -131,10 +131,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               key={item.href}
               href={item.href}
               onClick={onClose}
-              className={`flex items-center gap-3 px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-3 px-3 py-2 text-sm font-medium border-l-2 transition-colors ${
                 isActive
-                  ? 'bg-surface-2 text-fg'
-                  : 'text-fg-muted hover:text-fg hover:bg-surface-1'
+                  ? 'bg-surface-2 text-fg border-accent'
+                  : 'text-fg-muted hover:text-fg hover:bg-surface-1 border-transparent'
               }`}
             >
               <Icon className="w-4 h-4" />

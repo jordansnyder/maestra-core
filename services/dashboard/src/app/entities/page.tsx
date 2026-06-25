@@ -95,7 +95,7 @@ export default function EntitiesPage() {
         <header className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold">Entities</h1>
+              <h1 className="text-2xl font-bold tracking-display">Entities</h1>
               <p className="text-sm text-fg-muted mt-1">Manage spaces, rooms, installations, and devices</p>
             </div>
             <button

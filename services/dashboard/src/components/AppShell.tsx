@@ -101,7 +101,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto bg-grid-dots bg-grid-24">
           {children}
         </main>
       </div>

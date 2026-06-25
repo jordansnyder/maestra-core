@@ -132,7 +132,7 @@ export default function ShowControlPage() {
         <header className="mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold">Show Control</h1>
+              <h1 className="text-2xl font-bold tracking-display">Show Control</h1>
               <p className="text-sm text-fg-muted mt-1">System-wide show lifecycle management</p>
             </div>
             <button onClick={fetchState} className="p-2 text-fg-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors">

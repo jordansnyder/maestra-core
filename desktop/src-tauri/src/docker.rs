@@ -713,6 +713,14 @@ fn chrono_now() -> String {
 // ─── Database Migrations ────────────────────────────────────────────────────
 
 /// Run a SQL command against the database via docker compose exec.
+/// Escape a value for safe inclusion inside a single-quoted SQL string literal.
+/// Postgres escapes a literal single quote by doubling it. Migration versions and
+/// filenames are derived from controlled filenames, but escaping makes the
+/// migration runner airtight against any quote characters slipping in.
+fn sql_quote(value: &str) -> String {
+    value.replace('\'', "''")
+}
+
 async fn psql_exec(project_dir: &PathBuf, sql: &str) -> Result<String, String> {
     let mut args = compose_args(project_dir, None);
     args.extend([
@@ -862,7 +870,7 @@ pub async fn run_migrations(app: AppHandle) -> Result<String, String> {
 
         // Check if already applied
         let count = psql_exec(&project_dir,
-            &format!("SELECT COUNT(*) FROM schema_migrations WHERE version = '{}'", version)
+            &format!("SELECT COUNT(*) FROM schema_migrations WHERE version = '{}'", sql_quote(&version))
         ).await.unwrap_or_else(|_| "0".to_string());
 
         if count.trim() != "0" {
@@ -879,7 +887,7 @@ pub async fn run_migrations(app: AppHandle) -> Result<String, String> {
 
         // Record it
         psql_exec(&project_dir,
-            &format!("INSERT INTO schema_migrations (version, filename) VALUES ('{}', '{}')", version, filename)
+            &format!("INSERT INTO schema_migrations (version, filename) VALUES ('{}', '{}')", sql_quote(&version), sql_quote(&filename))
         ).await.map_err(|e| format!("Failed to record migration {}: {}", filename, e))?;
 
         applied += 1;
@@ -897,6 +905,15 @@ pub async fn run_migrations(app: AppHandle) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sql_quote_escapes_single_quotes() {
+        assert_eq!(sql_quote("001"), "001");
+        assert_eq!(sql_quote("o'brien"), "o''brien");
+        assert_eq!(sql_quote("a'b'c"), "a''b''c");
+        assert_eq!(sql_quote("'; DROP TABLE x; --"), "''; DROP TABLE x; --");
+        assert_eq!(sql_quote(""), "");
+    }
 
     #[test]
     fn classify_pull_error_manifest_unknown() {

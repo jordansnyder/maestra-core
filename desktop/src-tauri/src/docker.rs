@@ -328,16 +328,28 @@ pub async fn start_services(app: AppHandle, profile: String) -> Result<(), Docke
         Some(profile.as_str())
     };
 
-    // Pre-flight: check if images are present
+    // Pre-flight: always pull so `:latest` images stay current. The services
+    // are published to GHCR as `:latest`, and Docker will not re-pull a tag it
+    // already has locally — so only pulling when images are *missing* (the old
+    // behavior) left users stuck on stale cached images forever. `docker compose
+    // pull` only downloads layers that actually changed, so this is cheap when
+    // already up to date.
+    //
+    // Offline-safe: if the pull fails but every image is already present
+    // locally, fall back to the cached images instead of blocking startup. When
+    // images are missing we still hard-fail (we can't start without them). To
+    // keep offline startup fast, only retry when we actually need the images.
     let image_status = crate::setup::check_images_present_inner(&app, &profile).await;
-    if let Ok(ref status) = image_status {
-        if !status.all_present && !status.missing.is_empty() {
-            // Auto-pull missing images before starting
-            let _ = app.emit("start-progress", "Downloading missing services...");
-            let pull_result = pull_images_inner(&app, &profile, 5).await;
-            if let Err(e) = pull_result {
-                return Err(e);
-            }
+    let all_present = image_status.as_ref().map(|s| s.all_present).unwrap_or(false);
+
+    let pull_attempts = if all_present { 1 } else { 5 };
+    let _ = app.emit("start-progress", "Checking for service updates...");
+    if let Err(e) = pull_images_inner(&app, &profile, pull_attempts).await {
+        if all_present {
+            // Registry unreachable (e.g. offline) but we can run on what we have.
+            let _ = app.emit("start-progress", "Using cached images (couldn't reach registry).");
+        } else {
+            return Err(e);
         }
     }
 

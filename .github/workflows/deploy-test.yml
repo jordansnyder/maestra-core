@@ -1,9 +1,14 @@
 name: Deploy to Test Environment
 
+# Suspended from automatic runs. This job stands up the full stack and runs a
+# production dashboard build (`npm run build`) at container startup, which is
+# resource-heavy and unreliable on the shared GitHub runner (the build doesn't
+# finish within the readiness window under full-stack load). It has been red for
+# a long time and gives a false signal on every develop push. Run it manually
+# from the Actions tab against a suitable test environment when needed; re-enable
+# the push trigger once it has a dedicated runner.
 on:
-  push:
-    branches:
-      - develop
+  workflow_dispatch:
 
 env:
   COMPOSE_PROJECT_NAME: maestra-test

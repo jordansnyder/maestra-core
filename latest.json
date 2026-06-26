@@ -1,0 +1,51 @@
+{
+  "version": "0.2.2",
+  "notes": "Download the installer for your platform:\n- **macOS (Apple Silicon)**: `.dmg` file (aarch64)\n- **macOS (Intel)**: `.dmg` file (x86_64)\n- **Windows**: `.msi` installer\n- **Linux**: `.AppImage` or `.deb` package",
+  "pub_date": "2026-06-26T13:45:21.434Z",
+  "platforms": {
+    "darwin-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRelhMYkdaZGwvN1lEbEkrTHFJR0NCYUpOL0Q2di9OYzY2OUZ0K3hmRVMydVhlWlFCcjRXTkpuZUptYk1ySVBqNnVid1ZzNktLWEwvQXVpa1pPejVQRytkSmI0TXJwS3dJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDgxMjk1CWZpbGU6TWFlc3RyYS5hcHAudGFyLmd6Cm1pMm5JQldNbFF2Z2dvbVZxeEIwb0ZFL0FlTFUxRktlZmZKMlVieVJwZzhaTkpaRGlnUHhUZW1RQzduSmV2eXd2UWJxRXIwcFdXWW1iM1orUVZydUFBPT0K",
+      "url": "https://github.com/jordansnyder/maestra-core/releases/download/desktop%2Fv0.2.2/Maestra_x64.app.tar.gz"
+    },
+    "darwin-x86_64-app": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRelhMYkdaZGwvN1lEbEkrTHFJR0NCYUpOL0Q2di9OYzY2OUZ0K3hmRVMydVhlWlFCcjRXTkpuZUptYk1ySVBqNnVid1ZzNktLWEwvQXVpa1pPejVQRytkSmI0TXJwS3dJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDgxMjk1CWZpbGU6TWFlc3RyYS5hcHAudGFyLmd6Cm1pMm5JQldNbFF2Z2dvbVZxeEIwb0ZFL0FlTFUxRktlZmZKMlVieVJwZzhaTkpaRGlnUHhUZW1RQzduSmV2eXd2UWJxRXIwcFdXWW1iM1orUVZydUFBPT0K",
+      "url": "https://github.com/jordansnyder/maestra-core/releases/download/desktop%2Fv0.2.2/Maestra_x64.app.tar.gz"
+    },
+    "darwin-aarch64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRelhMYkdaZGwvN2RJYXVPWDIyODdpLzNZMHBybWNZMVBBQnQzaFd5ZnVTSXBjeWVHcEp6MXN4SSsxRUFrekt4TWxjU0RiS2pYVVV1SWIxN25OMFNQcDlDZkZqOEpsc2c4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDgxNDAxCWZpbGU6TWFlc3RyYS5hcHAudGFyLmd6CmVoT3Jzb1FFdVAyZnRFOEhvKzM2TXJyTkFIYUtkWlRnSDBtSEJDeGV5cjVtVWgrUm5lZVJjZlpGZzUyczVTbTVFUEhxV0J2VStidzN4dlRQYnhLOEN3PT0K",
+      "url": "https://github.com/jordansnyder/maestra-core/releases/download/desktop%2Fv0.2.2/Maestra_aarch64.app.tar.gz"
+    },
+    "darwin-aarch64-app": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRelhMYkdaZGwvN2RJYXVPWDIyODdpLzNZMHBybWNZMVBBQnQzaFd5ZnVTSXBjeWVHcEp6MXN4SSsxRUFrekt4TWxjU0RiS2pYVVV1SWIxN25OMFNQcDlDZkZqOEpsc2c4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDgxNDAxCWZpbGU6TWFlc3RyYS5hcHAudGFyLmd6CmVoT3Jzb1FFdVAyZnRFOEhvKzM2TXJyTkFIYUtkWlRnSDBtSEJDeGV5cjVtVWgrUm5lZVJjZlpGZzUyczVTbTVFUEhxV0J2VStidzN4dlRQYnhLOEN3PT0K",
+      "url": "https://github.com/jordansnyder/maestra-core/releases/download/desktop%2Fv0.2.2/Maestra_aarch64.app.tar.gz"
+    },
+    "linux-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRelhMYkdaZGwvN1pmQWVXb2x4VDFzbWFCL2hLaU5Qbkp5MEc0bmFFRlN0TG1aM0FXelBKdE5kTjNhWjJiMXU0K0hZUUo3RStJYjRjQ29ZUlU4ai9jdmtRTEhvRWlJQkFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDgxNDA3CWZpbGU6TWFlc3RyYV8wLjIuMl9hbWQ2NC5BcHBJbWFnZQpKNlV5K0xwYnh0dmMzY0NxMXdKclVhSW1mMWRXakY0eCtaZHRGRDdqL0Q2K2c4anVyYlVFVDFoL3hrdjJ0Q1BYSkpFSFc0UW5MYVIvM1NzRG9HZlVDdz09Cg==",
+      "url": "https://github.com/jordansnyder/maestra-core/releases/download/desktop%2Fv0.2.2/Maestra_0.2.2_amd64.AppImage"
+    },
+    "linux-x86_64-appimage": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRelhMYkdaZGwvN1pmQWVXb2x4VDFzbWFCL2hLaU5Qbkp5MEc0bmFFRlN0TG1aM0FXelBKdE5kTjNhWjJiMXU0K0hZUUo3RStJYjRjQ29ZUlU4ai9jdmtRTEhvRWlJQkFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDgxNDA3CWZpbGU6TWFlc3RyYV8wLjIuMl9hbWQ2NC5BcHBJbWFnZQpKNlV5K0xwYnh0dmMzY0NxMXdKclVhSW1mMWRXakY0eCtaZHRGRDdqL0Q2K2c4anVyYlVFVDFoL3hrdjJ0Q1BYSkpFSFc0UW5MYVIvM1NzRG9HZlVDdz09Cg==",
+      "url": "https://github.com/jordansnyder/maestra-core/releases/download/desktop%2Fv0.2.2/Maestra_0.2.2_amd64.AppImage"
+    },
+    "linux-x86_64-deb": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRelhMYkdaZGwvN1FhMGN4SEhoTVF5ZVNZTFh6SEVMQnRxS2JKMmlUbjJaM1FiNEVZeTJtSUZScDcyaUMvUTFzbk11WGhxSkxYbU9QM3d3b3cxcEpXeTNvNkpFeStSL0F3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDgxNDA3CWZpbGU6TWFlc3RyYV8wLjIuMl9hbWQ2NC5kZWIKTlc0c2tqdG9TaWwwTEZ1RXNXbGFRMUFUbkNFdFIzWFR1eW5Mc0hWOVA4c0FCQjJhZ0ZCMWlQdkhPUzZwUkF3cEUvQUtaRkFSNnFLUUxVa2Y3b2ZBQnc9PQo=",
+      "url": "https://github.com/jordansnyder/maestra-core/releases/download/desktop%2Fv0.2.2/Maestra_0.2.2_amd64.deb"
+    },
+    "linux-x86_64-rpm": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRelhMYkdaZGwvN1hNRGwzUDVqaElhSWYyNnVRWWprcEdocEg0cVFLd1ZKMmEvZ0xwMWk3M1pkVmZneWFzclVDSHA0aG9ZWVRxTDZrN21uUGNTa3hUWnlrU3d3VUNWZWdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDgxNDA3CWZpbGU6TWFlc3RyYS0wLjIuMi0xLng4Nl82NC5ycG0Kd3IxcCsrNUIyQTJvUThaK3R4RGd3dHlwSldwMWp0c01VdVNBek92bk1zdUJKK2g0Z2tBUkptTEM2dnBmMzJoYVFjVnc3WGkzRG9wM2JGTXcyak90QkE9PQo=",
+      "url": "https://github.com/jordansnyder/maestra-core/releases/download/desktop%2Fv0.2.2/Maestra-0.2.2-1.x86_64.rpm"
+    },
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRelhMYkdaZGwvN2JLSHBmZ3diOXhUK21ocTYxMm5WR1kxWHVWNDFyU0pvUUFERFduTXVGL3NxWWFURWFicHJHTTdaRjJrS0FIZGc2Wlo5VHRHc01WRElzbEc0dU44T1FnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDgxNTE4CWZpbGU6TWFlc3RyYV8wLjIuMl94NjRfZW4tVVMubXNpCis2TDJYdDREMWZaVzJPNUIxa3JTa3VxQ0ppSDFsWmt3N1FiWmMwQ0h3UkxHbkxNTitKT1A3YlZpcmZSRkdDbGl1V1p5bkNFcWZTekdsRkpqVktpdkFnPT0K",
+      "url": "https://github.com/jordansnyder/maestra-core/releases/download/desktop%2Fv0.2.2/Maestra_0.2.2_x64_en-US.msi"
+    },
+    "windows-x86_64-msi": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRelhMYkdaZGwvN2JLSHBmZ3diOXhUK21ocTYxMm5WR1kxWHVWNDFyU0pvUUFERFduTXVGL3NxWWFURWFicHJHTTdaRjJrS0FIZGc2Wlo5VHRHc01WRElzbEc0dU44T1FnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDgxNTE4CWZpbGU6TWFlc3RyYV8wLjIuMl94NjRfZW4tVVMubXNpCis2TDJYdDREMWZaVzJPNUIxa3JTa3VxQ0ppSDFsWmt3N1FiWmMwQ0h3UkxHbkxNTitKT1A3YlZpcmZSRkdDbGl1V1p5bkNFcWZTekdsRkpqVktpdkFnPT0K",
+      "url": "https://github.com/jordansnyder/maestra-core/releases/download/desktop%2Fv0.2.2/Maestra_0.2.2_x64_en-US.msi"
+    },
+    "windows-x86_64-nsis": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRelhMYkdaZGwvN2J5KzFPU1FVZi9mbWxhbG9QektabDE2MWc5SUN2MGRrK1BRZnNuWFBtZWNLOXBtYkVqbkJ1b0NmWHFtN0t3dkZQY3pSVkx5TExPT1R3VEd6cVp5NkFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDgxNTE4CWZpbGU6TWFlc3RyYV8wLjIuMl94NjQtc2V0dXAuZXhlCjN2SWxQU2R0YUltWDNES2JPdDhXOFpYbjJnUWFadktPK0xwYzhqdFQ3NysweGhsQklqSnU5dk92NzRCMUIzeERMTkVkT2V1THRsSXNPb280czV5YkRRPT0K",
+      "url": "https://github.com/jordansnyder/maestra-core/releases/download/desktop%2Fv0.2.2/Maestra_0.2.2_x64-setup.exe"
+    }
+  }
+}

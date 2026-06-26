@@ -15,10 +15,24 @@ export interface ActivityItem {
 
 let idCounter = 0
 
+/** Loosely-typed view of a WebSocket message payload (dynamic JSON). */
+interface ActivityData {
+  message?: string
+  entity_slug?: string
+  slug?: string
+  changed_keys?: string[]
+  device_name?: string
+  name?: string
+  severity?: string
+  site_slug?: string
+  from?: string
+  to?: string
+}
+
 function parseMessage(msg: WebSocketMessage): ActivityItem | null {
   const timestamp = new Date(msg.timestamp || Date.now())
   const subject = msg.subject || ''
-  const data = msg.data || {}
+  const data = (msg.data || {}) as ActivityData
 
   // Welcome / connection messages
   if (msg.type === 'welcome') {

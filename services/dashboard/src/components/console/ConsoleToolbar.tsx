@@ -177,9 +177,7 @@ export function ConsoleToolbar({ isFullscreen = false, onToggleFullscreen }: Con
             </button>
             <button
               onClick={() => setMode('ambient')}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                mode === 'ambient' ? 'bg-purple-600 text-fg' : 'text-fg-muted hover:text-fg'
-              }`}
+              className="px-3 py-1 text-xs font-medium rounded-md transition-colors text-fg-muted hover:text-fg"
             >
               Ambient
             </button>

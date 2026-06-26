@@ -180,7 +180,7 @@ export function DMXGatewaySettings() {
                             style={{ background: u.color ?? '#64748b' }}
                           />
                           U{u.id}
-                          {u.label ? ` · ${u.label}` : ''}
+                          {u.port_label ? ` · ${u.port_label}` : ''}
                         </span>
                       ))}
                     </div>

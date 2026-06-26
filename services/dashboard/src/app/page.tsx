@@ -122,6 +122,7 @@ const CATEGORY_COLORS: Record<ActivityCategory, string> = {
   entity: 'border-accent',
   route: 'border-purple-600',
   system: 'border-edge-strong',
+  cloud: 'border-info',
 }
 
 function formatRelativeTime(date: Date): string {

@@ -263,7 +263,7 @@ export default function ShowControlPage() {
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-yellow-500" />
-                    {devices.filter(d => d.status === 'stale' || d.status === 'checking').length} warning
+                    {devices.filter(d => d.status === 'maintenance' || d.status === 'pending').length} warning
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-red-500" />

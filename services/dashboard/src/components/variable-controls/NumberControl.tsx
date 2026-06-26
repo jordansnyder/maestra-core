@@ -49,7 +49,7 @@ export function NumberControl({ variable, value, onChange, disabled, compact }: 
         <button
           onClick={decrement}
           disabled={disabled || (min !== undefined && numValue <= min)}
-          className="w-6 h-6 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded text-xs font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+          className="w-6 h-6 flex items-center justify-center bg-surface-2 hover:bg-surface-2 rounded text-xs font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
         >
           -
         </button>
@@ -64,16 +64,16 @@ export function NumberControl({ variable, value, onChange, disabled, compact }: 
           onBlur={commit}
           onKeyDown={handleKeyDown}
           disabled={disabled}
-          className="w-20 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs font-mono text-center focus:outline-none focus:border-blue-500 disabled:opacity-50"
+          className="w-20 px-2 py-1 bg-surface-0 border border-edge rounded text-xs font-mono text-center focus:outline-none focus:border-accent disabled:opacity-50"
         />
         <button
           onClick={increment}
           disabled={disabled || (max !== undefined && numValue >= max)}
-          className="w-6 h-6 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded text-xs font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+          className="w-6 h-6 flex items-center justify-center bg-surface-2 hover:bg-surface-2 rounded text-xs font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
         >
           +
         </button>
-        {unit && <span className="text-slate-500 text-xs ml-1">{unit}</span>}
+        {unit && <span className="text-fg-subtle text-xs ml-1">{unit}</span>}
       </div>
     )
   }
@@ -93,7 +93,7 @@ export function NumberControl({ variable, value, onChange, disabled, compact }: 
       <button
         onClick={decrement}
         disabled={disabled || (min !== undefined && numValue <= min)}
-        className="w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-lg text-xl font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-10 h-10 bg-surface-2 hover:bg-surface-2 rounded-lg text-xl font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         -
       </button>
@@ -105,16 +105,16 @@ export function NumberControl({ variable, value, onChange, disabled, compact }: 
         onBlur={commit}
         onKeyDown={handleKeyDown}
         disabled={disabled}
-        className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-center font-mono text-lg focus:outline-none focus:border-blue-500 disabled:opacity-50"
+        className="flex-1 px-3 py-2 bg-surface-0 border border-edge rounded-lg text-center font-mono text-lg focus:outline-none focus:border-accent disabled:opacity-50"
       />
       <button
         onClick={increment}
         disabled={disabled || (max !== undefined && numValue >= max)}
-        className="w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-lg text-xl font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-10 h-10 bg-surface-2 hover:bg-surface-2 rounded-lg text-xl font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         +
       </button>
-      {unit && <span className="text-slate-400 ml-1">{unit}</span>}
+      {unit && <span className="text-fg-muted ml-1">{unit}</span>}
     </div>
   )
 }

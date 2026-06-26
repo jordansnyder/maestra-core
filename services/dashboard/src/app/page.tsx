@@ -23,14 +23,14 @@ export default function Home() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Dashboard</h1>
-            <p className="text-sm text-slate-400 mt-0.5">Mission control</p>
+            <h1 className="text-2xl font-bold tracking-display">Dashboard</h1>
+            <p className="text-sm text-fg-muted mt-0.5">Mission control</p>
           </div>
 
           {/* Mobile-only: toggle to Live Activity view */}
           <button
             onClick={() => setMobileView('activity')}
-            className="md:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 border border-slate-700 text-slate-400 hover:text-blue-400 hover:border-blue-500/30 transition-colors"
+            className="md:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-1 border border-edge text-fg-muted hover:text-accent hover:border-accent/30 transition-colors"
           >
             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
             <Activity className="w-3.5 h-3.5" />
@@ -65,7 +65,7 @@ export default function Home() {
             <Link
               key={href}
               href={href}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-400 hover:text-blue-400 hover:border-blue-500/30 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-1 border border-edge rounded-lg text-xs text-fg-muted hover:text-accent hover:border-accent/30 transition-colors"
             >
               <Icon className="w-3 h-3" />
               {label}
@@ -77,21 +77,21 @@ export default function Home() {
       {/* ── Live Activity feed ─────────────────────────────────────────── */}
       {/* Desktop: fixed right sidebar. Mobile: full-width when toggled. */}
       <div className={`
-        border-l border-slate-800 bg-slate-900/50 overflow-auto shrink-0
+        border-l border-edge bg-surface-0/50 overflow-auto shrink-0
         md:w-80 md:flex md:flex-col
         ${mobileView === 'activity' ? 'flex flex-col flex-1' : 'hidden'}
       `}>
         <div className="flex items-center justify-between px-4 pt-4 pb-3 shrink-0">
-          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          <h2 className="text-xs font-semibold text-fg-subtle uppercase tracking-wider">
             Live Activity
           </h2>
           <div className="flex items-center gap-2">
             <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
-            <span className="text-[10px] text-slate-600">{isConnected ? 'Live' : 'Offline'}</span>
+            <span className="text-[10px] text-fg-subtle">{isConnected ? 'Live' : 'Offline'}</span>
             {/* Mobile-only: close back to dashboard */}
             <button
               onClick={() => setMobileView('dashboard')}
-              className="md:hidden ml-1 text-slate-500 hover:text-slate-300 transition-colors p-0.5"
+              className="md:hidden ml-1 text-fg-subtle hover:text-fg transition-colors p-0.5"
               aria-label="Back to dashboard"
             >
               <X className="w-4 h-4" />
@@ -101,7 +101,7 @@ export default function Home() {
 
         <div className="flex-1 overflow-auto px-4 pb-4">
           {activityItems.length === 0 && (
-            <p className="text-xs text-slate-600 text-center py-8">
+            <p className="text-xs text-fg-subtle text-center py-8">
               {isConnected ? 'Waiting for events...' : 'Connecting to message bus...'}
             </p>
           )}
@@ -119,9 +119,10 @@ export default function Home() {
 
 const CATEGORY_COLORS: Record<ActivityCategory, string> = {
   device: 'border-green-600',
-  entity: 'border-blue-600',
+  entity: 'border-accent',
   route: 'border-purple-600',
-  system: 'border-slate-600',
+  system: 'border-edge-strong',
+  cloud: 'border-info',
 }
 
 function formatRelativeTime(date: Date): string {
@@ -137,12 +138,12 @@ function formatRelativeTime(date: Date): string {
 function ActivityRow({ item }: { item: ActivityItem }) {
   return (
     <div className={`flex gap-3 py-2 border-l-2 pl-3 ${CATEGORY_COLORS[item.category]}`}>
-      <span className="text-[10px] text-slate-600 w-8 shrink-0 text-right tabular-nums">
+      <span className="text-[10px] text-fg-subtle w-8 shrink-0 text-right tabular-nums">
         {formatRelativeTime(item.timestamp)}
       </span>
       <div className="min-w-0">
-        <p className="text-xs text-slate-300 truncate">{item.title}</p>
-        <p className="text-[10px] text-slate-500 truncate">{item.detail}</p>
+        <p className="text-xs text-fg truncate">{item.title}</p>
+        <p className="text-[10px] text-fg-subtle truncate">{item.detail}</p>
       </div>
     </div>
   )

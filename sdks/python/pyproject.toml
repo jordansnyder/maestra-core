@@ -46,12 +46,13 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/maestra/maestra-core"
-Documentation = "https://maestra.dev/docs/sdk/python"
-Repository = "https://github.com/maestra/maestra-core"
+Homepage = "https://github.com/jordansnyder/maestra-core"
+Documentation = "https://maestra.cc/docs"
+Repository = "https://github.com/jordansnyder/maestra-core"
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["maestra*"]
 
 [tool.black]
 line-length = 100
@@ -61,3 +62,7 @@ target-version = ['py39', 'py310', 'py311', 'py312']
 python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

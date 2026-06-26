@@ -18,22 +18,22 @@ export function StreamMonitor() {
   const { streams, sessions, streamTypes, loading, error, refresh, stopSession } = useStreams()
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-white">
+    <div className="flex flex-col h-full bg-surface-0 text-fg">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 bg-slate-900/50">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-edge bg-surface-0/50">
         <div className="flex items-center gap-4">
           <h1 className="text-lg font-semibold tracking-tight">Streams</h1>
 
           {/* Tabs */}
-          <div className="flex items-center gap-1 bg-slate-800/50 rounded-lg p-0.5">
+          <div className="flex items-center gap-1 bg-surface-1/50 rounded-lg p-0.5">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                   tab === t.id
-                    ? 'bg-slate-700 text-white'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-surface-2 text-fg'
+                    : 'text-fg-muted hover:text-fg'
                 }`}
               >
                 {t.label}
@@ -54,14 +54,14 @@ export function StreamMonitor() {
 
         <div className="flex items-center gap-3">
           {/* Live indicator */}
-          <div className="flex items-center gap-2 text-xs text-slate-500">
+          <div className="flex items-center gap-2 text-xs text-fg-subtle">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             Auto-refresh 3s
           </div>
 
           <button
             onClick={refresh}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+            className="p-1.5 text-fg-muted hover:text-fg rounded-lg hover:bg-surface-1 transition-colors"
             title="Refresh"
           >
             <RefreshCw className="w-4 h-4" />
@@ -79,7 +79,7 @@ export function StreamMonitor() {
       {/* Content */}
       <div className="flex-1 overflow-auto p-5">
         {loading ? (
-          <div className="flex items-center justify-center h-full text-slate-500">
+          <div className="flex items-center justify-center h-full text-fg-subtle">
             Loading stream registry...
           </div>
         ) : tab === 'registry' ? (

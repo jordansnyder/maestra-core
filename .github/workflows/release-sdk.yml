@@ -13,7 +13,10 @@ on:
           - arduino
           - unity
           - unreal
+          - processing
+          - maxmsp
           - touchdesigner
+          - openframeworks
           - all
       version:
         description: 'Version (semver, e.g., 0.2.0)'
@@ -85,7 +88,10 @@ jobs:
             create_tag arduino
             create_tag unity
             create_tag unreal
+            create_tag processing
+            create_tag maxmsp
             create_tag touchdesigner
+            create_tag openframeworks
           else
             create_tag "${{ inputs.sdk }}"
           fi
@@ -112,7 +118,10 @@ jobs:
             echo "- \`arduino/v${{ inputs.version }}\` → PlatformIO" >> "$GITHUB_STEP_SUMMARY"
             echo "- \`unity/v${{ inputs.version }}\` → OpenUPM" >> "$GITHUB_STEP_SUMMARY"
             echo "- \`unreal/v${{ inputs.version }}\` → GitHub Release" >> "$GITHUB_STEP_SUMMARY"
+            echo "- \`processing/v${{ inputs.version }}\` → GitHub Release" >> "$GITHUB_STEP_SUMMARY"
+            echo "- \`maxmsp/v${{ inputs.version }}\` → GitHub Release" >> "$GITHUB_STEP_SUMMARY"
             echo "- \`touchdesigner/v${{ inputs.version }}\` → GitHub Release" >> "$GITHUB_STEP_SUMMARY"
+            echo "- \`openframeworks/v${{ inputs.version }}\` → GitHub Release" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Tag created: \`${{ inputs.sdk }}/v${{ inputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
           fi

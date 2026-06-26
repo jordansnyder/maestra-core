@@ -55,21 +55,21 @@ export function ConnectionPreview({ stream }: ConnectionPreviewProps) {
   }
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div className="bg-surface-0 border border-edge rounded-xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-        <h3 className="text-sm font-medium text-white">Connection Info</h3>
-        <span className="px-2 py-0.5 text-[10px] font-medium bg-blue-500/20 text-blue-300 rounded-full uppercase">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-edge">
+        <h3 className="text-sm font-medium text-fg">Connection Info</h3>
+        <span className="px-2 py-0.5 text-[10px] font-medium bg-accent/20 text-accent rounded-full uppercase">
           {stream.protocol}
         </span>
       </div>
 
       <div className="p-5 space-y-5">
         {/* Notice */}
-        <div className="flex items-start gap-3 p-3 bg-slate-800/50 rounded-lg">
+        <div className="flex items-start gap-3 p-3 bg-surface-1/50 rounded-lg">
           <span className="text-lg">&#9432;</span>
-          <div className="text-xs text-slate-400 space-y-1">
-            <p className="text-slate-300 font-medium">
+          <div className="text-xs text-fg-muted space-y-1">
+            <p className="text-fg font-medium">
               Live preview is not available for {stream.stream_type.toUpperCase()} streams
             </p>
             <p>{guide.instructions}</p>
@@ -78,7 +78,7 @@ export function ConnectionPreview({ stream }: ConnectionPreviewProps) {
 
         {/* Connection details */}
         <div className="space-y-3">
-          <div className="text-xs text-slate-500 uppercase tracking-wider">Connection Details</div>
+          <div className="text-xs text-fg-subtle uppercase tracking-wider">Connection Details</div>
 
           <div className="space-y-2">
             <InfoRow label="Protocol" value={stream.protocol.toUpperCase()} />
@@ -93,14 +93,14 @@ export function ConnectionPreview({ stream }: ConnectionPreviewProps) {
         {/* Connection string */}
         {connectionString && (
           <div className="space-y-2">
-            <div className="text-xs text-slate-500 uppercase tracking-wider">Connection String</div>
-            <div className="flex items-center gap-2 p-3 bg-slate-950 rounded-lg">
+            <div className="text-xs text-fg-subtle uppercase tracking-wider">Connection String</div>
+            <div className="flex items-center gap-2 p-3 bg-surface-0 rounded-lg">
               <code className="flex-1 text-xs text-cyan-300 font-mono break-all">
                 {connectionString}
               </code>
               <button
                 onClick={() => handleCopy(connectionString, 'connection')}
-                className="flex-shrink-0 px-2 py-1 text-[10px] font-medium rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors"
+                className="flex-shrink-0 px-2 py-1 text-[10px] font-medium rounded bg-surface-1 text-fg hover:bg-surface-2 transition-colors"
               >
                 {copied === 'connection' ? 'Copied!' : 'Copy'}
               </button>
@@ -110,19 +110,19 @@ export function ConnectionPreview({ stream }: ConnectionPreviewProps) {
 
         {/* Recommended tool */}
         <div className="space-y-2">
-          <div className="text-xs text-slate-500 uppercase tracking-wider">Recommended Tool</div>
-          <div className="text-sm text-slate-300">{guide.tool}</div>
+          <div className="text-xs text-fg-subtle uppercase tracking-wider">Recommended Tool</div>
+          <div className="text-sm text-fg">{guide.tool}</div>
         </div>
 
         {/* Stream config */}
         {Object.keys(stream.config).length > 0 && (
           <div className="space-y-2">
-            <div className="text-xs text-slate-500 uppercase tracking-wider">Stream Config</div>
+            <div className="text-xs text-fg-subtle uppercase tracking-wider">Stream Config</div>
             <div className="flex flex-wrap gap-1.5">
               {Object.entries(stream.config).map(([key, val]) => (
                 <span
                   key={key}
-                  className="px-2 py-0.5 text-[10px] bg-slate-800 text-slate-400 rounded font-mono"
+                  className="px-2 py-0.5 text-[10px] bg-surface-1 text-fg-muted rounded font-mono"
                 >
                   {key}: {String(val)}
                 </span>
@@ -138,8 +138,8 @@ export function ConnectionPreview({ stream }: ConnectionPreviewProps) {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-xs text-slate-500">{label}</span>
-      <span className="text-xs text-slate-300 font-mono">{value}</span>
+      <span className="text-xs text-fg-subtle">{label}</span>
+      <span className="text-xs text-fg font-mono">{value}</span>
     </div>
   )
 }

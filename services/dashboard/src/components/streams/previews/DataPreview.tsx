@@ -20,17 +20,17 @@ export function DataPreview({ stream }: DataPreviewProps) {
   }, [history.length])
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div className="bg-surface-0 border border-edge rounded-xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-edge">
         <div className="flex items-center gap-3">
-          <h3 className="text-sm font-medium text-white">Data Preview</h3>
+          <h3 className="text-sm font-medium text-fg">Data Preview</h3>
           <StatusBadge status={status} />
         </div>
-        <div className="flex items-center gap-3 text-xs text-slate-400">
+        <div className="flex items-center gap-3 text-xs text-fg-muted">
           {info && (
             <span>
-              <span className="text-slate-500">Protocol:</span>{' '}
+              <span className="text-fg-subtle">Protocol:</span>{' '}
               <span className="font-mono uppercase">{info.protocol}</span>
             </span>
           )}
@@ -41,7 +41,7 @@ export function DataPreview({ stream }: DataPreviewProps) {
       {/* Data log */}
       <div ref={scrollRef} className="overflow-auto max-h-[400px] min-h-[200px]">
         {status === 'connecting' && (
-          <div className="flex items-center justify-center h-48 text-slate-500 text-sm">
+          <div className="flex items-center justify-center h-48 text-fg-subtle text-sm">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
               Connecting to data stream...
@@ -56,19 +56,19 @@ export function DataPreview({ stream }: DataPreviewProps) {
         )}
 
         {history.length > 0 && (
-          <div className="divide-y divide-slate-800/50">
+          <div className="divide-y divide-edge/50">
             {history.map((entry, i) => {
               // Strip internal fields for display
               const displayData = { ...entry }
               delete (displayData as Record<string, unknown>)._seq
 
               return (
-                <div key={i} className="px-4 py-2 hover:bg-slate-800/30 transition-colors">
+                <div key={i} className="px-4 py-2 hover:bg-surface-1/30 transition-colors">
                   <div className="flex items-start gap-3">
-                    <span className="text-[10px] text-slate-600 font-mono w-8 pt-0.5 flex-shrink-0">
+                    <span className="text-[10px] text-fg-subtle font-mono w-8 pt-0.5 flex-shrink-0">
                       #{entry._seq}
                     </span>
-                    <pre className="text-xs text-slate-300 font-mono overflow-x-auto whitespace-pre-wrap flex-1">
+                    <pre className="text-xs text-fg font-mono overflow-x-auto whitespace-pre-wrap flex-1">
                       {formatJson(displayData)}
                     </pre>
                   </div>
@@ -79,13 +79,13 @@ export function DataPreview({ stream }: DataPreviewProps) {
         )}
 
         {status === 'connected' && history.length === 0 && (
-          <div className="flex items-center justify-center h-48 text-slate-500 text-sm">
+          <div className="flex items-center justify-center h-48 text-fg-subtle text-sm">
             Waiting for data...
           </div>
         )}
 
         {status === 'idle' && history.length === 0 && (
-          <div className="flex items-center justify-center h-48 text-slate-500 text-sm">
+          <div className="flex items-center justify-center h-48 text-fg-subtle text-sm">
             Click to preview live data
           </div>
         )}
@@ -104,7 +104,7 @@ function formatJson(data: unknown): string {
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    idle: 'bg-slate-500/20 text-slate-400',
+    idle: 'bg-fg-subtle/20 text-fg-muted',
     connecting: 'bg-yellow-500/20 text-yellow-300',
     connected: 'bg-green-500/20 text-green-300',
     error: 'bg-red-500/20 text-red-400',

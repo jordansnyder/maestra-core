@@ -9,6 +9,12 @@ export {
   Terminal,
 } from 'lucide-react'
 
+// Theme toggle
+export {
+  Sun,
+  Moon,
+} from 'lucide-react'
+
 // Device types
 export {
   Cpu,

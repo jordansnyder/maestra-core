@@ -19,8 +19,8 @@ interface UnifiedVariablesPanelProps {
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  string: 'bg-slate-600',
-  number: 'bg-blue-600/60',
+  string: 'bg-surface-2',
+  number: 'bg-accent/60',
   boolean: 'bg-green-600/60',
   range: 'bg-purple-600/60',
   color: 'bg-pink-600/60',
@@ -49,7 +49,7 @@ function renderCompactControl(
 ) {
   if (readOnly) {
     const display = value === undefined || value === null ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value)
-    return <span className="font-mono text-xs text-slate-400 truncate max-w-[150px]">{display}</span>
+    return <span className="font-mono text-xs text-fg-muted truncate max-w-[150px]">{display}</span>
   }
 
   const props = { variable, value, onChange: onChange as never, disabled: false, compact: true }
@@ -65,7 +65,7 @@ function renderCompactControl(
     case 'vector3': return <VectorControl {...props} onChange={v => onChange(v)} />
     case 'array':
     case 'object': return <JsonControl {...props} onChange={v => onChange(v)} />
-    default: return <span className="text-xs text-slate-500">—</span>
+    default: return <span className="text-xs text-fg-subtle">—</span>
   }
 }
 
@@ -155,12 +155,12 @@ export function UnifiedVariablesPanel({
   const outputCount = variables.outputs.length
 
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg" role="table" aria-label="Entity variables">
+    <div className="bg-surface-1 border border-edge rounded-lg" role="table" aria-label="Entity variables">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-700">
+      <div className="px-4 py-3 border-b border-edge">
         <div className="flex items-center gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-fg-subtle" />
             <input
               ref={searchRef}
               type="text"
@@ -168,10 +168,10 @@ export function UnifiedVariablesPanel({
               onChange={e => setSearch(e.target.value)}
               placeholder="Search variables... ( / )"
               aria-label="Search variables"
-              className="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm focus:outline-none focus:border-blue-500"
+              className="w-full pl-8 pr-3 py-1.5 bg-surface-0 border border-edge rounded text-sm focus:outline-none focus:border-accent"
             />
           </div>
-          <div className="flex items-center gap-1 bg-slate-900 rounded p-0.5" role="tablist">
+          <div className="flex items-center gap-1 bg-surface-0 rounded p-0.5" role="tablist">
             {(['all', 'input', 'output'] as const).map(f => (
               <button
                 key={f}
@@ -179,7 +179,7 @@ export function UnifiedVariablesPanel({
                 role="tab"
                 aria-selected={directionFilter === f}
                 className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                  directionFilter === f ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-300'
+                  directionFilter === f ? 'bg-surface-2 text-fg' : 'text-fg-muted hover:text-fg'
                 }`}
               >
                 {f === 'all' ? `All (${inputCount + outputCount})` : f === 'input' ? `In (${inputCount})` : `Out (${outputCount})`}
@@ -188,7 +188,7 @@ export function UnifiedVariablesPanel({
           </div>
           <button
             onClick={() => { setSearch(''); setAddingNew(true) }}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded text-xs font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover rounded text-xs font-medium transition-colors"
           >
             <Plus className="w-3 h-3" />
             Add
@@ -197,24 +197,24 @@ export function UnifiedVariablesPanel({
       </div>
 
       {/* Variable Rows */}
-      <div className="divide-y divide-slate-700/50">
+      <div className="divide-y divide-edge/50">
         {filtered.length === 0 && !addingNew && (
           <div className="px-4 py-12 text-center">
             {allVariables.length === 0 ? (
               <div>
-                <p className="text-slate-400 mb-1">No variables defined</p>
-                <p className="text-xs text-slate-500 mb-4">Variables let you control this entity's state from the dashboard, SDKs, and connected devices.</p>
+                <p className="text-fg-muted mb-1">No variables defined</p>
+                <p className="text-xs text-fg-subtle mb-4">Variables let you control this entity's state from the dashboard, SDKs, and connected devices.</p>
                 <button
                   onClick={() => setAddingNew(true)}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
+                  className="px-4 py-2 bg-accent hover:bg-accent-hover rounded-lg text-sm font-medium transition-colors"
                 >
                   Add your first variable
                 </button>
               </div>
             ) : (
-              <p className="text-slate-500 text-sm">
+              <p className="text-fg-subtle text-sm">
                 No variables match &quot;{search}&quot;.{' '}
-                <button onClick={() => setSearch('')} className="text-blue-400 hover:text-blue-300">
+                <button onClick={() => setSearch('')} className="text-accent hover:text-accent">
                   Clear search
                 </button>
               </p>
@@ -233,7 +233,7 @@ export function UnifiedVariablesPanel({
               {/* Row */}
               <div
                 className={`relative flex items-center gap-3 px-4 h-[44px] group ${
-                  !isInput ? 'bg-slate-800/50' : ''
+                  !isInput ? 'bg-surface-1/50' : ''
                 }`}
                 style={fillPercent !== null ? {
                   background: `linear-gradient(to right, rgb(59 130 246 / 0.08) ${fillPercent}%, transparent ${fillPercent}%)`
@@ -248,8 +248,8 @@ export function UnifiedVariablesPanel({
                       : variable.type === 'boolean' && boolValue === true
                         ? 'bg-green-400'
                         : variable.type === 'boolean' && boolValue === false
-                          ? 'bg-slate-600'
-                          : isInput ? 'bg-green-400/70' : 'bg-blue-400/70'
+                          ? 'bg-surface-2'
+                          : isInput ? 'bg-green-400/70' : 'bg-accent/70'
                   }`}
                   style={
                     variable.type === 'color' && typeof state[variable.name] === 'string'
@@ -260,10 +260,10 @@ export function UnifiedVariablesPanel({
                 />
 
                 {/* Name */}
-                <span className="font-medium text-sm text-white truncate w-28 shrink-0">{variable.name}</span>
+                <span className="font-medium text-sm text-fg truncate w-28 shrink-0">{variable.name}</span>
 
                 {/* Type badge */}
-                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium text-white/80 shrink-0 ${TYPE_COLORS[variable.type] || 'bg-slate-600'}`}>
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium text-fg/80 shrink-0 ${TYPE_COLORS[variable.type] || 'bg-surface-2'}`}>
                   {variable.type}
                 </span>
 
@@ -277,14 +277,14 @@ export function UnifiedVariablesPanel({
                   <button
                     onClick={() => toggleExpanded(variable.name)}
                     aria-expanded={isExpanded}
-                    className="p-1 text-slate-500 hover:text-slate-300 rounded transition-colors"
+                    className="p-1 text-fg-subtle hover:text-fg rounded transition-colors"
                     title="Edit definition"
                   >
                     <Settings className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => handleDeleteVariable(variable.name, variable._direction)}
-                    className="p-1 text-slate-500 hover:text-red-400 rounded transition-colors"
+                    className="p-1 text-fg-subtle hover:text-red-400 rounded transition-colors"
                     title="Delete variable"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

@@ -45,7 +45,7 @@ export function JsonControl({ variable, value, onChange, disabled, compact }: Js
     const preview = JSON.stringify(currentValue)
     const truncated = preview.length > 30 ? preview.slice(0, 30) + '...' : preview
     return (
-      <span className="font-mono text-xs text-slate-400 truncate max-w-[120px] inline-block" title={preview}>
+      <span className="font-mono text-xs text-fg-muted truncate max-w-[120px] inline-block" title={preview}>
         {truncated}
       </span>
     )
@@ -60,8 +60,8 @@ export function JsonControl({ variable, value, onChange, disabled, compact }: Js
         disabled={disabled}
         placeholder={placeholder}
         rows={4}
-        className={`w-full px-3 py-2 bg-slate-900 border rounded-lg font-mono text-sm focus:outline-none disabled:opacity-50 ${
-          error ? 'border-red-500' : 'border-slate-700 focus:border-blue-500'
+        className={`w-full px-3 py-2 bg-surface-0 border rounded-lg font-mono text-sm focus:outline-none disabled:opacity-50 ${
+          error ? 'border-red-500' : 'border-edge focus:border-accent'
         }`}
       />
       {error && <p className="text-sm text-red-400">{error}</p>}

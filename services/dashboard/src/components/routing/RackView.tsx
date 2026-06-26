@@ -32,7 +32,7 @@ export function RackView({ devices, routes }: RackViewProps) {
         {Object.entries(typeGroups).map(([type, devices]) => (
           <div
             key={type}
-            className="bg-[#0d0d18] border border-slate-800 rounded-xl p-4 min-w-[200px] flex-[0_1_280px]"
+            className="bg-[#0d0d18] border border-edge rounded-xl p-4 min-w-[200px] flex-[0_1_280px]"
           >
             <div
               className="text-[11px] font-mono tracking-[1.5px] mb-3 font-semibold"
@@ -58,7 +58,7 @@ export function RackView({ devices, routes }: RackViewProps) {
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <span className="text-sm mr-2">{device.icon}</span>
-                      <span className="text-xs font-semibold text-slate-200 font-mono">{device.name}</span>
+                      <span className="text-xs font-semibold text-fg font-mono">{device.name}</span>
                     </div>
                     <div className="flex gap-1">
                       {outRoutes.length > 0 && (
@@ -67,7 +67,7 @@ export function RackView({ devices, routes }: RackViewProps) {
                         </span>
                       )}
                       {inRoutes.length > 0 && (
-                        <span className="text-[9px] text-blue-400 bg-blue-400/10 rounded px-1.5 py-px font-mono">
+                        <span className="text-[9px] text-accent bg-accent/10 rounded px-1.5 py-px font-mono">
                           {inRoutes.length} in
                         </span>
                       )}
@@ -84,7 +84,7 @@ export function RackView({ devices, routes }: RackViewProps) {
                         return (
                           <div key={port} className="flex items-center gap-1.5 py-0.5 text-[10px] font-mono">
                             <span className="w-1.5 h-1.5 rounded-full" style={{ background: sc }} />
-                            <span className="text-slate-500 min-w-[60px]">{port}</span>
+                            <span className="text-fg-subtle min-w-[60px]">{port}</span>
                             {routed.map((r, i) => {
                               const target = devices.find((d) => d.id === r.to)
                               return (
@@ -97,7 +97,7 @@ export function RackView({ devices, routes }: RackViewProps) {
                                 </span>
                               )
                             })}
-                            {routed.length === 0 && <span className="text-slate-700 text-[9px]">unpatched</span>}
+                            {routed.length === 0 && <span className="text-fg text-[9px]">unpatched</span>}
                           </div>
                         )
                       })}
@@ -114,7 +114,7 @@ export function RackView({ devices, routes }: RackViewProps) {
                         return (
                           <div key={port} className="flex items-center gap-1.5 py-0.5 text-[10px] font-mono">
                             <span className="w-1.5 h-1.5 rounded-sm" style={{ background: sc }} />
-                            <span className="text-slate-500 min-w-[60px]">{port}</span>
+                            <span className="text-fg-subtle min-w-[60px]">{port}</span>
                             {routed.map((r, i) => {
                               const source = devices.find((d) => d.id === r.from)
                               return (
@@ -127,7 +127,7 @@ export function RackView({ devices, routes }: RackViewProps) {
                                 </span>
                               )
                             })}
-                            {routed.length === 0 && <span className="text-slate-700 text-[9px]">unpatched</span>}
+                            {routed.length === 0 && <span className="text-fg text-[9px]">unpatched</span>}
                           </div>
                         )
                       })}

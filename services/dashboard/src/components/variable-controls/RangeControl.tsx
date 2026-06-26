@@ -30,9 +30,9 @@ export function RangeControl({ variable, value, onChange, disabled, compact }: R
           value={numValue}
           onChange={(e) => onChange(parseFloat(e.target.value))}
           disabled={disabled}
-          className="flex-1 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50"
+          className="flex-1 h-1.5 bg-surface-2 rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50"
         />
-        <span className="font-mono text-xs text-slate-300 w-12 text-right shrink-0">
+        <span className="font-mono text-xs text-fg w-12 text-right shrink-0">
           {numValue}{unit ? unit : ''}
         </span>
       </div>
@@ -42,10 +42,10 @@ export function RangeControl({ variable, value, onChange, disabled, compact }: R
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-slate-400">
+        <span className="text-sm text-fg-muted">
           {min} - {max}{unit ? ` ${unit}` : ''}
         </span>
-        <span className="font-mono text-lg text-white">
+        <span className="font-mono text-lg text-fg">
           {numValue}{unit ? ` ${unit}` : ''}
         </span>
       </div>
@@ -57,7 +57,7 @@ export function RangeControl({ variable, value, onChange, disabled, compact }: R
         value={numValue}
         onChange={(e) => onChange(parseFloat(e.target.value))}
         disabled={disabled}
-        className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full h-2 bg-surface-2 rounded-lg appearance-none cursor-pointer accent-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
       />
     </div>
   )

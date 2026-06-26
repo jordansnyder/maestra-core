@@ -19,10 +19,20 @@ async fn check_endpoint_owned(name: String, url: String) -> ServiceHealth {
 }
 
 async fn check_endpoint(name: &str, url: &str) -> ServiceHealth {
-    let client = reqwest::Client::builder()
+    let client = match reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(3))
         .build()
-        .unwrap();
+    {
+        Ok(c) => c,
+        Err(e) => {
+            return ServiceHealth {
+                name: name.to_string(),
+                healthy: false,
+                url: url.to_string(),
+                detail: format!("HTTP client init failed: {}", e),
+            };
+        }
+    };
 
     match client.get(url).send().await {
         Ok(resp) => ServiceHealth {

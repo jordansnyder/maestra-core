@@ -1,0 +1,64 @@
+name: Publish Max/MSP SDK (GitHub Release)
+
+on:
+  push:
+    tags:
+      - 'maxmsp/v*'
+
+permissions:
+  contents: write  # Needed to create releases
+
+jobs:
+  publish:
+    name: Package and release Max/MSP package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#maxmsp/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag matches package-info.json
+        run: |
+          MANIFEST="$(python3 -c "import json;print(json.load(open('sdks/maxmsp/package-info.json'))['version'])")"
+          TAG="${{ steps.version.outputs.version }}"
+          if [ "$MANIFEST" != "$TAG" ]; then
+            echo "::error::Tag version ($TAG) != package-info.json version ($MANIFEST)"
+            exit 1
+          fi
+          echo "Version OK: $TAG"
+
+      - name: Assemble Max package
+        run: |
+          # Max packages are folders; ship it named "Maestra" so it drops straight
+          # into <Max>/Packages/ or the user's Documents/Max 8/Packages/.
+          mkdir -p staging
+          cp -r sdks/maxmsp staging/Maestra
+          rm -f staging/Maestra/.DS_Store
+          cd staging
+          zip -r "../Maestra-Max-${{ steps.version.outputs.version }}.zip" Maestra
+          cd ..
+          ls -lh "Maestra-Max-${{ steps.version.outputs.version }}.zip"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Max/MSP SDK v${{ steps.version.outputs.version }}"
+          body: |
+            ## Maestra Max/MSP Package — v${{ steps.version.outputs.version }}
+
+            ### Installation
+            1. Download and extract `Maestra-Max-${{ steps.version.outputs.version }}.zip`
+            2. Move the `Maestra/` folder into your **Max Packages** folder
+               (`~/Documents/Max 8/Packages/` on macOS)
+            3. Restart Max — open the **Maestra** package and `MaestraOverview` from the
+               File Browser, or drop `maestra.entity`, `maestra.state`, `maestra.showphase`
+               into any patch
+
+            Requires a running Maestra OSC Gateway (in 57121 / out 57120). See
+            [the docs](https://maestra.cc/docs).
+          files: |
+            Maestra-Max-${{ steps.version.outputs.version }}.zip
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}

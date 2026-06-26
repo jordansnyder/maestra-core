@@ -136,4 +136,15 @@ Key sections:
 
 ## License
 
-MIT
+Maestra Core is **source-available** under the [Business Source License 1.1](LICENSE):
+free for non-production, education, research, and non-commercial use; for-profit
+production use requires a commercial license. It converts to Apache-2.0 on
+2030-06-21.
+
+The **SDKs** (`sdks/`) are **MIT** — use them anywhere, including in commercial
+products.
+
+See [LICENSING.md](LICENSING.md) for plain-language details, or email
+licensing@maestra.cc about a commercial license.
+
+© 2026 Jordan Snyder and Aaron Geiser.

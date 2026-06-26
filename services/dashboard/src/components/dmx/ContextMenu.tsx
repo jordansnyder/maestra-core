@@ -44,24 +44,24 @@ export function ContextMenu({ x, y, onEdit, onDelete, onAdjustDMX, onClose }: Co
     <div
       ref={ref}
       style={style}
-      className="w-44 rounded-lg bg-slate-800 border border-slate-700 shadow-2xl py-1 select-none"
+      className="w-44 rounded-lg bg-surface-1 border border-edge shadow-2xl py-1 select-none"
       onClick={(e) => e.stopPropagation()}
     >
       <button
         onClick={(e) => { e.stopPropagation(); onAdjustDMX(); onClose() }}
-        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 transition-colors"
+        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-fg hover:bg-surface-2 transition-colors"
       >
-        <SlidersHorizontal className="w-3.5 h-3.5 text-blue-400" />
+        <SlidersHorizontal className="w-3.5 h-3.5 text-accent" />
         Adjust DMX
       </button>
       <button
         onClick={(e) => { e.stopPropagation(); onEdit(); onClose() }}
-        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 transition-colors"
+        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-fg hover:bg-surface-2 transition-colors"
       >
-        <Pencil className="w-3.5 h-3.5 text-slate-400" />
+        <Pencil className="w-3.5 h-3.5 text-fg-muted" />
         Edit Fixture
       </button>
-      <div className="my-1 border-t border-slate-700" />
+      <div className="my-1 border-t border-edge" />
       <button
         onClick={(e) => { e.stopPropagation(); onDelete(); onClose() }}
         className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-red-900/30 transition-colors"

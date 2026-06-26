@@ -16,14 +16,14 @@ export function SettingsPage() {
   const [tab, setTab] = useState<Tab>('general')
   const cloud = useCloudGateway(true, 15000)
 
-  const isConnected = cloud.config?.gateway_url && cloud.config.status !== 'disconnected'
+  const isConnected = !!(cloud.config?.gateway_url && cloud.config.status !== 'disconnected')
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-white">Settings</h1>
+      <h1 className="text-2xl font-bold text-fg">Settings</h1>
 
       {/* Tab bar */}
-      <div className="flex gap-1 border-b border-slate-700">
+      <div className="flex gap-1 border-b border-edge">
         <TabButton
           active={tab === 'general'}
           onClick={() => setTab('general')}
@@ -75,8 +75,8 @@ function TabButton({
       onClick={onClick}
       className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
         active
-          ? 'border-blue-500 text-blue-400'
-          : 'border-transparent text-slate-400 hover:text-slate-200'
+          ? 'border-accent text-accent'
+          : 'border-transparent text-fg-muted hover:text-fg'
       }`}
     >
       {icon}
@@ -89,24 +89,24 @@ function GeneralTab() {
   const urls = getServiceLinks()
   return (
     <div className="space-y-6">
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Instance Information</h2>
+      <div className="bg-surface-1 rounded-lg border border-edge p-6">
+        <h2 className="text-lg font-semibold text-fg mb-4">Instance Information</h2>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-slate-500">Version</span>
-            <p className="text-slate-200 mt-1">{process.env.NEXT_PUBLIC_MAESTRA_VERSION || '0.0.0'}</p>
+            <span className="text-fg-subtle">Version</span>
+            <p className="text-fg mt-1">{process.env.NEXT_PUBLIC_MAESTRA_VERSION || '0.0.0'}</p>
           </div>
           <div>
-            <span className="text-slate-500">Fleet Manager</span>
-            <p className="text-slate-200 mt-1">{urls.fleetManager}</p>
+            <span className="text-fg-subtle">Fleet Manager</span>
+            <p className="text-fg mt-1">{urls.fleetManager}</p>
           </div>
           <div>
-            <span className="text-slate-500">Message Bus</span>
-            <p className="text-slate-200 mt-1">NATS ({urls.nats})</p>
+            <span className="text-fg-subtle">Message Bus</span>
+            <p className="text-fg mt-1">NATS ({urls.nats})</p>
           </div>
           <div>
-            <span className="text-slate-500">Database</span>
-            <p className="text-slate-200 mt-1">TimescaleDB ({urls.database})</p>
+            <span className="text-fg-subtle">Database</span>
+            <p className="text-fg mt-1">TimescaleDB ({urls.database})</p>
           </div>
         </div>
       </div>
@@ -142,7 +142,7 @@ function CloudTab({
 
   if (cloud.loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-slate-500">
+      <div className="flex items-center justify-center py-20 text-fg-subtle">
         Loading cloud configuration...
       </div>
     )
@@ -173,20 +173,20 @@ function CloudTab({
       )}
 
       {/* Routing policies */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+      <div className="bg-surface-1 rounded-lg border border-edge p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">Routing Policies</h2>
+          <h2 className="text-lg font-semibold text-fg">Routing Policies</h2>
           {policiesDirty && (
             <button
               onClick={handleSavePolicies}
               disabled={saving}
-              className="px-4 py-1.5 text-sm font-medium rounded-md bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 transition-colors"
+              className="px-4 py-1.5 text-sm font-medium rounded-md bg-accent hover:bg-accent-hover text-fg disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving...' : 'Save Policies'}
             </button>
           )}
         </div>
-        <p className="text-sm text-slate-400 mb-4">
+        <p className="text-sm text-fg-muted mb-4">
           Control which NATS messages are forwarded to the cloud gateway.
         </p>
         <PolicyEditor
@@ -200,9 +200,9 @@ function CloudTab({
       </div>
 
       {/* Disconnect */}
-      <div className="bg-slate-800 rounded-lg border border-red-900/50 p-6">
-        <h2 className="text-lg font-semibold text-white mb-2">Disconnect</h2>
-        <p className="text-sm text-slate-400 mb-4">
+      <div className="bg-surface-1 rounded-lg border border-red-900/50 p-6">
+        <h2 className="text-lg font-semibold text-fg mb-2">Disconnect</h2>
+        <p className="text-sm text-fg-muted mb-4">
           Remove the cloud gateway configuration from this Maestra instance.
         </p>
         <button

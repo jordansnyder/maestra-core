@@ -42,9 +42,9 @@ export function ColorControl({ variable, value, onChange, disabled, compact }: C
           value={toHex(localValue)}
           onChange={handleColorChange}
           disabled={disabled}
-          className="w-7 h-7 rounded cursor-pointer border border-slate-600 disabled:opacity-50"
+          className="w-7 h-7 rounded cursor-pointer border border-edge-strong disabled:opacity-50"
         />
-        <span className="font-mono text-xs text-slate-400">{localValue}</span>
+        <span className="font-mono text-xs text-fg-muted">{localValue}</span>
       </div>
     )
   }
@@ -57,7 +57,7 @@ export function ColorControl({ variable, value, onChange, disabled, compact }: C
           value={toHex(localValue)}
           onChange={handleColorChange}
           disabled={disabled}
-          className="w-12 h-12 rounded-lg cursor-pointer border-2 border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-12 h-12 rounded-lg cursor-pointer border-2 border-edge-strong disabled:opacity-50 disabled:cursor-not-allowed"
         />
       </div>
       <input
@@ -67,10 +67,10 @@ export function ColorControl({ variable, value, onChange, disabled, compact }: C
         onBlur={handleTextBlur}
         disabled={disabled}
         placeholder="#000000"
-        className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg font-mono focus:outline-none focus:border-blue-500 disabled:opacity-50"
+        className="flex-1 px-3 py-2 bg-surface-0 border border-edge rounded-lg font-mono focus:outline-none focus:border-accent disabled:opacity-50"
       />
       <div
-        className="w-12 h-12 rounded-lg border border-slate-600"
+        className="w-12 h-12 rounded-lg border border-edge-strong"
         style={{ backgroundColor: localValue }}
       />
     </div>

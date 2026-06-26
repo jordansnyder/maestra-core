@@ -9,7 +9,7 @@ const PROTOCOL_COLORS: Record<Protocol, { bg: string; text: string; label: strin
   mqtt:     { bg: 'bg-emerald-500/20', text: 'text-emerald-400', label: 'MQTT' },
   ws:       { bg: 'bg-violet-500/20',  text: 'text-violet-400',  label: 'WS'   },
   dmx:      { bg: 'bg-amber-500/20',   text: 'text-amber-400',   label: 'DMX'  },
-  internal: { bg: 'bg-slate-500/20',   text: 'text-slate-400',   label: 'INT'  },
+  internal: { bg: 'bg-fg-subtle/20',   text: 'text-fg-muted',   label: 'INT'  },
 }
 
 interface ConsoleToolbarProps {
@@ -50,7 +50,7 @@ export function ConsoleToolbar({ isFullscreen = false, onToggleFullscreen }: Con
   // Ambient mode: compact floating overlay
   if (isAmbient) {
     return (
-      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 h-10 bg-transparent text-slate-400/60 transition-opacity hover:opacity-100 opacity-60">
+      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 h-10 bg-transparent text-fg-muted/60 transition-opacity hover:opacity-100 opacity-60">
         <div className="flex items-center gap-3 text-xs font-mono">
           <span className={isConnected ? 'text-green-400/60' : 'text-yellow-400/60'}>
             {isConnected ? '\u25CF' : '\u25CB'}
@@ -61,30 +61,30 @@ export function ConsoleToolbar({ isFullscreen = false, onToggleFullscreen }: Con
           <button
             onClick={() => setSimulate(!simulate)}
             title={simulate ? 'Stop simulation' : 'Simulate live data'}
-            className={`p-1 transition-colors ${simulate ? 'text-amber-400 hover:text-amber-300' : 'hover:text-white/80'}`}
+            className={`p-1 transition-colors ${simulate ? 'text-amber-400 hover:text-amber-300' : 'hover:text-fg/80'}`}
           >
             <Zap className="w-3.5 h-3.5" fill={simulate ? 'currentColor' : 'none'} />
           </button>
           <button
             onClick={() => setPaused(!paused)}
-            className="p-1 hover:text-white/80 transition-colors"
+            className="p-1 hover:text-fg/80 transition-colors"
           >
             {paused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
           </button>
           <button
             onClick={() => setMode('debug')}
-            className="px-2 py-0.5 text-xs rounded bg-slate-800/50 hover:bg-slate-700/50 transition-colors"
+            className="px-2 py-0.5 text-xs rounded bg-surface-1/50 hover:bg-surface-2/50 transition-colors"
           >
             Debug
           </button>
           {onToggleFullscreen && (
             <>
               {isFullscreen && (
-                <span className="text-[10px] font-mono text-slate-600/70 select-none">ESC</span>
+                <span className="text-[10px] font-mono text-fg-subtle/70 select-none">ESC</span>
               )}
               <button
                 onClick={onToggleFullscreen}
-                className="p-1 hover:text-white/80 transition-colors"
+                className="p-1 hover:text-fg/80 transition-colors"
                 title={isFullscreen ? 'Exit fullscreen (ESC)' : 'Fullscreen'}
               >
                 {isFullscreen
@@ -110,12 +110,12 @@ export function ConsoleToolbar({ isFullscreen = false, onToggleFullscreen }: Con
       )}
 
       {/* Main toolbar row */}
-      <div className="flex items-center gap-3 px-4 h-14 bg-slate-800 border-b border-slate-700">
+      <div className="flex items-center gap-3 px-4 h-14 bg-surface-1 border-b border-edge">
         {/* Connection dot */}
         <span className={`w-2 h-2 rounded-full shrink-0 ${isConnected ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'}`} />
 
         {/* Stats */}
-        <div className="flex items-center gap-3 text-xs font-mono text-slate-400">
+        <div className="flex items-center gap-3 text-xs font-mono text-fg-muted">
           <span>{stats.messagesPerSecond} msg/s</span>
           <span className={stats.atCapacity ? 'text-orange-400' : ''} title={stats.atCapacity ? 'Oldest messages being dropped' : ''}>
             {stats.bufferDepth} buffered
@@ -126,7 +126,7 @@ export function ConsoleToolbar({ isFullscreen = false, onToggleFullscreen }: Con
         <button
           onClick={() => setPaused(!paused)}
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-            paused ? 'bg-yellow-500/20 text-yellow-400' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+            paused ? 'bg-yellow-500/20 text-yellow-400' : 'bg-surface-2 text-fg hover:bg-surface-2'
           }`}
         >
           {paused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
@@ -136,19 +136,19 @@ export function ConsoleToolbar({ isFullscreen = false, onToggleFullscreen }: Con
         {/* Filter toggle */}
         <button
           onClick={() => setFiltersOpen(!filtersOpen)}
-          className="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+          className="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium bg-surface-2 text-fg hover:bg-surface-2 transition-colors"
         >
           Filters
           {filtersOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
 
         {/* Heartbeat toggle */}
-        <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+        <label className="flex items-center gap-1.5 text-xs text-fg-muted cursor-pointer">
           <input
             type="checkbox"
             checked={filters.hideHeartbeats}
             onChange={e => setFilters(prev => ({ ...prev, hideHeartbeats: e.target.checked }))}
-            className="rounded border-slate-600 bg-slate-700 text-blue-500"
+            className="rounded border-edge-strong bg-surface-2 text-accent"
           />
           Hide heartbeats
         </label>
@@ -156,30 +156,28 @@ export function ConsoleToolbar({ isFullscreen = false, onToggleFullscreen }: Con
         <div className="flex-1" />
 
         {/* Mode toggle */}
-        <div className="flex items-center gap-2 pl-3 border-l border-slate-600">
+        <div className="flex items-center gap-2 pl-3 border-l border-edge-strong">
           {!hintDismissed && (
             <div className="relative">
-              <div className="absolute bottom-full right-0 mb-2 w-48 p-2 text-xs bg-slate-700 rounded-lg shadow-lg border border-slate-600 text-slate-300">
+              <div className="absolute bottom-full right-0 mb-2 w-48 p-2 text-xs bg-surface-2 rounded-lg shadow-lg border border-edge-strong text-fg">
                 <p><strong>Debug</strong> = message inspector</p>
                 <p><strong>Ambient</strong> = live data visualization</p>
-                <button onClick={dismissHint} className="mt-1 text-blue-400 hover:underline">Got it</button>
+                <button onClick={dismissHint} className="mt-1 text-accent hover:underline">Got it</button>
               </div>
             </div>
           )}
-          <div className="flex rounded-lg bg-slate-900 p-0.5">
+          <div className="flex rounded-lg bg-surface-0 p-0.5">
             <button
               onClick={() => setMode('debug')}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                mode === 'debug' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'
+                mode === 'debug' ? 'bg-surface-2 text-fg' : 'text-fg-muted hover:text-fg'
               }`}
             >
               Debug
             </button>
             <button
               onClick={() => setMode('ambient')}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                mode === 'ambient' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'
-              }`}
+              className="px-3 py-1 text-xs font-medium rounded-md transition-colors text-fg-muted hover:text-fg"
             >
               Ambient
             </button>
@@ -189,16 +187,16 @@ export function ConsoleToolbar({ isFullscreen = false, onToggleFullscreen }: Con
 
       {/* Expandable filter drawer */}
       {filtersOpen && (
-        <div className="flex items-center gap-3 px-4 h-12 bg-slate-800/80 border-b border-slate-700/50">
+        <div className="flex items-center gap-3 px-4 h-12 bg-surface-1/80 border-b border-edge/50">
           {/* Subject filter */}
           <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-fg-subtle" />
             <input
               type="text"
               placeholder="Filter subjects (glob/regex)..."
               value={filters.subjectPattern}
               onChange={e => setFilters(prev => ({ ...prev, subjectPattern: e.target.value }))}
-              className="w-full pl-7 pr-2 py-1.5 text-xs font-mono bg-slate-900 border border-slate-700 rounded text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500"
+              className="w-full pl-7 pr-2 py-1.5 text-xs font-mono bg-surface-0 border border-edge rounded text-fg placeholder-fg-subtle focus:outline-none focus:border-accent"
             />
           </div>
 
@@ -211,7 +209,7 @@ export function ConsoleToolbar({ isFullscreen = false, onToggleFullscreen }: Con
                 className={`px-2 py-0.5 rounded text-xs font-medium transition-all ${
                   filters.protocols.has(key)
                     ? `${val.bg} ${val.text}`
-                    : 'bg-slate-900 text-slate-600'
+                    : 'bg-surface-0 text-fg-subtle'
                 }`}
               >
                 {val.label}
@@ -225,13 +223,13 @@ export function ConsoleToolbar({ isFullscreen = false, onToggleFullscreen }: Con
             placeholder="Search payloads..."
             value={filters.textSearch}
             onChange={e => setFilters(prev => ({ ...prev, textSearch: e.target.value }))}
-            className="w-40 px-2 py-1.5 text-xs font-mono bg-slate-900 border border-slate-700 rounded text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500"
+            className="w-40 px-2 py-1.5 text-xs font-mono bg-surface-0 border border-edge rounded text-fg placeholder-fg-subtle focus:outline-none focus:border-accent"
           />
 
           {/* Clear */}
           <button
             onClick={clear}
-            className="flex items-center gap-1 px-2 py-1 rounded text-xs text-slate-500 hover:text-red-400 transition-colors"
+            className="flex items-center gap-1 px-2 py-1 rounded text-xs text-fg-subtle hover:text-red-400 transition-colors"
           >
             <Trash2 className="w-3 h-3" />
             Clear

@@ -101,7 +101,7 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-slate-400 mb-1">
+          <label className="block text-xs text-fg-muted mb-1">
             Node Name <span className="text-red-400">*</span>
           </label>
           <input
@@ -112,12 +112,12 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
             }}
             placeholder="e.g. Stage Left Node"
             autoFocus
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+            className="w-full bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-accent"
             required
           />
         </div>
         <div>
-          <label className="block text-xs text-slate-400 mb-1">
+          <label className="block text-xs text-fg-muted mb-1">
             Hardware ID / Slug <span className="text-red-400">*</span>
           </label>
           <input
@@ -125,30 +125,30 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
             onChange={(e) => { setSlug(e.target.value); setSlugTouched(true) }}
             onBlur={(e) => setSlug(toSlug(e.target.value))}
             placeholder="stage-left-node"
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+            className="w-full bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-accent font-mono"
           />
-          <p className="text-[10px] text-slate-600 mt-0.5">Unique identifier used in device registry</p>
+          <p className="text-[10px] text-fg-subtle mt-0.5">Unique identifier used in device registry</p>
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
         <div className="col-span-2">
-          <label className="block text-xs text-slate-400 mb-1">
+          <label className="block text-xs text-fg-muted mb-1">
             IP Address <span className="text-red-400">*</span>
           </label>
           <div className="relative">
-            <Network className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+            <Network className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-fg-subtle" />
             <input
               value={ipAddress}
               onChange={(e) => setIpAddress(e.target.value)}
               placeholder="192.168.1.100"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+              className="w-full bg-surface-1 border border-edge rounded-lg pl-8 pr-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-accent font-mono"
               required
             />
           </div>
         </div>
         <div>
-          <label className="block text-xs text-slate-400 mb-1">
+          <label className="block text-xs text-fg-muted mb-1">
             UDP Port <span className="text-red-400">*</span>
           </label>
           <input
@@ -160,21 +160,21 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
               const v = parseInt(e.target.value, 10)
               setArtnetPort(isNaN(v) ? 6454 : v)
             }}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 font-mono"
+            className="w-full bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent font-mono"
             required
           />
-          <p className="text-[10px] text-slate-600 mt-0.5">Default: 6454</p>
+          <p className="text-[10px] text-fg-subtle mt-0.5">Default: 6454</p>
         </div>
       </div>
 
       {/* Universe Assignments */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-xs text-slate-400 uppercase tracking-wider">Universe Assignments</label>
+          <label className="text-xs text-fg-muted uppercase tracking-wider">Universe Assignments</label>
           <button
             type="button"
             onClick={addUniverse}
-            className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+            className="flex items-center gap-1 text-xs text-accent hover:text-accent transition-colors"
           >
             <Plus className="w-3 h-3" />
             Add
@@ -183,17 +183,17 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
         {/* Column headers */}
         <div className="flex items-center gap-1.5 px-3 mb-1">
           <span className="w-4 shrink-0" />
-          <span className="w-12 shrink-0 text-[10px] text-slate-600 font-medium">Art-Net #</span>
-          <span className="flex-1 min-w-0 text-[10px] text-slate-600 font-medium">Label</span>
-          <span className="flex-1 min-w-0 text-[10px] text-slate-600 font-medium">Description</span>
+          <span className="w-12 shrink-0 text-[10px] text-fg-subtle font-medium">Art-Net #</span>
+          <span className="flex-1 min-w-0 text-[10px] text-fg-subtle font-medium">Label</span>
+          <span className="flex-1 min-w-0 text-[10px] text-fg-subtle font-medium">Description</span>
           <span className="w-4 shrink-0" />
         </div>
         <div className="space-y-2">
           {universes.map((u) => (
-            <div key={u.id} className="bg-slate-800/50 rounded-lg px-3 py-2 space-y-2">
+            <div key={u.id} className="bg-surface-1/50 rounded-lg px-3 py-2 space-y-2">
               {/* Row 1: index, artnet universe number, label, description, delete */}
               <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-slate-600 font-mono w-4 shrink-0">{u.id}</span>
+                <span className="text-[10px] text-fg-subtle font-mono w-4 shrink-0">{u.id}</span>
                 <input
                   type="number"
                   min={0}
@@ -204,25 +204,25 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
                     const v = parseInt(e.target.value, 10)
                     updateUniverse(u.id, 'artnet_universe', isNaN(v) ? 0 : v)
                   }}
-                  className="w-12 shrink-0 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                  className="w-12 shrink-0 bg-surface-0 border border-edge rounded px-2 py-1 text-xs text-fg font-mono focus:outline-none focus:border-accent"
                 />
                 <input
                   value={u.port_label}
                   onChange={(e) => updateUniverse(u.id, 'port_label', e.target.value)}
                   placeholder="e.g. Output 1"
-                  className="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                  className="flex-1 min-w-0 bg-surface-0 border border-edge rounded px-2 py-1 text-xs text-fg placeholder-fg-subtle focus:outline-none focus:border-accent"
                 />
                 <input
                   value={u.description}
                   onChange={(e) => updateUniverse(u.id, 'description', e.target.value)}
                   placeholder="e.g. Stage Left"
-                  className="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                  className="flex-1 min-w-0 bg-surface-0 border border-edge rounded px-2 py-1 text-xs text-fg placeholder-fg-subtle focus:outline-none focus:border-accent"
                 />
                 {universes.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeUniverse(u.id)}
-                    className="text-slate-600 hover:text-red-400 transition-colors shrink-0"
+                    className="text-fg-subtle hover:text-red-400 transition-colors shrink-0"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -258,27 +258,27 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
         <button
           type="button"
           onClick={() => setShowOptions((v) => !v)}
-          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors w-full text-left"
+          className="flex items-center gap-1.5 text-xs text-fg-subtle hover:text-fg transition-colors w-full text-left"
         >
           <ChevronDown
             className={`w-3.5 h-3.5 transition-transform duration-150 ${showOptions ? 'rotate-180' : ''}`}
           />
           Options
           {!showOptions && notes && (
-            <span className="ml-1 text-blue-500">•</span>
+            <span className="ml-1 text-accent">•</span>
           )}
         </button>
 
         {showOptions && (
           <div className="mt-3 space-y-3 pl-1">
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Notes</label>
+              <label className="block text-xs text-fg-muted mb-1">Notes</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
                 placeholder="Optional notes about this node..."
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
+                className="w-full bg-surface-1 border border-edge rounded-lg px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:border-accent resize-none"
               />
             </div>
           </div>
@@ -290,7 +290,7 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 px-4 py-2 rounded-lg text-sm text-slate-400 bg-slate-800 hover:bg-slate-700 transition-colors"
+            className="flex-1 px-4 py-2 rounded-lg text-sm text-fg-muted bg-surface-1 hover:bg-surface-2 transition-colors"
           >
             Cancel
           </button>
@@ -298,7 +298,7 @@ export function NodeSetupForm({ node, onSubmit, onCancel, submitLabel = 'Add Art
         <button
           type="submit"
           disabled={submitting}
-          className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-accent hover:bg-accent-hover text-fg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? 'Saving…' : isEditing ? 'Save Changes' : submitLabel}
         </button>

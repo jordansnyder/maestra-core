@@ -156,14 +156,11 @@ services:
   dashboard:
     image: ghcr.io/jordansnyder/maestra-dashboard:latest
     container_name: maestra-dashboard
-    environment:
-      - NEXT_PUBLIC_API_URL=http://${HOST_IP:-localhost}:8080
-      - NEXT_PUBLIC_WS_URL=ws://${HOST_IP:-localhost}:8765
-      - NEXT_PUBLIC_NODERED_URL=http://${HOST_IP:-localhost}:1880
-      - NEXT_PUBLIC_GRAFANA_URL=http://${HOST_IP:-localhost}:3000
-      - NEXT_PUBLIC_DOCS_URL=http://${HOST_IP:-localhost}:8000
-      - NEXT_PUBLIC_NATS_URL=http://${HOST_IP:-localhost}:8222
-      - NEXT_PUBLIC_MQTT_WS_URL=ws://${HOST_IP:-localhost}:9001
+    # No NEXT_PUBLIC_* service URLs are baked in. The client resolves every
+    # service host from window.location.hostname at runtime (see
+    # services/dashboard/src/lib/hosts.ts). This keeps the dashboard working
+    # whether opened at localhost or over the LAN, and survives DHCP/IP changes
+    # that would otherwise strand a host that was baked in at container start.
     ports:
       - "3001:3000"
     networks:

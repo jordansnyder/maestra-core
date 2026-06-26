@@ -12,10 +12,10 @@ interface DeviceDetailModalProps {
 
 const STATUS_COLORS: Record<string, string> = {
   online: 'bg-green-400',
-  offline: 'bg-slate-500',
+  offline: 'bg-fg-subtle',
   error: 'bg-red-400',
   maintenance: 'bg-amber-400',
-  pending: 'bg-blue-400',
+  pending: 'bg-accent',
 }
 
 function inferType(value: unknown): string {
@@ -166,15 +166,15 @@ export function DeviceDetailModal({ device, onSave, onClose }: DeviceDetailModal
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-surface-1 rounded-xl border border-edge p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className={`w-3 h-3 rounded-full ${STATUS_COLORS[device.status] || 'bg-slate-500'}`} />
+            <div className={`w-3 h-3 rounded-full ${STATUS_COLORS[device.status] || 'bg-fg-subtle'}`} />
             <h2 className="text-xl font-semibold">{device.name}</h2>
-            <span className="text-sm text-slate-400 capitalize">{device.status}</span>
+            <span className="text-sm text-fg-muted capitalize">{device.status}</span>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white p-1">
+          <button onClick={onClose} className="text-fg-muted hover:text-fg p-1">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -182,23 +182,23 @@ export function DeviceDetailModal({ device, onSave, onClose }: DeviceDetailModal
         <div className="space-y-5">
           {/* Device Fields */}
           <div>
-            <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-3">Details</h3>
+            <h3 className="text-sm font-medium text-fg-muted uppercase tracking-wider mb-3">Details</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">Name</label>
+                <label className="block text-sm font-medium text-fg mb-1.5">Name</label>
                 <input
                   type="text"
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-surface-0 border border-edge rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">Device Type</label>
+                <label className="block text-sm font-medium text-fg mb-1.5">Device Type</label>
                 <select
                   value={deviceType}
                   onChange={e => setDeviceType(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-surface-0 border border-edge rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent"
                 >
                   <option value="arduino">Arduino</option>
                   <option value="raspberry_pi">Raspberry Pi</option>
@@ -212,38 +212,38 @@ export function DeviceDetailModal({ device, onSave, onClose }: DeviceDetailModal
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">MAC Address</label>
+                <label className="block text-sm font-medium text-fg mb-1.5">MAC Address</label>
                 <div className="flex items-center gap-2">
-                  <span className="flex-1 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm font-mono text-slate-300 uppercase">
+                  <span className="flex-1 bg-surface-0/50 border border-edge rounded-lg px-3 py-2 text-sm font-mono text-fg uppercase">
                     {device.hardware_id}
                   </span>
                   <button
                     onClick={handleCopyMac}
-                    className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                    className="p-2 bg-surface-2 hover:bg-surface-2 rounded-lg transition-colors"
                     title="Copy MAC address"
                   >
-                    {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-slate-400" />}
+                    {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-fg-muted" />}
                   </button>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">IP Address</label>
+                <label className="block text-sm font-medium text-fg mb-1.5">IP Address</label>
                 <input
                   type="text"
                   value={ipAddress}
                   onChange={e => setIpAddress(e.target.value)}
                   placeholder="192.168.1.100"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-blue-500"
+                  className="w-full bg-surface-0 border border-edge rounded-lg px-3 py-2 text-sm text-fg font-mono focus:outline-none focus:border-accent"
                 />
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">Firmware Version</label>
+                <label className="block text-sm font-medium text-fg mb-1.5">Firmware Version</label>
                 <input
                   type="text"
                   value={firmwareVersion}
                   onChange={e => setFirmwareVersion(e.target.value)}
                   placeholder="v1.0.0"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-surface-0 border border-edge rounded-lg px-3 py-2 text-sm text-fg focus:outline-none focus:border-accent"
                 />
               </div>
             </div>
@@ -252,12 +252,12 @@ export function DeviceDetailModal({ device, onSave, onClose }: DeviceDetailModal
           {/* Configuration */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wider">Configuration</h3>
-              <div className="flex items-center gap-1 bg-slate-900 rounded-lg p-0.5">
+              <h3 className="text-sm font-medium text-fg-muted uppercase tracking-wider">Configuration</h3>
+              <div className="flex items-center gap-1 bg-surface-0 rounded-lg p-0.5">
                 <button
                   onClick={() => handleViewSwitch('table')}
                   className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                    configView === 'table' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-300'
+                    configView === 'table' ? 'bg-surface-2 text-fg' : 'text-fg-muted hover:text-fg'
                   }`}
                 >
                   Table
@@ -265,7 +265,7 @@ export function DeviceDetailModal({ device, onSave, onClose }: DeviceDetailModal
                 <button
                   onClick={() => handleViewSwitch('json')}
                   className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                    configView === 'json' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-300'
+                    configView === 'json' ? 'bg-surface-2 text-fg' : 'text-fg-muted hover:text-fg'
                   }`}
                 >
                   JSON
@@ -276,27 +276,27 @@ export function DeviceDetailModal({ device, onSave, onClose }: DeviceDetailModal
             {configView === 'table' ? (
               <div>
                 {configKeys.length > 0 ? (
-                  <div className="border border-slate-700 rounded-lg overflow-hidden">
+                  <div className="border border-edge rounded-lg overflow-hidden">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="bg-slate-900/50">
-                          <th className="text-left px-3 py-2 text-slate-500 font-medium text-xs">Key</th>
-                          <th className="text-left px-3 py-2 text-slate-500 font-medium text-xs w-20">Type</th>
-                          <th className="text-left px-3 py-2 text-slate-500 font-medium text-xs">Value</th>
+                        <tr className="bg-surface-0/50">
+                          <th className="text-left px-3 py-2 text-fg-subtle font-medium text-xs">Key</th>
+                          <th className="text-left px-3 py-2 text-fg-subtle font-medium text-xs w-20">Type</th>
+                          <th className="text-left px-3 py-2 text-fg-subtle font-medium text-xs">Value</th>
                           <th className="w-8"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {configKeys.map(key => (
-                          <tr key={key} className="border-t border-slate-700/50">
-                            <td className="px-3 py-2 font-mono text-xs text-slate-300">{key}</td>
-                            <td className="px-3 py-2 text-xs text-slate-500">{inferType(configObj[key])}</td>
+                          <tr key={key} className="border-t border-edge/50">
+                            <td className="px-3 py-2 font-mono text-xs text-fg">{key}</td>
+                            <td className="px-3 py-2 text-xs text-fg-subtle">{inferType(configObj[key])}</td>
                             <td className="px-3 py-2">
                               <input
                                 type="text"
                                 value={formatValue(configObj[key])}
                                 onChange={e => updateConfigKey(key, e.target.value)}
-                                className="w-full bg-transparent border-0 text-xs font-mono text-white focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1 py-0.5"
+                                className="w-full bg-transparent border-0 text-xs font-mono text-fg focus:outline-none focus:ring-1 focus:ring-accent rounded px-1 py-0.5"
                               />
                             </td>
                             <td className="px-2 py-2">
@@ -313,7 +313,7 @@ export function DeviceDetailModal({ device, onSave, onClose }: DeviceDetailModal
                     </table>
                   </div>
                 ) : (
-                  <div className="text-center py-6 text-slate-500 text-sm border border-slate-700 rounded-lg">
+                  <div className="text-center py-6 text-fg-subtle text-sm border border-edge rounded-lg">
                     No configuration keys. Add one below.
                   </div>
                 )}
@@ -324,7 +324,7 @@ export function DeviceDetailModal({ device, onSave, onClose }: DeviceDetailModal
                     value={newKey}
                     onChange={e => setNewKey(e.target.value)}
                     placeholder="key"
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-blue-500"
+                    className="flex-1 bg-surface-0 border border-edge rounded-lg px-3 py-1.5 text-xs font-mono text-fg focus:outline-none focus:border-accent"
                   />
                   <input
                     type="text"
@@ -332,12 +332,12 @@ export function DeviceDetailModal({ device, onSave, onClose }: DeviceDetailModal
                     onChange={e => setNewValue(e.target.value)}
                     placeholder="value"
                     onKeyDown={e => e.key === 'Enter' && addConfigKey()}
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-blue-500"
+                    className="flex-1 bg-surface-0 border border-edge rounded-lg px-3 py-1.5 text-xs font-mono text-fg focus:outline-none focus:border-accent"
                   />
                   <button
                     onClick={addConfigKey}
                     disabled={!newKey.trim()}
-                    className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                    className="px-3 py-1.5 bg-surface-2 hover:bg-surface-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
                   >
                     + Add
                   </button>
@@ -349,7 +349,7 @@ export function DeviceDetailModal({ device, onSave, onClose }: DeviceDetailModal
                   value={configJsonText}
                   onChange={e => handleJsonChange(e.target.value)}
                   rows={10}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg font-mono text-sm focus:outline-none focus:border-blue-500 resize-y"
+                  className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg font-mono text-sm focus:outline-none focus:border-accent resize-y"
                   spellCheck={false}
                 />
                 {configJsonError && (
@@ -361,17 +361,17 @@ export function DeviceDetailModal({ device, onSave, onClose }: DeviceDetailModal
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-slate-700">
+        <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-edge">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium transition-colors"
+            className="px-4 py-2 rounded-lg bg-surface-2 hover:bg-surface-2 text-sm font-medium transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !!configJsonError}
-            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-fg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Saving...' : 'Save Changes'}
           </button>

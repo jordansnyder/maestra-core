@@ -37,7 +37,7 @@ export function StringControl({ variable, value, onChange, disabled, compact }: 
         maxLength={maxLength}
         disabled={disabled}
         placeholder={variable.description || '...'}
-        className="flex-1 min-w-0 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs focus:outline-none focus:border-blue-500 disabled:opacity-50"
+        className="flex-1 min-w-0 px-2 py-1 bg-surface-0 border border-edge rounded text-xs focus:outline-none focus:border-accent disabled:opacity-50"
       />
     )
   }
@@ -53,13 +53,13 @@ export function StringControl({ variable, value, onChange, disabled, compact }: 
         maxLength={maxLength}
         disabled={disabled}
         placeholder={variable.description || 'Enter text...'}
-        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:border-blue-500 disabled:opacity-50"
+        className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg focus:outline-none focus:border-accent disabled:opacity-50"
       />
       {localValue && (
         <button
           onClick={() => { setLocalValue(''); onChange('') }}
           disabled={disabled}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 disabled:opacity-50"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg disabled:opacity-50"
         >
           x
         </button>

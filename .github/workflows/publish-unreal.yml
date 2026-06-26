@@ -52,7 +52,7 @@ jobs:
             3. Regenerate Visual Studio project files
             4. Build from Visual Studio
 
-            See the [Unreal Engine integration guide](https://maestra.dev/docs/connect/unreal/) for full setup instructions.
+            See the [Unreal Engine integration guide](https://maestra.cc/docs) for full setup instructions.
           files: |
             MaestraPlugin-${{ steps.version.outputs.version }}.zip
           draft: false

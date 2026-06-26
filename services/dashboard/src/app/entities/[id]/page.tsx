@@ -230,17 +230,17 @@ export default function EntityDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-full bg-gradient-to-br from-slate-900 to-slate-800 text-white flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full" />
+      <div className="min-h-full bg-gradient-to-br from-surface-0 to-surface-1 text-fg flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-accent border-t-transparent rounded-full" />
       </div>
     )
   }
 
   if (error || !entity) {
     return (
-      <div className="min-h-full bg-gradient-to-br from-slate-900 to-slate-800 text-white">
+      <div className="min-h-full bg-gradient-to-br from-surface-0 to-surface-1 text-fg">
         <div className="container mx-auto px-6 py-8">
-          <Link href="/entities" className="text-slate-400 hover:text-white text-sm">← Back to Entities</Link>
+          <Link href="/entities" className="text-fg-muted hover:text-fg text-sm">← Back to Entities</Link>
           <div className="mt-8 p-4 bg-red-900/50 border border-red-700 rounded-lg text-sm">
             {error || 'Entity not found'}
           </div>
@@ -254,16 +254,16 @@ export default function EntityDetailPage() {
   const isDmxLinked = !!linkedFixture || isDmxController
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-slate-900 to-slate-800 text-white">
+    <div className="min-h-full bg-gradient-to-br from-surface-0 to-surface-1 text-fg">
       <div className="container mx-auto px-6 py-8">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-1.5 text-sm mb-6">
-          <Link href="/" className="text-slate-400 hover:text-white">Dashboard</Link>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-          <Link href="/entities" className="text-slate-400 hover:text-white">Entities</Link>
+          <Link href="/" className="text-fg-muted hover:text-fg">Dashboard</Link>
+          <ChevronRight className="w-3.5 h-3.5 text-fg-subtle" />
+          <Link href="/entities" className="text-fg-muted hover:text-fg">Entities</Link>
           {isDmxController && (
             <>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+              <ChevronRight className="w-3.5 h-3.5 text-fg-subtle" />
               <Link href="/dmx" className="text-amber-400 hover:text-amber-300 flex items-center gap-1">
                 <Zap className="w-3 h-3" />
                 DMX Lighting
@@ -272,26 +272,26 @@ export default function EntityDetailPage() {
           )}
           {ancestors.map((ancestor) => (
             <span key={ancestor.id} className="flex items-center gap-1.5">
-              <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-              <Link href={`/entities/${ancestor.id}`} className="text-slate-400 hover:text-white">
+              <ChevronRight className="w-3.5 h-3.5 text-fg-subtle" />
+              <Link href={`/entities/${ancestor.id}`} className="text-fg-muted hover:text-fg">
                 {ancestor.name}
               </Link>
             </span>
           ))}
-          <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-          <span className="text-white">{entity.name}</span>
+          <ChevronRight className="w-3.5 h-3.5 text-fg-subtle" />
+          <span className="text-fg">{entity.name}</span>
         </nav>
 
         {/* Header */}
         <header className="mb-8">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0">
-                <EntityIcon className="w-6 h-6 text-slate-300" />
+              <div className="w-12 h-12 rounded-lg bg-surface-2/50 flex items-center justify-center shrink-0">
+                <EntityIcon className="w-6 h-6 text-fg" />
               </div>
               <div>
                 <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold">{entity.name}</h1>
+                  <h1 className="text-2xl font-bold tracking-display">{entity.name}</h1>
                   {isDmxLinked && (
                     <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-900/40 border border-amber-800/50 text-amber-400 text-xs font-medium">
                       <Zap className="w-3 h-3" />
@@ -300,9 +300,9 @@ export default function EntityDetailPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-3 mt-2">
-                  <span className="text-sm px-2 py-0.5 bg-slate-700 rounded">{getTypeName(entity.entity_type_id)}</span>
-                  <span className="text-sm text-slate-400 font-mono">{entity.slug}</span>
-                  <span className={`text-sm px-2 py-0.5 rounded ${entity.status === 'active' ? 'bg-green-900/50 text-green-400' : 'bg-slate-700 text-slate-400'}`}>
+                  <span className="text-sm px-2 py-0.5 bg-surface-2 rounded">{getTypeName(entity.entity_type_id)}</span>
+                  <span className="text-sm text-fg-muted font-mono">{entity.slug}</span>
+                  <span className={`text-sm px-2 py-0.5 rounded ${entity.status === 'active' ? 'bg-green-900/50 text-green-400' : 'bg-surface-2 text-fg-muted'}`}>
                     {entity.status}
                   </span>
                 </div>
@@ -311,7 +311,7 @@ export default function EntityDetailPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setEditing(!editing)}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-surface-2 hover:bg-surface-2 rounded-lg text-sm transition-colors"
               >
                 <Pencil className="w-3.5 h-3.5" />
                 {editing ? 'Cancel' : 'Edit'}
@@ -338,11 +338,11 @@ export default function EntityDetailPage() {
           {/* Left Column (40%) */}
           <div className="lg:col-span-2 space-y-6">
             {/* DMX Fixture Card — hidden for the singleton DMX controller entity */}
-            {!isDmxController && <div className={`rounded-lg border p-5 ${isDmxLinked ? 'bg-amber-950/20 border-amber-800/40' : 'bg-slate-800 border-slate-700'}`}>
+            {!isDmxController && <div className={`rounded-lg border p-5 ${isDmxLinked ? 'bg-amber-950/20 border-amber-800/40' : 'bg-surface-1 border-edge'}`}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <Zap className={`w-4 h-4 ${isDmxLinked ? 'text-amber-400' : 'text-slate-600'}`} />
-                  <h2 className={`text-sm font-semibold ${isDmxLinked ? 'text-amber-300' : 'text-slate-400'}`}>
+                  <Zap className={`w-4 h-4 ${isDmxLinked ? 'text-amber-400' : 'text-fg-subtle'}`} />
+                  <h2 className={`text-sm font-semibold ${isDmxLinked ? 'text-amber-300' : 'text-fg-muted'}`}>
                     DMX Fixture
                   </h2>
                 </div>
@@ -361,23 +361,23 @@ export default function EntityDetailPage() {
               {isDmxLinked && linkedFixture && (
                 <div className="mb-4 space-y-1.5 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Fixture</span>
-                    <span className="text-slate-200 font-medium">{linkedFixture.name}</span>
+                    <span className="text-fg-subtle">Fixture</span>
+                    <span className="text-fg font-medium">{linkedFixture.name}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Universe</span>
-                    <span className="text-slate-300 font-mono">U{linkedFixture.universe}</span>
+                    <span className="text-fg-subtle">Universe</span>
+                    <span className="text-fg font-mono">U{linkedFixture.universe}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">DMX Address</span>
-                    <span className="text-slate-300 font-mono">
+                    <span className="text-fg-subtle">DMX Address</span>
+                    <span className="text-fg font-mono">
                       {linkedFixture.start_channel}–{linkedFixture.start_channel + linkedFixture.channel_count - 1}
                     </span>
                   </div>
                   {linkedFixture.fixture_mode && (
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Mode</span>
-                      <span className="text-slate-300">{linkedFixture.fixture_mode}</span>
+                      <span className="text-fg-subtle">Mode</span>
+                      <span className="text-fg">{linkedFixture.fixture_mode}</span>
                     </div>
                   )}
 
@@ -390,8 +390,8 @@ export default function EntityDetailPage() {
                       <div className="space-y-1">
                         {channelMapEntries.map(([varName, mapping]) => (
                           <div key={varName} className="flex items-center justify-between">
-                            <span className="text-slate-400 font-mono">{varName}</span>
-                            <span className="text-[10px] text-slate-600 font-mono">
+                            <span className="text-fg-muted font-mono">{varName}</span>
+                            <span className="text-[10px] text-fg-subtle font-mono">
                               ch {linkedFixture.start_channel + mapping.offset - 1} · {mapping.type}
                             </span>
                           </div>
@@ -411,7 +411,7 @@ export default function EntityDetailPage() {
                   className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs border transition-colors ${
                     isDmxLinked
                       ? 'bg-amber-900/20 border-amber-800/40 text-amber-400 hover:bg-amber-900/30'
-                      : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
+                      : 'bg-surface-2 border-edge-strong text-fg hover:bg-surface-2'
                   } disabled:opacity-50`}
                 >
                   <span>{savingDmxLink ? 'Saving…' : isDmxLinked ? `Linked: ${linkedFixture!.name}` : 'No fixture linked'}</span>
@@ -419,18 +419,18 @@ export default function EntityDetailPage() {
                 </button>
 
                 {fixtureDropdownOpen && (
-                  <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden">
+                  <div className="absolute z-50 w-full mt-1 bg-surface-1 border border-edge rounded-lg shadow-xl overflow-hidden">
                     {/* Search */}
-                    <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-700">
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-edge">
                       <input
                         autoFocus
                         value={fixtureSearch}
                         onChange={(e) => setFixtureSearch(e.target.value)}
                         placeholder="Search fixtures…"
-                        className="flex-1 bg-transparent text-xs text-white placeholder-slate-600 focus:outline-none"
+                        className="flex-1 bg-transparent text-xs text-fg placeholder-fg-subtle focus:outline-none"
                       />
                       {fixtureSearch && (
-                        <button onClick={() => setFixtureSearch('')} className="text-slate-600 hover:text-slate-400">
+                        <button onClick={() => setFixtureSearch('')} className="text-fg-subtle hover:text-fg-muted">
                           <X className="w-3 h-3" />
                         </button>
                       )}
@@ -448,7 +448,7 @@ export default function EntityDetailPage() {
                         </button>
                       )}
                       {filteredFixtures.length === 0 ? (
-                        <div className="px-3 py-3 text-xs text-slate-600 text-center">
+                        <div className="px-3 py-3 text-xs text-fg-subtle text-center">
                           {allFixtures.length === 0 ? 'No fixtures configured' : 'No fixtures available'}
                         </div>
                       ) : (
@@ -460,11 +460,11 @@ export default function EntityDetailPage() {
                             className={`w-full text-left px-3 py-2 text-xs transition-colors ${
                               f.id === linkedFixture?.id
                                 ? 'bg-amber-900/30 text-amber-300'
-                                : 'hover:bg-slate-700/60 text-slate-300'
+                                : 'hover:bg-surface-2/60 text-fg'
                             }`}
                           >
                             <div className="font-medium truncate">{f.name}</div>
-                            <div className="text-[10px] text-slate-500 font-mono">
+                            <div className="text-[10px] text-fg-subtle font-mono">
                               U{f.universe} · Ch {f.start_channel} · {f.channel_count}ch
                             </div>
                           </button>
@@ -477,20 +477,20 @@ export default function EntityDetailPage() {
             </div>}
 
             {/* Metadata Card */}
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+            <div className="bg-surface-1 border border-edge rounded-lg p-6">
               <h2 className="text-lg font-semibold mb-4">Details</h2>
               {editing ? (
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">
                       Display Name
-                      <span className="ml-2 text-xs font-normal text-slate-500">slug stays unchanged</span>
+                      <span className="ml-2 text-xs font-normal text-fg-subtle">slug stays unchanged</span>
                     </label>
                     <input
                       type="text"
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
                     />
                   </div>
                   <div>
@@ -499,7 +499,7 @@ export default function EntityDetailPage() {
                       value={editDescription}
                       onChange={(e) => setEditDescription(e.target.value)}
                       rows={3}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
                     />
                   </div>
                   <div>
@@ -507,7 +507,7 @@ export default function EntityDetailPage() {
                     <select
                       value={editParentId}
                       onChange={(e) => setEditParentId(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
                     >
                       <option value="">No parent (root entity)</option>
                       {allEntities.filter((e) => e.id !== entityId).map((e) => (
@@ -520,7 +520,7 @@ export default function EntityDetailPage() {
                     <select
                       value={editStatus}
                       onChange={(e) => setEditStatus(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg text-sm focus:outline-none focus:border-accent"
                     >
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
@@ -530,7 +530,7 @@ export default function EntityDetailPage() {
                   </div>
                   <button
                     onClick={handleSaveMetadata}
-                    className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
+                    className="w-full px-4 py-2 bg-accent hover:bg-accent-hover rounded-lg text-sm font-medium transition-colors"
                   >
                     Save Changes
                   </button>
@@ -538,31 +538,31 @@ export default function EntityDetailPage() {
               ) : (
                 <dl className="space-y-3 text-sm">
                   <div>
-                    <dt className="text-slate-400">Description</dt>
+                    <dt className="text-fg-muted">Description</dt>
                     <dd className="mt-0.5">{entity.description || '—'}</dd>
                   </div>
                   <div>
-                    <dt className="text-slate-400">Path</dt>
+                    <dt className="text-fg-muted">Path</dt>
                     <dd className="font-mono mt-0.5">{entity.path || '—'}</dd>
                   </div>
                   <div>
-                    <dt className="text-slate-400">Tags</dt>
+                    <dt className="text-fg-muted">Tags</dt>
                     <dd className="mt-0.5">
                       {entity.tags.length > 0 ? (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {entity.tags.map((tag) => (
-                            <span key={tag} className="px-2 py-0.5 bg-slate-700 rounded text-xs">{tag}</span>
+                            <span key={tag} className="px-2 py-0.5 bg-surface-2 rounded text-xs">{tag}</span>
                           ))}
                         </div>
                       ) : '—'}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-slate-400">Created</dt>
+                    <dt className="text-fg-muted">Created</dt>
                     <dd className="mt-0.5">{new Date(entity.created_at).toLocaleString()}</dd>
                   </div>
                   <div>
-                    <dt className="text-slate-400">Updated</dt>
+                    <dt className="text-fg-muted">Updated</dt>
                     <dd className="mt-0.5">{new Date(entity.updated_at).toLocaleString()}</dd>
                   </div>
                 </dl>
@@ -571,7 +571,7 @@ export default function EntityDetailPage() {
 
             {/* Children Card */}
             {entity.children && entity.children.length > 0 && (
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <div className="bg-surface-1 border border-edge rounded-lg p-6">
                 <h2 className="text-lg font-semibold mb-4">Children ({entity.children.length})</h2>
                 <div className="space-y-1">
                   {entity.children.map((child) => {
@@ -580,11 +580,11 @@ export default function EntityDetailPage() {
                       <Link
                         key={child.id}
                         href={`/entities/${child.id}`}
-                        className="flex items-center gap-2 p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                        className="flex items-center gap-2 p-2 hover:bg-surface-2 rounded-lg transition-colors"
                       >
-                        <ChildIcon className="w-4 h-4 text-slate-400" />
+                        <ChildIcon className="w-4 h-4 text-fg-muted" />
                         <span className="text-sm">{child.name}</span>
-                        <span className="text-xs text-slate-500 font-mono">({child.slug})</span>
+                        <span className="text-xs text-fg-subtle font-mono">({child.slug})</span>
                       </Link>
                     )
                   })}
@@ -640,18 +640,18 @@ export default function EntityDetailPage() {
             <div className="mt-6">
               <button
                 onClick={() => setRawStateExpanded(!rawStateExpanded)}
-                className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-300 transition-colors mb-3"
+                className="flex items-center gap-2 text-sm text-fg-muted hover:text-fg transition-colors mb-3"
               >
                 <ChevronDown className={`w-4 h-4 transition-transform ${rawStateExpanded ? '' : '-rotate-90'}`} />
                 <span>Raw State & Topics</span>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-fg-subtle">
                   Updated: {new Date(entity.state_updated_at).toLocaleString()}
                 </span>
               </button>
 
               {rawStateExpanded && (
                 <div className="space-y-4">
-                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                  <div className="bg-surface-1 border border-edge rounded-lg p-4">
                     {stateError && (
                       <div className="mb-3 p-2 bg-red-900/50 border border-red-700 rounded text-sm">{stateError}</div>
                     )}
@@ -659,31 +659,31 @@ export default function EntityDetailPage() {
                       value={stateJson}
                       onChange={(e) => setStateJson(e.target.value)}
                       rows={10}
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg font-mono text-sm focus:outline-none focus:border-blue-500"
+                      className="w-full px-3 py-2 bg-surface-0 border border-edge rounded-lg font-mono text-sm focus:outline-none focus:border-accent"
                       spellCheck={false}
                     />
                     <div className="flex justify-end mt-3">
                       <button
                         onClick={handleSaveState}
                         disabled={savingState}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                        className="px-3 py-1.5 bg-accent hover:bg-accent-hover rounded text-xs font-medium transition-colors disabled:opacity-50"
                       >
                         {savingState ? 'Saving...' : 'Save State'}
                       </button>
                     </div>
                   </div>
 
-                  <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-                    <h3 className="text-xs font-semibold text-slate-500 mb-2">Message Bus Topics</h3>
+                  <div className="bg-surface-1/50 border border-edge rounded-lg p-3">
+                    <h3 className="text-xs font-semibold text-fg-subtle mb-2">Message Bus Topics</h3>
                     <div className="space-y-1.5 text-xs font-mono">
                       <div>
-                        <span className="text-slate-500">NATS: </span>
-                        <span className="text-blue-400">
+                        <span className="text-fg-subtle">NATS: </span>
+                        <span className="text-accent">
                           maestra.entity.state.{entity.entity_type?.name || 'unknown'}.{entity.slug}
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-500">MQTT: </span>
+                        <span className="text-fg-subtle">MQTT: </span>
                         <span className="text-green-400">
                           maestra/entity/state/{entity.entity_type?.name || 'unknown'}/{entity.slug}
                         </span>

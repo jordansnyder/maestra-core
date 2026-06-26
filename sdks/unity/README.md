@@ -13,7 +13,7 @@ Connect Unity to the Maestra platform for real-time entity state management.
 
 1. Open Window → Package Manager
 2. Click + → Add package from git URL
-3. Enter: `https://github.com/maestra/maestra-core.git?path=sdks/unity`
+3. Enter: `https://github.com/jordansnyder/maestra-core.git?path=sdks/unity`
 
 ### Manual Installation
 

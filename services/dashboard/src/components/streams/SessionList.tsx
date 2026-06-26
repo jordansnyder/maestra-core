@@ -23,10 +23,10 @@ interface SessionListProps {
 export function SessionList({ sessions, onStopSession }: SessionListProps) {
   if (sessions.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-3">
+      <div className="flex flex-col items-center justify-center h-full text-fg-subtle gap-3">
         <div className="text-4xl opacity-30">&#9656;</div>
         <p className="text-sm">No active sessions</p>
-        <p className="text-xs text-slate-600 max-w-sm text-center">
+        <p className="text-xs text-fg-subtle max-w-sm text-center">
           Sessions are created when a device requests a stream from a publisher.
           Active sessions maintain a heartbeat and expire if either side disconnects.
         </p>
@@ -37,7 +37,7 @@ export function SessionList({ sessions, onStopSession }: SessionListProps) {
   return (
     <div className="space-y-3">
       {/* Table header */}
-      <div className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_1fr_80px] gap-3 px-4 py-2 text-[10px] uppercase tracking-wider text-slate-600 font-medium">
+      <div className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_1fr_80px] gap-3 px-4 py-2 text-[10px] uppercase tracking-wider text-fg-subtle font-medium">
         <span>Stream</span>
         <span>Publisher</span>
         <span>Consumer</span>
@@ -52,34 +52,34 @@ export function SessionList({ sessions, onStopSession }: SessionListProps) {
         return (
           <div
             key={session.session_id}
-            className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_1fr_80px] gap-3 items-center px-4 py-3 bg-slate-900 border border-slate-800 rounded-lg hover:border-slate-700 transition-colors"
+            className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_1fr_80px] gap-3 items-center px-4 py-3 bg-surface-0 border border-edge rounded-lg hover:border-edge transition-colors"
           >
             {/* Stream name + type */}
             <div className="flex items-center gap-2.5 min-w-0">
               <Icon className="w-4 h-4 text-purple-400 shrink-0" />
               <div className="min-w-0">
-                <p className="text-sm text-white truncate">{session.stream_name}</p>
-                <p className="text-[10px] text-slate-500">{session.stream_type}</p>
+                <p className="text-sm text-fg truncate">{session.stream_name}</p>
+                <p className="text-[10px] text-fg-subtle">{session.stream_type}</p>
               </div>
             </div>
 
             {/* Publisher */}
             <div className="min-w-0">
-              <p className="text-xs text-slate-300 font-mono truncate">{session.publisher_id}</p>
-              <p className="text-[10px] text-slate-600 font-mono">{session.publisher_address}</p>
+              <p className="text-xs text-fg font-mono truncate">{session.publisher_id}</p>
+              <p className="text-[10px] text-fg-subtle font-mono">{session.publisher_address}</p>
             </div>
 
             {/* Consumer */}
             <div className="min-w-0">
-              <p className="text-xs text-slate-300 font-mono truncate">{session.consumer_id}</p>
-              <p className="text-[10px] text-slate-600 font-mono">{session.consumer_address}</p>
+              <p className="text-xs text-fg font-mono truncate">{session.consumer_id}</p>
+              <p className="text-[10px] text-fg-subtle font-mono">{session.consumer_address}</p>
             </div>
 
             {/* Protocol */}
-            <span className="text-xs text-slate-400 uppercase">{session.protocol}</span>
+            <span className="text-xs text-fg-muted uppercase">{session.protocol}</span>
 
             {/* Duration */}
-            <span className="text-xs text-slate-400 font-mono">
+            <span className="text-xs text-fg-muted font-mono">
               {formatDuration(session.started_at)}
             </span>
 

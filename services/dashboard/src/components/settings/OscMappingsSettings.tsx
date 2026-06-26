@@ -164,7 +164,7 @@ export function OscMappingsSettings() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-slate-500">
+      <div className="flex items-center justify-center py-20 text-fg-subtle">
         Loading OSC mappings...
       </div>
     )
@@ -180,13 +180,13 @@ export function OscMappingsSettings() {
       )}
 
       {/* Header */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+      <div className="bg-surface-1 rounded-lg border border-edge p-6">
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-lg font-semibold text-white">OSC Mappings</h2>
+          <h2 className="text-lg font-semibold text-fg">OSC Mappings</h2>
           <div className="flex items-center gap-2">
             <button
               onClick={fetchMappings}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-2 transition-colors"
             >
               <RefreshCw className="w-3 h-3" />
               Refresh
@@ -194,13 +194,13 @@ export function OscMappingsSettings() {
             <button
               onClick={exportMappings}
               disabled={mappings.length === 0}
-              className="px-3 py-1 rounded text-xs text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 disabled:opacity-40 transition-colors"
+              className="px-3 py-1 rounded text-xs text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-2 disabled:opacity-40 transition-colors"
             >
               Export
             </button>
             <button
               onClick={handleImportClick}
-              className="px-3 py-1 rounded text-xs text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 transition-colors"
+              className="px-3 py-1 rounded text-xs text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-2 transition-colors"
             >
               Import
             </button>
@@ -213,18 +213,18 @@ export function OscMappingsSettings() {
             />
             <button
               onClick={openNewForm}
-              className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium text-white bg-blue-600 hover:bg-blue-500 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium text-fg bg-accent hover:bg-accent-hover transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               New Mapping
             </button>
           </div>
         </div>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-fg-muted">
           Map incoming OSC messages to entity state updates.
         </p>
         {importResult && (
-          <div className="mt-3 px-3 py-2 rounded bg-slate-900 border border-slate-700 text-xs text-slate-300">
+          <div className="mt-3 px-3 py-2 rounded bg-surface-0 border border-edge text-xs text-fg">
             {importResult}
           </div>
         )}
@@ -232,12 +232,12 @@ export function OscMappingsSettings() {
 
       {/* Inline edit/create form */}
       {showForm && (
-        <div className="bg-slate-800 rounded-lg border border-blue-700/50 p-6">
+        <div className="bg-surface-1 rounded-lg border border-accent/50 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-white">
+            <h3 className="text-sm font-semibold text-fg">
               {editingId ? 'Edit Mapping' : 'New Mapping'}
             </h3>
-            <button onClick={closeForm} className="text-slate-500 hover:text-slate-300 transition-colors">
+            <button onClick={closeForm} className="text-fg-subtle hover:text-fg transition-colors">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -245,19 +245,19 @@ export function OscMappingsSettings() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {/* OSC Address */}
             <div>
-              <label className="block text-xs text-slate-500 mb-1.5">OSC Address</label>
+              <label className="block text-xs text-fg-subtle mb-1.5">OSC Address</label>
               <input
                 type="text"
                 value={form.osc_address}
                 onChange={(e) => setForm({ ...form, osc_address: e.target.value })}
                 placeholder="/sensor/temperature"
-                className="w-full bg-slate-900 border border-slate-600 focus:border-blue-500 rounded px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors font-mono"
+                className="w-full bg-surface-0 border border-edge-strong focus:border-accent rounded px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:ring-1 focus:ring-accent transition-colors font-mono"
               />
             </div>
 
             {/* Entity */}
             <div>
-              <label className="block text-xs text-slate-500 mb-1.5">Entity</label>
+              <label className="block text-xs text-fg-subtle mb-1.5">Entity</label>
               <EntityPicker
                 value={form.entity_slug}
                 onChange={(slug) => setForm({ ...form, entity_slug: slug })}
@@ -266,9 +266,9 @@ export function OscMappingsSettings() {
 
             {/* Key mode toggle */}
             <div className="sm:col-span-2">
-              <label className="block text-xs text-slate-500 mb-1.5">State Key</label>
+              <label className="block text-xs text-fg-subtle mb-1.5">State Key</label>
               <div className="flex items-center gap-3 mb-2">
-                <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+                <label className="flex items-center gap-1.5 text-xs text-fg-muted cursor-pointer">
                   <input
                     type="radio"
                     name="keyMode"
@@ -278,7 +278,7 @@ export function OscMappingsSettings() {
                   />
                   Single key
                 </label>
-                <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+                <label className="flex items-center gap-1.5 text-xs text-fg-muted cursor-pointer">
                   <input
                     type="radio"
                     name="keyMode"
@@ -295,7 +295,7 @@ export function OscMappingsSettings() {
                   value={form.state_key}
                   onChange={(e) => setForm({ ...form, state_key: e.target.value })}
                   placeholder="temperature"
-                  className="w-full bg-slate-900 border border-slate-600 focus:border-blue-500 rounded px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors font-mono"
+                  className="w-full bg-surface-0 border border-edge-strong focus:border-accent rounded px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:ring-1 focus:ring-accent transition-colors font-mono"
                 />
               ) : (
                 <input
@@ -303,10 +303,10 @@ export function OscMappingsSettings() {
                   value={form.state_keys}
                   onChange={(e) => setForm({ ...form, state_keys: e.target.value })}
                   placeholder="x, y, z"
-                  className="w-full bg-slate-900 border border-slate-600 focus:border-blue-500 rounded px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors font-mono"
+                  className="w-full bg-surface-0 border border-edge-strong focus:border-accent rounded px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:ring-1 focus:ring-accent transition-colors font-mono"
                 />
               )}
-              <p className="text-[10px] text-slate-600 mt-1">
+              <p className="text-[10px] text-fg-subtle mt-1">
                 {form.keyMode === 'single'
                   ? 'Single state key the OSC value maps to. Leave blank to pass through (key-value pairs, JSON, or single value).'
                   : 'Comma-separated list of state keys. OSC arguments map to keys in order.'}
@@ -315,11 +315,11 @@ export function OscMappingsSettings() {
 
             {/* Operation */}
             <div>
-              <label className="block text-xs text-slate-500 mb-1.5">Operation</label>
+              <label className="block text-xs text-fg-subtle mb-1.5">Operation</label>
               <select
                 value={form.operation}
                 onChange={(e) => setForm({ ...form, operation: e.target.value as 'update' | 'set' })}
-                className="w-full bg-slate-900 border border-slate-600 focus:border-blue-500 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+                className="w-full bg-surface-0 border border-edge-strong focus:border-accent rounded px-3 py-2 text-sm text-fg focus:outline-none focus:ring-1 focus:ring-accent transition-colors"
               >
                 <option value="update">update (merge)</option>
                 <option value="set">set (replace)</option>
@@ -328,13 +328,13 @@ export function OscMappingsSettings() {
 
             {/* Description */}
             <div>
-              <label className="block text-xs text-slate-500 mb-1.5">Description (optional)</label>
+              <label className="block text-xs text-fg-subtle mb-1.5">Description (optional)</label>
               <textarea
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
                 placeholder="Map sensor readings to entity state"
                 rows={2}
-                className="w-full bg-slate-900 border border-slate-600 focus:border-blue-500 rounded px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors resize-none"
+                className="w-full bg-surface-0 border border-edge-strong focus:border-accent rounded px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:ring-1 focus:ring-accent transition-colors resize-none"
               />
             </div>
           </div>
@@ -347,17 +347,17 @@ export function OscMappingsSettings() {
           )}
 
           {/* Actions */}
-          <div className="flex items-center gap-3 mt-4 pt-4 border-t border-slate-700">
+          <div className="flex items-center gap-3 mt-4 pt-4 border-t border-edge">
             <button
               onClick={handleSave}
               disabled={saving || !form.osc_address || !form.entity_slug}
-              className="px-4 py-1.5 text-sm font-medium rounded-md bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 transition-colors"
+              className="px-4 py-1.5 text-sm font-medium rounded-md bg-accent hover:bg-accent-hover text-fg disabled:opacity-40 transition-colors"
             >
               {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Create Mapping'}
             </button>
             <button
               onClick={closeForm}
-              className="px-4 py-1.5 text-sm font-medium rounded-md text-slate-400 hover:text-slate-200 transition-colors"
+              className="px-4 py-1.5 text-sm font-medium rounded-md text-fg-muted hover:text-fg transition-colors"
             >
               Cancel
             </button>
@@ -366,16 +366,16 @@ export function OscMappingsSettings() {
       )}
 
       {/* Mappings table */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+      <div className="bg-surface-1 rounded-lg border border-edge p-6">
         {mappings.length === 0 ? (
           <div className="text-center py-10">
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-fg-subtle">
               No OSC mappings configured. Create one to map OSC messages to entity state.
             </p>
             {!showForm && (
               <button
                 onClick={openNewForm}
-                className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 transition-colors"
+                className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded text-sm font-medium text-fg bg-accent hover:bg-accent-hover transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 Create Mapping
@@ -386,7 +386,7 @@ export function OscMappingsSettings() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-700">
+                <tr className="text-left text-xs text-fg-subtle border-b border-edge">
                   <th className="pb-2 font-medium">OSC Address</th>
                   <th className="pb-2 font-medium">Entity</th>
                   <th className="pb-2 font-medium">Key(s)</th>
@@ -395,29 +395,29 @@ export function OscMappingsSettings() {
                   <th className="pb-2 font-medium text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-edge">
                 {mappings.map((mapping) => (
-                  <tr key={mapping.id} className="text-slate-300 group">
+                  <tr key={mapping.id} className="text-fg group">
                     <td className="py-2.5 pr-4">
-                      <span className="font-mono text-xs text-slate-200">{mapping.osc_address}</span>
+                      <span className="font-mono text-xs text-fg">{mapping.osc_address}</span>
                       {mapping.description && (
-                        <p className="text-[10px] text-slate-600 mt-0.5 truncate max-w-[200px]">
+                        <p className="text-[10px] text-fg-subtle mt-0.5 truncate max-w-[200px]">
                           {mapping.description}
                         </p>
                       )}
                     </td>
                     <td className="py-2.5 pr-4">
-                      <span className="font-mono text-xs text-slate-400">{mapping.entity_slug}</span>
+                      <span className="font-mono text-xs text-fg-muted">{mapping.entity_slug}</span>
                     </td>
                     <td className="py-2.5 pr-4">
                       {mapping.state_keys && mapping.state_keys.length > 0 ? (
-                        <span className="font-mono text-xs text-slate-400">
+                        <span className="font-mono text-xs text-fg-muted">
                           {mapping.state_keys.join(', ')}
                         </span>
                       ) : mapping.state_key ? (
-                        <span className="font-mono text-xs text-slate-400">{mapping.state_key}</span>
+                        <span className="font-mono text-xs text-fg-muted">{mapping.state_key}</span>
                       ) : (
-                        <span className="text-xs text-slate-600">--</span>
+                        <span className="text-xs text-fg-subtle">--</span>
                       )}
                     </td>
                     <td className="py-2.5 text-center">
@@ -425,7 +425,7 @@ export function OscMappingsSettings() {
                         className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                           mapping.operation === 'set'
                             ? 'bg-orange-900/40 text-orange-400 border border-orange-800/50'
-                            : 'bg-blue-900/40 text-blue-400 border border-blue-800/50'
+                            : 'bg-accent/40 text-accent border border-accent/50'
                         }`}
                       >
                         {mapping.operation}
@@ -451,14 +451,14 @@ export function OscMappingsSettings() {
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => openEditForm(mapping)}
-                          className="p-1.5 rounded text-slate-500 hover:text-blue-400 hover:bg-slate-700 transition-colors"
+                          className="p-1.5 rounded text-fg-subtle hover:text-accent hover:bg-surface-2 transition-colors"
                           title="Edit"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDelete(mapping.id)}
-                          className="p-1.5 rounded text-slate-500 hover:text-red-400 hover:bg-slate-700 transition-colors"
+                          className="p-1.5 rounded text-fg-subtle hover:text-red-400 hover:bg-surface-2 transition-colors"
                           title="Delete"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

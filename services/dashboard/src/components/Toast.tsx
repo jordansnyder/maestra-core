@@ -57,7 +57,7 @@ const TOAST_CONFIG: Record<ToastType, { icon: LucideIcon; bg: string; border: st
   success: { icon: CheckCircle2, bg: 'bg-green-950/90', border: 'border-green-800/40', iconColor: 'text-green-400' },
   error: { icon: XCircle, bg: 'bg-red-950/90', border: 'border-red-800/40', iconColor: 'text-red-400' },
   warning: { icon: AlertTriangle, bg: 'bg-amber-950/90', border: 'border-amber-800/40', iconColor: 'text-amber-400' },
-  info: { icon: Info, bg: 'bg-blue-950/90', border: 'border-blue-800/40', iconColor: 'text-blue-400' },
+  info: { icon: Info, bg: 'bg-accent/90', border: 'border-accent/40', iconColor: 'text-accent' },
 }
 
 // --- Provider ---
@@ -125,10 +125,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               }}
             >
               <Icon className={`w-5 h-5 shrink-0 mt-0.5 ${config.iconColor}`} />
-              <p className="text-sm text-slate-200 flex-1">{item.message}</p>
+              <p className="text-sm text-fg flex-1">{item.message}</p>
               <button
                 onClick={() => startExit(item.id)}
-                className="text-slate-500 hover:text-slate-300 shrink-0"
+                className="text-fg-subtle hover:text-fg shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -140,17 +140,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {/* Confirm modal */}
       {confirmState && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-sm shadow-2xl">
-            <h3 className="text-lg font-semibold text-white mb-2">
+          <div className="bg-surface-1 border border-edge rounded-lg p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-lg font-semibold text-fg mb-2">
               {confirmState.options.title}
             </h3>
-            <p className="text-sm text-slate-400 mb-6">
+            <p className="text-sm text-fg-muted mb-6">
               {confirmState.options.message}
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => handleConfirmResult(false)}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition-colors"
+                className="px-4 py-2 bg-surface-2 hover:bg-surface-2 rounded-lg text-sm font-medium transition-colors"
               >
                 Cancel
               </button>
@@ -158,8 +158,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 onClick={() => handleConfirmResult(true)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   confirmState.options.destructive
-                    ? 'bg-red-600 hover:bg-red-500 text-white'
-                    : 'bg-blue-600 hover:bg-blue-500 text-white'
+                    ? 'bg-red-600 hover:bg-red-500 text-fg'
+                    : 'bg-accent hover:bg-accent-hover text-fg'
                 }`}
               >
                 {confirmState.options.confirmLabel || 'Confirm'}

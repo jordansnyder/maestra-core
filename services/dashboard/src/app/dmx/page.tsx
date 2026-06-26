@@ -453,15 +453,15 @@ export default function DMXPage() {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-slate-950">
-        <div className="text-slate-500 text-sm">Loading DMX configuration…</div>
+      <div className="flex-1 flex items-center justify-center bg-surface-0">
+        <div className="text-fg-subtle text-sm">Loading DMX configuration…</div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-slate-950">
+      <div className="flex-1 flex items-center justify-center bg-surface-0">
         <div className="text-red-400 text-sm">{error}</div>
       </div>
     )
@@ -470,23 +470,23 @@ export default function DMXPage() {
   // ── First-run gate: no Art-Net nodes configured ────────────────────────────
   if (nodes.length === 0) {
     return (
-      <div className="h-full flex flex-col bg-slate-950 overflow-hidden">
+      <div className="h-full flex flex-col bg-surface-0 overflow-hidden">
       <div className="flex-1 flex flex-col items-center justify-center gap-8 p-8">
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="w-16 h-16 rounded-full bg-amber-900/30 border border-amber-800/50 flex items-center justify-center">
             <Zap className="w-7 h-7 text-amber-400" />
           </div>
-          <h1 className="text-xl font-semibold text-white">Set Up DMX Lighting</h1>
-          <p className="text-slate-400 text-sm max-w-md">
+          <h1 className="text-xl font-semibold tracking-display text-fg">Set Up DMX Lighting</h1>
+          <p className="text-fg-muted text-sm max-w-md">
             Configure an Art-Net node (hardware DMX converter) to get started. Maestra will send DMX universe data
             to this device over your local network.
           </p>
         </div>
 
-        <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-xl p-6">
+        <div className="w-full max-w-xl bg-surface-0 border border-edge rounded-xl p-6">
           <div className="flex items-center gap-2 mb-5">
-            <Network className="w-4 h-4 text-blue-400" />
-            <h2 className="text-sm font-semibold text-white">Add Your First Art-Net Node</h2>
+            <Network className="w-4 h-4 text-accent" />
+            <h2 className="text-sm font-semibold text-fg">Add Your First Art-Net Node</h2>
           </div>
           <NodeSetupForm
             onSubmit={async (data: DMXNodeCreate) => { await createNode(data) }}
@@ -502,15 +502,15 @@ export default function DMXPage() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-3 md:px-4 py-2.5 bg-slate-900 border-b border-slate-800 shrink-0 gap-2">
+      <div className="flex items-center justify-between px-3 md:px-4 py-2.5 bg-surface-0 border-b border-edge shrink-0 gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <Zap className="w-4 h-4 text-amber-400 shrink-0" />
-          <span className="text-sm font-semibold text-white shrink-0">DMX Lighting</span>
-          <span className="text-xs text-slate-600 hidden sm:inline">
+          <span className="text-sm font-semibold text-fg shrink-0">DMX Lighting</span>
+          <span className="text-xs text-fg-subtle hidden sm:inline">
             {fixtures.length} fixture{fixtures.length !== 1 ? 's' : ''} · {nodes.length} node{nodes.length !== 1 ? 's' : ''}
           </span>
           {syncStatus && (
-            <span className="text-xs text-slate-600 ml-2 pl-2 border-l border-slate-800 hidden lg:inline">
+            <span className="text-xs text-fg-subtle ml-2 pl-2 border-l border-edge hidden lg:inline">
               OFL synced {formatRelativeTime(syncStatus.ran_at)}
             </span>
           )}
@@ -521,14 +521,14 @@ export default function DMXPage() {
           )}
 
           {/* DMX Pause / Resume / Clear */}
-          <div className="flex items-center rounded-lg overflow-hidden border border-slate-700">
+          <div className="flex items-center rounded-lg overflow-hidden border border-edge">
             <button
               onClick={handleTogglePause}
               disabled={pauseLoading}
               className={`flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
                 isPaused
                   ? 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30'
-                  : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                  : 'bg-surface-1 text-fg-muted hover:text-fg'
               }`}
             >
               {isPaused
@@ -540,7 +540,7 @@ export default function DMXPage() {
               <button
                 onClick={() => setShowClearConfirm(true)}
                 disabled={clearLoading}
-                className="flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 text-xs font-medium text-red-400 bg-slate-800 hover:bg-red-900/30 hover:text-red-300 transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 text-xs font-medium text-red-400 bg-surface-1 hover:bg-red-900/30 hover:text-red-300 transition-colors disabled:opacity-50"
               >
                 <Trash2 className="w-3 h-3" />
                 <span className="hidden sm:inline">Clear</span>
@@ -561,22 +561,22 @@ export default function DMXPage() {
             onClick={() => playbackApi.blackout().catch(() => {})}
             onDoubleClick={(e) => { e.preventDefault(); handleBlackoutAndPause() }}
             title="Blackout — double-click to blackout and pause"
-            className="flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-700 bg-slate-800 text-slate-400 hover:text-yellow-300 hover:border-yellow-700/50 hover:bg-yellow-900/20 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 text-xs font-medium rounded-lg border border-edge bg-surface-1 text-fg-muted hover:text-yellow-300 hover:border-yellow-700/50 hover:bg-yellow-900/20 transition-colors"
           >
             <ZapOff className="w-3 h-3" />
             <span className="hidden sm:inline">Blackout</span>
           </button>
 
           {/* Node scale picker — desktop only (no canvas on mobile) */}
-          <div className="hidden md:flex items-center rounded-lg overflow-hidden border border-slate-700">
+          <div className="hidden md:flex items-center rounded-lg overflow-hidden border border-edge">
             {NODE_SCALES.map((scale) => (
               <button
                 key={scale.label}
                 onClick={() => setScale(scale.diameter)}
                 className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
                   nodeDiameter === scale.diameter
-                    ? 'bg-slate-600 text-white'
-                    : 'bg-slate-800 text-slate-500 hover:text-slate-300'
+                    ? 'bg-surface-2 text-fg'
+                    : 'bg-surface-1 text-fg-subtle hover:text-fg'
                 }`}
               >
                 {scale.label}
@@ -680,12 +680,12 @@ export default function DMXPage() {
       {showAddNode && (
         <div className="modal-backdrop">
           <div className="modal-panel max-w-lg">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-edge">
               <div className="flex items-center gap-2">
-                <Network className="w-4 h-4 text-blue-400" />
-                <h2 className="text-sm font-semibold text-white">Add Art-Net Node</h2>
+                <Network className="w-4 h-4 text-accent" />
+                <h2 className="text-sm font-semibold text-fg">Add Art-Net Node</h2>
               </div>
-              <button onClick={() => setShowAddNode(false)} className="text-slate-500 hover:text-slate-300 transition-colors">
+              <button onClick={() => setShowAddNode(false)} className="text-fg-subtle hover:text-fg transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -706,14 +706,14 @@ export default function DMXPage() {
       {editingNode && (
         <div className="modal-backdrop">
           <div className="modal-panel max-w-lg">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-edge">
               <div className="flex items-center gap-2">
-                <Network className="w-4 h-4 text-blue-400" />
-                <h2 className="text-sm font-semibold text-white">Edit Art-Net Node</h2>
+                <Network className="w-4 h-4 text-accent" />
+                <h2 className="text-sm font-semibold text-fg">Edit Art-Net Node</h2>
               </div>
               <button
                 onClick={() => { setEditingNode(null); setConfirmDeleteNode(false); setDeleteNodeDevice(false) }}
-                className="text-slate-500 hover:text-slate-300 transition-colors"
+                className="text-fg-subtle hover:text-fg transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -732,18 +732,18 @@ export default function DMXPage() {
               {editingNode.device_id && (
                 <a
                   href={`/devices/${editingNode.device_id}`}
-                  className="mt-4 flex items-center justify-between w-full px-3 py-2 rounded-lg bg-blue-900/20 border border-blue-800/40 hover:bg-blue-900/30 transition-colors group"
+                  className="mt-4 flex items-center justify-between w-full px-3 py-2 rounded-lg bg-accent/20 border border-accent/40 hover:bg-accent/30 transition-colors group"
                 >
                   <div className="min-w-0">
-                    <div className="text-[9px] uppercase tracking-wider text-blue-600 font-medium">Linked Device</div>
-                    <div className="text-[10px] text-blue-400 font-mono truncate">{editingNode.device_id.slice(0, 8)}…</div>
+                    <div className="text-[9px] uppercase tracking-wider text-accent font-medium">Linked Device</div>
+                    <div className="text-[10px] text-accent font-mono truncate">{editingNode.device_id.slice(0, 8)}…</div>
                   </div>
-                  <Network className="w-3 h-3 text-blue-600 group-hover:text-blue-400 shrink-0 ml-2" />
+                  <Network className="w-3 h-3 text-accent group-hover:text-accent shrink-0 ml-2" />
                 </a>
               )}
 
               {/* Delete node */}
-              <div className="mt-5 pt-4 border-t border-slate-800">
+              <div className="mt-5 pt-4 border-t border-edge">
                 {!confirmDeleteNode ? (
                   <button
                     type="button"
@@ -751,7 +751,7 @@ export default function DMXPage() {
                       setConfirmDeleteNode(true)
                       setDeleteNodeDevice(!!editingNode.device_id)
                     }}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs text-slate-500 hover:text-red-400 hover:bg-red-900/20 border border-slate-800 hover:border-red-900/50 transition-colors"
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs text-fg-subtle hover:text-red-400 hover:bg-red-900/20 border border-edge hover:border-red-900/50 transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     Delete Node
@@ -780,7 +780,7 @@ export default function DMXPage() {
                                 onChange={(e) => setDeleteNodeDevice(e.target.checked)}
                                 className="w-3.5 h-3.5 rounded accent-red-500 shrink-0"
                               />
-                              <span className="text-xs text-slate-400">Also delete the linked device</span>
+                              <span className="text-xs text-fg-muted">Also delete the linked device</span>
                             </label>
                           )}
                         </>
@@ -790,7 +790,7 @@ export default function DMXPage() {
                       <button
                         type="button"
                         onClick={() => { setConfirmDeleteNode(false); setDeleteNodeDevice(false) }}
-                        className="flex-1 px-3 py-1.5 rounded-lg text-xs text-slate-400 bg-slate-800 hover:bg-slate-700 transition-colors"
+                        className="flex-1 px-3 py-1.5 rounded-lg text-xs text-fg-muted bg-surface-1 hover:bg-surface-2 transition-colors"
                       >
                         Cancel
                       </button>
@@ -812,7 +812,7 @@ export default function DMXPage() {
                             setConfirmDeleteNode(false)
                           }
                         }}
-                        className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-700 hover:bg-red-600 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-700 hover:bg-red-600 text-fg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         Delete Node
                       </button>
@@ -832,7 +832,7 @@ export default function DMXPage() {
           fixtures={fixtures}
           groups={groups}
           defaultPosition={{ x: 300 + fixtures.length * 30, y: 200 + fixtures.length * 20 }}
-          onSubmit={createFixture}
+          onSubmit={async (data) => { await createFixture(data) }}
           onClose={() => setShowAddFixture(false)}
         />
       )}
@@ -875,23 +875,23 @@ export default function DMXPage() {
       {deleteSequenceTarget && (
         <div className="modal-backdrop">
           <div className="modal-panel max-w-sm">
-            <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-edge">
               <div className="w-8 h-8 rounded-full bg-red-900/40 border border-red-800/50 flex items-center justify-center shrink-0">
                 <Trash2 className="w-4 h-4 text-red-400" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-white">Delete Sequence</h2>
-                <p className="text-xs text-slate-400 mt-0.5">Contains {deleteSequenceTarget.cue_placements.length} cue{deleteSequenceTarget.cue_placements.length !== 1 ? 's' : ''}</p>
+                <h2 className="text-sm font-semibold text-fg">Delete Sequence</h2>
+                <p className="text-xs text-fg-muted mt-0.5">Contains {deleteSequenceTarget.cue_placements.length} cue{deleteSequenceTarget.cue_placements.length !== 1 ? 's' : ''}</p>
               </div>
             </div>
             <div className="px-5 py-4">
-              <p className="text-sm text-slate-300">
-                Delete <span className="font-medium text-white">{deleteSequenceTarget.name}</span>? The cues inside will not be deleted, only removed from this sequence.
+              <p className="text-sm text-fg">
+                Delete <span className="font-medium text-fg">{deleteSequenceTarget.name}</span>? The cues inside will not be deleted, only removed from this sequence.
               </p>
             </div>
             <div className="flex gap-2 px-5 pb-5">
-              <button onClick={() => setDeleteSequenceTarget(null)} className="flex-1 px-3 py-2 rounded-lg text-xs text-slate-400 bg-slate-800 hover:bg-slate-700 transition-colors">Cancel</button>
-              <button onClick={() => handleDeleteSequence(deleteSequenceTarget.id)} className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-red-700 hover:bg-red-600 text-white transition-colors">Delete Sequence</button>
+              <button onClick={() => setDeleteSequenceTarget(null)} className="flex-1 px-3 py-2 rounded-lg text-xs text-fg-muted bg-surface-1 hover:bg-surface-2 transition-colors">Cancel</button>
+              <button onClick={() => handleDeleteSequence(deleteSequenceTarget.id)} className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-red-700 hover:bg-red-600 text-fg transition-colors">Delete Sequence</button>
             </div>
           </div>
         </div>
@@ -901,35 +901,35 @@ export default function DMXPage() {
       {showClearConfirm && (
         <div className="modal-backdrop">
           <div className="modal-panel max-w-sm">
-            <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-edge">
               <div className="w-8 h-8 rounded-full bg-red-900/40 border border-red-800/50 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-4 h-4 text-red-400" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-white">Clear All DMX Output</h2>
-                <p className="text-xs text-slate-400 mt-0.5">This will zero all channels</p>
+                <h2 className="text-sm font-semibold text-fg">Clear All DMX Output</h2>
+                <p className="text-xs text-fg-muted mt-0.5">This will zero all channels</p>
               </div>
             </div>
             <div className="px-5 py-4 space-y-3">
-              <p className="text-sm text-slate-300">
-                All DMX channel values for every configured fixture and universe will be set to <span className="font-medium text-white">0</span>.
+              <p className="text-sm text-fg">
+                All DMX channel values for every configured fixture and universe will be set to <span className="font-medium text-fg">0</span>.
                 This affects live hardware immediately.
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-fg-subtle">
                 You can restore values by using the Adjust DMX sliders or resuming external signals.
               </p>
             </div>
             <div className="flex gap-2 px-5 pb-5">
               <button
                 onClick={() => setShowClearConfirm(false)}
-                className="flex-1 px-3 py-2 rounded-lg text-xs text-slate-400 bg-slate-800 hover:bg-slate-700 transition-colors"
+                className="flex-1 px-3 py-2 rounded-lg text-xs text-fg-muted bg-surface-1 hover:bg-surface-2 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleClearDMX}
                 disabled={clearLoading}
-                className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-red-700 hover:bg-red-600 text-white transition-colors disabled:opacity-50"
+                className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-red-700 hover:bg-red-600 text-fg transition-colors disabled:opacity-50"
               >
                 {clearLoading ? 'Clearing…' : 'Clear All Channels'}
               </button>

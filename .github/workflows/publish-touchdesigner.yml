@@ -40,7 +40,7 @@ jobs:
             3. Set its file path to `build_maestra_tox.py` from the extracted folder
             4. Right-click the DAT → **Run Script**
 
-            See the [TouchDesigner integration guide](https://maestra.dev/docs/connect/touchdesigner/) for full setup instructions.
+            See the [TouchDesigner integration guide](https://maestra.cc/docs) for full setup instructions.
 
             ### Files included
             - `build_maestra_tox.py` — COMP builder script

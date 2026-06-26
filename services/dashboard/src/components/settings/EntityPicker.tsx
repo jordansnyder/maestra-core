@@ -55,7 +55,7 @@ export function EntityPicker({ value, onChange, className = '' }: EntityPickerPr
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="entity-slug"
-        className={`w-full bg-slate-900 border border-slate-600 focus:border-blue-500 rounded px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${className}`}
+        className={`w-full bg-surface-0 border border-edge-strong focus:border-accent rounded px-3 py-2 text-sm text-fg placeholder-fg-subtle focus:outline-none focus:ring-1 focus:ring-accent transition-colors ${className}`}
       />
     )
   }
@@ -83,48 +83,48 @@ export function EntityPicker({ value, onChange, className = '' }: EntityPickerPr
             setTimeout(() => inputRef.current?.focus(), 50)
           }
         }}
-        className="w-full flex items-center justify-between gap-2 bg-slate-900 border border-slate-600 hover:border-slate-500 focus:border-blue-500 rounded px-3 py-2 text-sm text-left focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+        className="w-full flex items-center justify-between gap-2 bg-surface-0 border border-edge-strong hover:border-edge-strong focus:border-accent rounded px-3 py-2 text-sm text-left focus:outline-none focus:ring-1 focus:ring-accent transition-colors"
       >
         {loading ? (
-          <span className="text-slate-500">Loading entities...</span>
+          <span className="text-fg-subtle">Loading entities...</span>
         ) : selected ? (
           <span className="flex items-center gap-2 min-w-0">
-            <span className="text-slate-200 truncate">{selected.name}</span>
+            <span className="text-fg truncate">{selected.name}</span>
             {selected.entity_type?.name && (
-              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 border border-slate-600">
+              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-fg-muted border border-edge-strong">
                 {selected.entity_type.name}
               </span>
             )}
-            <span className="shrink-0 text-xs text-slate-500 font-mono">{selected.slug}</span>
+            <span className="shrink-0 text-xs text-fg-subtle font-mono">{selected.slug}</span>
           </span>
         ) : value ? (
-          <span className="text-slate-300 font-mono text-xs">{value}</span>
+          <span className="text-fg font-mono text-xs">{value}</span>
         ) : (
-          <span className="text-slate-500">Select an entity...</span>
+          <span className="text-fg-subtle">Select an entity...</span>
         )}
-        <ChevronDown className={`w-4 h-4 shrink-0 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 shrink-0 text-fg-subtle transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute z-50 mt-1 w-full bg-slate-800 border border-slate-600 rounded-lg shadow-xl max-h-64 overflow-hidden flex flex-col">
+        <div className="absolute z-50 mt-1 w-full bg-surface-1 border border-edge-strong rounded-lg shadow-xl max-h-64 overflow-hidden flex flex-col">
           {/* Search input */}
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-700">
-            <Search className="w-4 h-4 text-slate-500 shrink-0" />
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-edge">
+            <Search className="w-4 h-4 text-fg-subtle shrink-0" />
             <input
               ref={inputRef}
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search entities..."
-              className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-500 focus:outline-none"
+              className="flex-1 bg-transparent text-sm text-fg placeholder-fg-subtle focus:outline-none"
             />
           </div>
 
           {/* Options list */}
           <div className="overflow-y-auto flex-1">
             {filtered.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-slate-500 text-center">
+              <div className="px-3 py-4 text-sm text-fg-subtle text-center">
                 No entities found
               </div>
             ) : (
@@ -136,17 +136,17 @@ export function EntityPicker({ value, onChange, className = '' }: EntityPickerPr
                     onChange(entity.slug)
                     setOpen(false)
                   }}
-                  className={`w-full text-left px-3 py-2 hover:bg-slate-700 transition-colors flex items-center gap-2 ${
-                    entity.slug === value ? 'bg-slate-700/50' : ''
+                  className={`w-full text-left px-3 py-2 hover:bg-surface-2 transition-colors flex items-center gap-2 ${
+                    entity.slug === value ? 'bg-surface-2/50' : ''
                   }`}
                 >
-                  <span className="text-sm text-slate-200 truncate">{entity.name}</span>
+                  <span className="text-sm text-fg truncate">{entity.name}</span>
                   {entity.entity_type?.name && (
-                    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-700">
+                    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-surface-0 text-fg-muted border border-edge">
                       {entity.entity_type.name}
                     </span>
                   )}
-                  <span className="ml-auto shrink-0 text-xs text-slate-500 font-mono">{entity.slug}</span>
+                  <span className="ml-auto shrink-0 text-xs text-fg-subtle font-mono">{entity.slug}</span>
                 </button>
               ))
             )}

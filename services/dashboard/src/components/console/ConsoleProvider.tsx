@@ -280,7 +280,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       ]
       try {
         const devices = await api.listDevices()
-        devices.forEach((d: Device) => {
+        devices.forEach((d) => {
           graphNodes.push({ id: d.id, label: d.name, type: 'device', activity: 0 })
         })
       } catch {

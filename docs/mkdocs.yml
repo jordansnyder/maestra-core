@@ -4,10 +4,26 @@ site_url: https://maestra.dev/docs
 
 theme:
   name: material
+  font:
+    text: Space Grotesk
+    code: JetBrains Mono
   palette:
-    - scheme: slate
-      primary: blue
-      accent: purple
+    # Light = the maestra.cc brand (warm paper / ink / red-orange accent)
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark theme
+    # Dark = the "sibling" theme (warm near-black base, same accent)
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to light theme
   features:
     - navigation.tabs
     - navigation.sections
@@ -15,6 +31,9 @@ theme:
     - search.highlight
     - content.code.copy
     - content.tabs.link
+
+extra_css:
+  - stylesheets/extra.css
 
 nav:
   - Home: index.md

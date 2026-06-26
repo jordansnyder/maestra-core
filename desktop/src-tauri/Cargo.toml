@@ -1,6 +1,6 @@
 [package]
 name = "maestra-desktop"
-version = "0.1.0"
+version = "0.2.0"
 description = "Maestra Desktop — one-click launcher for the Maestra creative platform"
 authors = ["Jordan Snyder"]
 edition = "2021"

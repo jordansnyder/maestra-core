@@ -16,7 +16,7 @@ export function SettingsPage() {
   const [tab, setTab] = useState<Tab>('general')
   const cloud = useCloudGateway(true, 15000)
 
-  const isConnected = cloud.config?.gateway_url && cloud.config.status !== 'disconnected'
+  const isConnected = !!(cloud.config?.gateway_url && cloud.config.status !== 'disconnected')
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">

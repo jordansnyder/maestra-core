@@ -832,7 +832,7 @@ export default function DMXPage() {
           fixtures={fixtures}
           groups={groups}
           defaultPosition={{ x: 300 + fixtures.length * 30, y: 200 + fixtures.length * 20 }}
-          onSubmit={createFixture}
+          onSubmit={async (data) => { await createFixture(data) }}
           onClose={() => setShowAddFixture(false)}
         />
       )}

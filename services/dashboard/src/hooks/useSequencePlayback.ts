@@ -121,7 +121,7 @@ export function useSequencePlayback() {
   useEffect(() => {
     const unsub = subscribeToWsMessages((msg) => {
       if (msg.subject !== 'maestra.dmx.playback.status') return
-      const data = msg.data
+      const data = msg.data as { type?: string; engines?: RawEngineStatus[] } | undefined
       if (!data || data.type !== 'playback_status' || !Array.isArray(data.engines)) return
 
       lastWsPushRef.current = Date.now()

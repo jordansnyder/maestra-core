@@ -24,7 +24,7 @@ export function DMXChannelPanel({ fixture, currentState, onStateChange }: DMXCha
     .map(([varName, mapping]) => ({
       varName,
       offset: mapping.offset,
-      label: (mapping as Record<string, unknown>)['label'] as string ?? varName,
+      label: mapping.label ?? varName,
       type: mapping.type,
     }))
     .sort((a, b) => a.offset - b.offset)

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react'
-import { subscribeToWsMessages, subscribeToWsConnection } from '@/hooks/useWebSocket'
+import { subscribeToWsMessages, subscribeToWsConnection, getWsConnected, sendWsMessage } from '@/hooks/useWebSocket'
 import type { WebSocketMessage } from '@/types'
 import type { Device } from '@/types'
 import { api, dmxApi } from '@/lib/api'
@@ -214,13 +214,15 @@ export function useConsole() {
 // --- Provider ---
 
 export function ConsoleProvider({ children }: { children: React.ReactNode }) {
-  const [isConnected, setIsConnected] = useState(false)
+  // Seed from the shared socket's CURRENT state: on client-side navigation the
+  // socket is usually already open, and no connection-change event will fire.
+  const [isConnected, setIsConnected] = useState(getWsConnected)
   const messagesRef = useRef<ConsoleMessage[]>([])
   const listenersRef = useRef<Set<() => void>>(new Set())
   const statsRef = useRef(new StatsTracker())
   const pausedRef = useRef(false)
   const pauseCountRef = useRef(0)
-  const wasConnectedRef = useRef(true)
+  const wasConnectedRef = useRef(getWsConnected())
 
   const [mode, setMode] = useState<ConsoleMode>('debug')
   const [simulate, setSimulate] = useState(false)
@@ -430,7 +432,21 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
 
       addMessage(msg)
     })
+    return unsubscribe
   }, [addMessage])
+
+  // The console wants the full firehose. Other pages register narrow gateway
+  // subscriptions on the shared socket (which ends the "no subscriptions =
+  // everything" default), so subscribe explicitly to all Maestra subjects
+  // while the console is mounted, and remove the pattern on unmount.
+  useEffect(() => {
+    if (getWsConnected()) {
+      sendWsMessage({ type: 'subscribe', subject: 'maestra.>' })
+    }
+    return () => {
+      sendWsMessage({ type: 'unsubscribe', subject: 'maestra.>' })
+    }
+  }, [])
 
   // Track connection state changes for divider rows (via direct callback)
   useEffect(() => {
@@ -438,6 +454,11 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = subscribeToWsConnection((connected: boolean) => {
       console.log('[ConsoleProvider] Connection state changed:', connected)
       setIsConnected(connected)
+      if (connected) {
+        // (Re)establish the firehose subscription on every (re)connect —
+        // gateway subscriptions don't survive a socket reconnect.
+        sendWsMessage({ type: 'subscribe', subject: 'maestra.>' })
+      }
       if (connected && !wasConnectedRef.current) {
         addMessage({
           id: generateId(),
@@ -465,6 +486,7 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
       }
       wasConnectedRef.current = connected
     })
+    return unsubscribe
   }, [addMessage])
 
   // Pause/unpause handler

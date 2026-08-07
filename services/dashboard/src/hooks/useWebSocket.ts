@@ -213,6 +213,21 @@ export function subscribeToWsMessages(cb: MsgListener): () => void {
   return unsub
 }
 
+/**
+ * Current connection state of the shared socket. Consumers using the direct
+ * callbacks must read this on mount — subscribeToWsConnection only fires on
+ * CHANGES, so a socket that connected before the consumer mounted would
+ * otherwise be reported as disconnected forever.
+ */
+export function getWsConnected(): boolean {
+  return wsManager?.connected ?? false
+}
+
+/** Send on the shared socket without going through the React hook. */
+export function sendWsMessage(data: unknown): void {
+  wsManager?.send(data)
+}
+
 export function subscribeToWsConnection(cb: ConnListener): () => void {
   if (!wsManager) {
     console.warn('[subscribeToWsConnection] wsManager is null (SSR or not on browser)')

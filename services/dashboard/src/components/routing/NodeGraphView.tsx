@@ -179,7 +179,7 @@ export function NodeGraphView({ devices, routes, onAddRoute, onRemoveRoute, init
 
       {/* Zoom indicator */}
       {zoom !== 1 && (
-        <div className="absolute top-4 right-4 z-10 text-[10px] font-mono text-fg-subtle bg-[#12121f] rounded px-2 py-0.5 border border-edge">
+        <div className="absolute top-4 right-4 z-10 text-[10px] font-mono text-fg-subtle bg-surface-1 rounded px-2 py-0.5 border border-edge">
           {Math.round(zoom * 100)}%
         </div>
       )}
@@ -190,7 +190,7 @@ export function NodeGraphView({ devices, routes, onAddRoute, onRemoveRoute, init
         <svg className="absolute inset-0 w-full h-full pointer-events-none">
           <defs>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ffffff06" strokeWidth="1" />
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgb(var(--text-primary) / 0.04)" strokeWidth="1" />
             </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#grid)" />
@@ -224,8 +224,8 @@ export function NodeGraphView({ devices, routes, onAddRoute, onRemoveRoute, init
             style={{
               left: pos.x,
               top: pos.y,
-              background: isSelected ? '#1a1a2e' : '#12121f',
-              border: `1px solid ${isSelected ? device.color : '#2a2a3a'}`,
+              background: isSelected ? 'rgb(var(--surface-2))' : 'rgb(var(--surface-1))',
+              border: `1px solid ${isSelected ? device.color : 'rgb(var(--border))'}`,
               cursor: dragging === device.id ? 'grabbing' : 'grab',
               boxShadow: isSelected ? `0 0 20px ${device.color}20, 0 4px 12px #00000060` : '0 2px 8px #00000040',
               zIndex: dragging === device.id ? 100 : isSelected ? 50 : 10,

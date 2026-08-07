@@ -7,7 +7,7 @@ interface StatusBadgeProps {
 const statusConfig = {
   online: { color: 'bg-green-500', text: 'Online', textColor: 'text-green-400' },
   healthy: { color: 'bg-green-500', text: 'Healthy', textColor: 'text-green-400' },
-  offline: { color: 'bg-gray-500', text: 'Offline', textColor: 'text-gray-400' },
+  offline: { color: 'bg-fg-subtle', text: 'Offline', textColor: 'text-fg-subtle' },
   error: { color: 'bg-red-500', text: 'Error', textColor: 'text-red-400' },
   unhealthy: { color: 'bg-red-500', text: 'Unhealthy', textColor: 'text-red-400' },
   maintenance: { color: 'bg-yellow-500', text: 'Maintenance', textColor: 'text-yellow-400' },

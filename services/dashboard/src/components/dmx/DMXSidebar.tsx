@@ -652,7 +652,7 @@ export function DMXSidebar({
                         key={c}
                         onClick={() => setNewGroupColor(c)}
                         className="w-5 h-5 rounded-full border-2 transition-all"
-                        style={{ background: c, borderColor: newGroupColor === c ? '#ffffff' : 'transparent' }}
+                        style={{ background: c, borderColor: newGroupColor === c ? 'rgb(var(--text-primary))' : 'transparent' }}
                       />
                     ))}
                   </div>
@@ -745,7 +745,7 @@ export function DMXSidebar({
                                   key={c}
                                   onClick={() => setRenamingGroupColor(c)}
                                   className="w-4 h-4 rounded-full border-2 transition-all"
-                                  style={{ background: c, borderColor: renamingGroupColor === c ? '#ffffff' : 'transparent' }}
+                                  style={{ background: c, borderColor: renamingGroupColor === c ? 'rgb(var(--text-primary))' : 'transparent' }}
                                 />
                               ))}
                             </div>

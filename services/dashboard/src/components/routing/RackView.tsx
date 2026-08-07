@@ -32,7 +32,7 @@ export function RackView({ devices, routes }: RackViewProps) {
         {Object.entries(typeGroups).map(([type, devices]) => (
           <div
             key={type}
-            className="bg-[#0d0d18] border border-edge rounded-xl p-4 min-w-[200px] flex-[0_1_280px]"
+            className="bg-surface-1 border border-edge rounded-xl p-4 min-w-[200px] flex-[0_1_280px]"
           >
             <div
               className="text-[11px] font-mono tracking-[1.5px] mb-3 font-semibold"
@@ -48,7 +48,7 @@ export function RackView({ devices, routes }: RackViewProps) {
               return (
                 <div
                   key={device.id}
-                  className="bg-[#12121f] rounded-lg p-3 mb-2"
+                  className="bg-surface-2 rounded-lg p-3 mb-2"
                   style={{
                     border: `1px solid ${device.color}20`,
                     borderLeft: `3px solid ${device.color}`,

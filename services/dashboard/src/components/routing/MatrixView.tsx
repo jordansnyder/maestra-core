@@ -24,12 +24,18 @@ export function MatrixView({ devices, routes, onAddRoute, onRemoveRoute }: Matri
     }
   }
 
+  // Theme-aware cell surfaces (inline styles because hover resets must match)
+  const CELL_BG = 'rgb(var(--surface-1))'
+  const CELL_BG_INCOMPATIBLE = 'rgb(var(--surface-0))'
+  const CELL_BORDER = 'rgb(var(--border))'
+  const CELL_BORDER_INCOMPATIBLE = 'rgb(var(--border) / 0.4)'
+
   return (
     <div className="w-full h-full overflow-auto p-5">
       <div className="inline-block min-w-fit">
         {/* Column headers */}
         <div className="flex mb-0.5">
-          <div className="w-40 min-w-[160px] h-[120px] flex items-end justify-end pr-3 pb-2 sticky left-0 z-10 bg-[#09090f]">
+          <div className="w-40 min-w-[160px] h-[120px] flex items-end justify-end pr-3 pb-2 sticky left-0 z-10 bg-surface-0">
             <div className="text-[10px] text-fg-subtle font-mono text-right">
               <div>OUTPUTS &rarr;</div>
               <div>&darr; INPUTS</div>
@@ -50,7 +56,7 @@ export function MatrixView({ devices, routes, onAddRoute, onRemoveRoute }: Matri
         {/* Row entries */}
         {inputs.map((inp, row) => (
           <div key={`r-${row}`} className="flex mb-px">
-            <div className="w-40 min-w-[160px] h-9 flex items-center justify-end pr-3 gap-1.5 sticky left-0 z-10 bg-[#09090f]">
+            <div className="w-40 min-w-[160px] h-9 flex items-center justify-end pr-3 gap-1.5 sticky left-0 z-10 bg-surface-0">
               <span className="text-[9px] text-fg-subtle font-mono text-right overflow-hidden text-ellipsis whitespace-nowrap">
                 {inp.device.name.split(' ').pop()} / {inp.port}
               </span>
@@ -72,12 +78,12 @@ export function MatrixView({ devices, routes, onAddRoute, onRemoveRoute }: Matri
                   onClick={() => compatible && toggleRoute(out, inp)}
                   className="w-9 min-w-[36px] h-9 flex items-center justify-center rounded-[3px] mr-px transition-all duration-150"
                   style={{
-                    background: active ? `${sigColor}20` : compatible ? '#14141f' : '#0a0a12',
-                    border: `1px solid ${active ? sigColor : compatible ? '#1e1e30' : '#111118'}`,
+                    background: active ? `${sigColor}20` : compatible ? CELL_BG : CELL_BG_INCOMPATIBLE,
+                    border: `1px solid ${active ? sigColor : compatible ? CELL_BORDER : CELL_BORDER_INCOMPATIBLE}`,
                     cursor: compatible ? 'pointer' : 'not-allowed',
                   }}
                   onMouseEnter={(e) => { if (compatible && !active) (e.currentTarget as HTMLElement).style.background = `${sigColor}10` }}
-                  onMouseLeave={(e) => { if (compatible && !active) (e.currentTarget as HTMLElement).style.background = '#14141f' }}
+                  onMouseLeave={(e) => { if (compatible && !active) (e.currentTarget as HTMLElement).style.background = CELL_BG }}
                 >
                   {active && (
                     <div

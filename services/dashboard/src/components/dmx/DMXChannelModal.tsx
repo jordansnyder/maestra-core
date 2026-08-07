@@ -501,7 +501,7 @@ export function DMXChannelModal({ fixtures, onClose, onDMXChannelChange }: DMXCh
                           width: 28,
                           height: 160,
                           cursor: 'pointer',
-                          accentColor: '#3b82f6',
+                          accentColor: 'rgb(var(--accent))',
                         }}
                       />
                     </div>

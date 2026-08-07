@@ -126,6 +126,10 @@ demo: ## Start Maestra with demo data (recommended for first-time users)
 	@echo ""
 	@echo "⏳ Waiting for services to initialize..."
 	@sleep 8
+	@./scripts/migrate.sh
+	@echo ""
+	@echo "🔁 Restarting Fleet Manager so demo playback picks up seeded data..."
+	@DEMO_MODE=true $(DOCKER_COMPOSE) restart fleet-manager > /dev/null 2>&1 || true
 	@echo ""
 	@echo "✅ Maestra is ready!"
 	@echo ""
@@ -135,7 +139,8 @@ demo: ## Start Maestra with demo data (recommended for first-time users)
 	@echo "  📡 API Docs       http://localhost:8080/docs"
 	@echo "  📖 Documentation  http://localhost:8000"
 	@echo ""
-	@echo "  Demo data is pre-loaded. Open the Dashboard to start exploring!"
+	@echo "  Demo data is pre-loaded and a demo light show is looping —"
+	@echo "  open the Dashboard and visit the DMX Lighting page to watch it."
 	@echo ""
 
 seed-demo: ## Seed demo data into an existing database

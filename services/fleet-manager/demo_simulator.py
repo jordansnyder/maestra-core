@@ -7,7 +7,7 @@ Activated when DEMO_MODE=true (checked in main.py startup).
 Three concurrent loops run at different cadences:
   1. Metrics loop  (every 10s)  — realistic device metrics with smooth drift
   2. Events loop   (every 30s)  — random operational events
-  3. Entity loop   (every 60s)  — entity state updates broadcast via NATS
+  3. Entity loop   (every 8s)   — entity state updates broadcast via NATS
 
 All data is written to PostgreSQL (via async SQLAlchemy) and published to
 NATS so both the REST API and the real-time dashboard stay in sync.
@@ -297,12 +297,13 @@ class DemoSimulator:
         })
 
     # ------------------------------------------------------------------
-    # Loop 3: Entity State Updates (every 60 seconds)
+    # Loop 3: Entity State Updates (every 8 seconds)
     # ------------------------------------------------------------------
 
     async def _entity_loop(self) -> None:
-        """Drift entity state and broadcast changes every 60 seconds."""
-        logger.info("Demo entity loop started (interval=60s)")
+        """Drift entity state and broadcast changes every 8 seconds — fast
+        enough that the Live Activity feed and Console visibly breathe."""
+        logger.info("Demo entity loop started (interval=8s)")
         while self.running:
             try:
                 await self._update_entity_states()
@@ -310,7 +311,7 @@ class DemoSimulator:
                 break
             except Exception:
                 logger.exception("Error in demo entity loop")
-            await asyncio.sleep(60)
+            await asyncio.sleep(8)
 
     async def _update_entity_states(self) -> None:
         async with async_session_maker() as session:

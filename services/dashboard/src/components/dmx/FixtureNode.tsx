@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { DMXFixture } from '@/lib/types'
+import { EntityLiveState } from '@/hooks/useDMXActivity'
 
 export type GroupMode = 'in-group' | 'eligible' | 'ineligible'
 
@@ -15,10 +16,88 @@ interface FixtureNodeProps {
   multiSelectable: boolean
   dragging: boolean
   isActive: boolean
+  liveState?: EntityLiveState
   onMouseDown: (e: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent) => void
   onClick: (shiftKey: boolean) => void
   onDoubleClick?: () => void
+}
+
+const DIMMER_RE = /dimmer|intensity|master|brightness/i
+const RED_RE = /red/i
+const GREEN_RE = /green/i
+const BLUE_RE = /blue/i
+const PAN_RE = /^pan|_pan/i
+const TILT_RE = /^tilt|_tilt/i
+
+/** Normalize a channel value to 0–1 (values > 1 are legacy 0–255 DMX ints). */
+function norm(v: unknown): number | null {
+  if (typeof v !== 'number' || Number.isNaN(v)) return null
+  const n = v > 1 ? v / 255 : v
+  return Math.min(1, Math.max(0, n))
+}
+
+interface LiveRender {
+  /** CSS color of the fixture's current output (hue only, not dimmed). */
+  color: string
+  /** 0–1 overall output level driving fill alpha and glow size. */
+  intensity: number
+  panOffset: number
+  tiltOffset: number
+}
+
+/**
+ * Derive the fixture's live look from its entity state. Channel roles are
+ * matched by name against the channel_map keys (falling back to the state
+ * keys for fixtures without a map). Returns null when there is no usable
+ * live data, in which case the static universe styling renders.
+ */
+function computeLiveRender(
+  liveState: EntityLiveState | undefined,
+  channelMap: Record<string, unknown> | undefined,
+): LiveRender | null {
+  if (!liveState) return null
+  const mapKeys = Object.keys(channelMap ?? {})
+  const keys = mapKeys.length > 0 ? mapKeys.filter((k) => k in liveState) : Object.keys(liveState)
+  if (keys.length === 0) return null
+
+  const valueOf = (re: RegExp): number | null => {
+    const key = keys.find((k) => re.test(k))
+    return key ? norm(liveState[key]) : null
+  }
+
+  const r = valueOf(RED_RE)
+  const g = valueOf(GREEN_RE)
+  const b = valueOf(BLUE_RE)
+  const dimmer = valueOf(DIMMER_RE)
+  const pan = valueOf(PAN_RE)
+  const tilt = valueOf(TILT_RE)
+
+  const hasColor = r !== null || g !== null || b !== null
+  const colorMax = Math.max(r ?? 0, g ?? 0, b ?? 0)
+
+  let intensity: number | null
+  if (dimmer !== null) {
+    // Color mixing without a lit dimmer still previews faintly at zero
+    intensity = hasColor ? dimmer * Math.max(colorMax, 0.15) : dimmer
+  } else if (hasColor) {
+    intensity = colorMax
+  } else {
+    const numeric = keys.map((k) => norm(liveState[k])).filter((v): v is number => v !== null)
+    intensity = numeric.length > 0 ? Math.max(...numeric) : null
+  }
+  if (intensity === null) return null
+
+  const color = hasColor
+    ? `rgb(${Math.round((r ?? 0) * 255)}, ${Math.round((g ?? 0) * 255)}, ${Math.round((b ?? 0) * 255)})`
+    : 'rgb(255, 214, 150)' // plain dimmers render as warm tungsten
+
+  return {
+    color,
+    intensity,
+    panOffset: pan !== null ? pan - 0.5 : 0,
+    tiltOffset: tilt !== null ? tilt - 0.5 : 0,
+  }
 }
 
 export function FixtureNode({
@@ -31,6 +110,7 @@ export function FixtureNode({
   multiSelectable,
   dragging,
   isActive,
+  liveState,
   onMouseDown,
   onContextMenu,
   onClick,
@@ -44,6 +124,20 @@ export function FixtureNode({
   const radius = Math.round(diameter / 2)
   const dotSize = Math.round(diameter * 0.24)
   const dotOffset = Math.round(-diameter * 0.07)
+
+  const live = useMemo(
+    () => computeLiveRender(liveState, fixture.channel_map),
+    [liveState, fixture.channel_map],
+  )
+  const lit = live !== null && live.intensity > 0.02 && groupMode !== 'ineligible'
+  const liveRgba = (alpha: number) =>
+    live!.color.replace('rgb(', 'rgba(').replace(')', `, ${alpha.toFixed(2)})`)
+  const liveGlow = lit
+    ? `, 0 0 ${Math.round(6 + 22 * live!.intensity)}px ${liveRgba(0.25 + 0.6 * live!.intensity)}`
+    : ''
+  const liveFill = lit
+    ? `radial-gradient(circle at 35% 35%, ${liveRgba(0.3 + 0.6 * live!.intensity)}, #0f172a)`
+    : null
 
   return (
     <div
@@ -68,7 +162,7 @@ export function FixtureNode({
         style={{
           width: diameter,
           height: diameter,
-          boxShadow: groupMode === 'in-group'
+          boxShadow: (groupMode === 'in-group'
             ? `0 0 0 2.5px ${groupColor ?? color}, 0 0 14px ${groupColor ?? color}99`
             : groupMode === 'eligible'
             ? `0 0 0 1.5px ${color}44`
@@ -78,8 +172,8 @@ export function FixtureNode({
             ? `0 0 0 1.5px ${color}66`
             : hovered
             ? `0 0 0 1.5px ${color}cc`
-            : `0 0 0 1px ${color}55`,
-          background: groupMode === 'in-group'
+            : `0 0 0 1px ${color}55`) + liveGlow,
+          background: liveFill ?? (groupMode === 'in-group'
             ? `radial-gradient(circle at 35% 35%, ${groupColor ?? color}44, #1a2535)`
             : groupMode === 'eligible'
             ? `radial-gradient(circle at 35% 35%, ${color}15, #0d1117)`
@@ -89,7 +183,7 @@ export function FixtureNode({
             ? `radial-gradient(circle at 35% 35%, ${color}2a, #131d2e)`
             : hovered
             ? `radial-gradient(circle at 35% 35%, ${color}33, #131d2e)`
-            : `radial-gradient(circle at 35% 35%, ${color}22, #0f172a)`,
+            : `radial-gradient(circle at 35% 35%, ${color}22, #0f172a)`),
           transition: 'box-shadow 0.15s, background 0.15s',
         }}
       >
@@ -155,7 +249,8 @@ export function FixtureNode({
           />
         )}
 
-        {/* Universe color inner circle */}
+        {/* Inner circle — universe identity when idle, live beam when lit.
+            Pan/tilt (when mapped) offsets the beam so moving heads visibly sweep. */}
         <div
           className="absolute rounded-full"
           style={{
@@ -163,9 +258,14 @@ export function FixtureNode({
             height: Math.round(diameter * 0.38),
             top: '50%',
             left: '50%',
-            transform: 'translate(-50%, -50%)',
-            background: `${color}55`,
-            boxShadow: `0 0 0 1px ${color}33`,
+            transform: lit
+              ? `translate(calc(-50% + ${(live!.panOffset * diameter * 0.28).toFixed(1)}px), calc(-50% + ${(live!.tiltOffset * diameter * 0.28).toFixed(1)}px))`
+              : 'translate(-50%, -50%)',
+            background: lit ? liveRgba(0.55 + 0.45 * live!.intensity) : `${color}55`,
+            boxShadow: lit
+              ? `0 0 ${Math.round(3 + 8 * live!.intensity)}px ${liveRgba(0.5)}`
+              : `0 0 0 1px ${color}33`,
+            transition: 'transform 0.12s linear, background 0.12s linear, box-shadow 0.12s linear',
           }}
         />
 

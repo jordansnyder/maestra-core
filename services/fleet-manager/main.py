@@ -409,6 +409,28 @@ async def submit_events_batch(
 # STARTUP & SHUTDOWN
 # =============================================================================
 
+# Seeded by config/postgres/migrations/022_demo_dmx_rig.sql
+DEMO_SEQUENCE_ID = "dd000000-0000-0000-0000-000000000301"
+
+
+async def _autoplay_demo_sequence():
+    """In demo mode, loop the seeded DMX sequence so the stage is moving on first open."""
+    from database import async_session_maker
+    try:
+        async with async_session_maker() as session:
+            row = (await session.execute(
+                text("SELECT group_id FROM dmx_sequences WHERE id = CAST(:id AS uuid)"),
+                {"id": DEMO_SEQUENCE_ID},
+            )).fetchone()
+        if not row:
+            return
+        group_id = str(row.group_id) if row.group_id else None
+        if await engine_registry.get(group_id).play(DEMO_SEQUENCE_ID, loop=True):
+            print("🎭 Demo DMX sequence looping (Evening Loop)")
+    except Exception as exc:
+        print(f"⚠️ Demo DMX autoplay skipped: {exc}")
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize connections on startup"""
@@ -558,6 +580,8 @@ async def startup_event():
     if os.getenv("DEMO_MODE", "").lower() == "true" and state_manager.nc:
         await demo_simulator.start(state_manager.nc)
         print("🎭 Demo simulator active — generating live sample data")
+        if db_ok:
+            await _autoplay_demo_sequence()
 
     print("✅ Fleet Manager ready!")
 

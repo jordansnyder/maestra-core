@@ -51,7 +51,7 @@ export function DMXCanvas({
   onAdjustDMX,
   onPositionsChange,
 }: DMXCanvasProps) {
-  const activeEntityIds = useDMXActivity()
+  const { activeIds: activeEntityIds, liveStates } = useDMXActivity()
   const containerRef = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState<string | null>(null)
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({})
@@ -264,6 +264,7 @@ export function DMXCanvas({
             multiSelectable={multiSelectGroup.has(fixture.id) && !selectedIds.has(fixture.id)}
             dragging={dragging === fixture.id}
             isActive={!!fixture.entity_id && activeEntityIds.has(fixture.entity_id)}
+            liveState={fixture.entity_id ? liveStates.get(fixture.entity_id) : undefined}
             onMouseDown={(e) => handleMouseDown(e, fixture.id)}
             onContextMenu={(e) => handleContextMenu(e, fixture.id)}
             onClick={(shiftKey) => {

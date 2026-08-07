@@ -12,9 +12,13 @@ Maestra is a Docker-based platform that links your creative tools -- TouchDesign
 git clone https://github.com/maestra/maestra-core.git
 cd maestra-core
 make init       # Set up environment
-make up         # Start all services
+make demo       # Start everything with live demo data
 # Open http://localhost:3001 for the Dashboard
 ```
+
+`make demo` starts the full stack pre-loaded with sample devices, entities, 24 hours of metrics, and a virtual DMX lighting rig running a looping light show — no hardware required. Open the **DMX Lighting** page to watch cues crossfade live, or the **Console** page for an ambient visualization of the message bus.
+
+For a clean start without demo data, use `make up` instead.
 
 > **Prerequisites:** Docker Desktop (4.0+) and Git. See the [Installation Guide](docs/docs/getting-started/installation.md) for details.
 

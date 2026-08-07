@@ -8,6 +8,19 @@ Get your Maestra infrastructure running in **5 minutes**.
 - Docker Compose 2.0+
 - 8GB RAM minimum
 
+## 🎭 Fastest Start: Demo Mode (recommended)
+
+Want to see Maestra alive immediately — with sample devices, live telemetry, and a virtual DMX light show looping — without connecting any hardware?
+
+```bash
+make init
+make demo
+```
+
+Then open http://localhost:3001 and visit the **DMX Lighting** page (cues crossfading on a virtual rig) and the **Console** page (ambient message-bus visualization). Demo traffic is generated continuously while `DEMO_MODE=true`.
+
+When you're ready for a clean production-style setup, follow the steps below with `make up` instead.
+
 ## 🚀 Quick Start (3 Steps)
 
 ### 1. Setup Environment
